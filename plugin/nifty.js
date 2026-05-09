@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
 import { tool } from "@opencode-ai/plugin"
@@ -41,7 +41,11 @@ async function readTokenCache() {
 
 async function writeTokenCache(token) {
   await mkdir(dirname(TOKEN_PATH), { recursive: true })
-  await writeFile(TOKEN_PATH, `${JSON.stringify(token, null, 2)}\n`, "utf8")
+  await writeFile(TOKEN_PATH, `${JSON.stringify(token, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  })
+  await chmod(TOKEN_PATH, 0o600).catch(() => {})
 }
 
 function isTokenUsable(token) {
@@ -73,7 +77,10 @@ async function requestToken(body) {
     body: JSON.stringify(body),
   })
 
-  const payload = await parseResponse(response)
+  const payload = await parseResponse(response, {
+    method: "POST",
+    path: "/oauth/token",
+  })
   const token = {
     access_token: payload.access_token,
     refresh_token: payload.refresh_token,
@@ -161,7 +168,7 @@ function startBackgroundAuthorizationServer(host, port) {
   const redirectURI = getLocalRedirectURI(host, port)
   const script = `
     import { createServer } from "node:http";
-    import { writeFile, mkdir } from "node:fs/promises";
+    import { chmod, writeFile, mkdir } from "node:fs/promises";
     import { dirname } from "node:path";
     import { homedir } from "node:os";
 
@@ -229,7 +236,8 @@ function startBackgroundAuthorizationServer(host, port) {
         const token = JSON.parse(text);
         token.expires_at = Date.now() + Number(token.expires_in || 0) * 1000;
         await mkdir(dirname(tokenPath), { recursive: true });
-        await writeFile(tokenPath, JSON.stringify(token, null, 2) + "\\n", "utf8");
+        await writeFile(tokenPath, JSON.stringify(token, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+        await chmod(tokenPath, 0o600).catch(() => {});
 
         response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         response.end(html("Nifty connected", "You can close this tab and return to OpenCode."));
@@ -289,7 +297,7 @@ async function getAccessToken() {
   )
 }
 
-async function parseResponse(response) {
+async function parseResponse(response, context = {}) {
   const text = await response.text()
   const contentType = response.headers.get("content-type") || ""
   const isJSON = contentType.includes("application/json")
@@ -297,10 +305,28 @@ async function parseResponse(response) {
 
   if (!response.ok) {
     const detail = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)
-    throw new Error(`Nifty API ${response.status} ${response.statusText}: ${detail}`)
+    const request = context.method && context.path ? ` ${context.method} ${context.path}` : ""
+    throw new Error(`Nifty API ${response.status} ${response.statusText}${request}: ${detail}`)
   }
 
   return payload
+}
+
+function appendQueryParams(url, query) {
+  if (!query) return url
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === "") continue
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        url.searchParams.append(key, String(item))
+      }
+      continue
+    }
+    url.searchParams.set(key, String(value))
+  }
+
+  return url
 }
 
 function cleanObject(input) {
@@ -337,29 +363,33 @@ function getWorkflowAliasMap(config) {
     : {}
 }
 
-async function fetchProjects(limit = 100, offset = 0) {
+async function fetchProjects(limit = 100, offset = 0, archived) {
   const response = await niftyRequest("/api/v1.0/projects", {
-    query: {
+    query: cleanObject({
+      archived: archived === undefined ? undefined : String(archived),
       limit,
       offset,
       sort: "ascending",
-    },
+    }),
   })
   return response.projects || response.items || []
 }
 
-async function fetchAllProjects() {
+async function fetchAllProjects(options = {}) {
   const items = []
-  let offset = 0
+  const archivedModes = options.includeArchived ? [false, true] : [options.archived]
 
-  while (true) {
-    const batch = await fetchProjects(100, offset)
-    items.push(...batch)
-    if (batch.length < 100) break
-    offset += batch.length
+  for (const archived of archivedModes) {
+    let offset = 0
+    while (true) {
+      const batch = await fetchProjects(100, offset, archived)
+      items.push(...batch)
+      if (batch.length < 100) break
+      offset += batch.length
+    }
   }
 
-  return items
+  return Array.from(new Map(items.map((item) => [item.id, item])).values())
 }
 
 async function fetchStatuses(projectID, archived = false) {
@@ -474,6 +504,21 @@ function summarizeTask(task, statusesByID = new Map()) {
   }
 }
 
+function filterTasksByStatus(tasks, statusID) {
+  if (!statusID) return tasks
+  return tasks.filter((task) => getTaskStatusID(task) === statusID)
+}
+
+function findMatchingProjects(projects, query) {
+  const wanted = normalize(query)
+  if (!wanted) return []
+  return projects.filter((project) =>
+    [project.id, project.name, project.nice_id]
+      .filter(Boolean)
+      .some((value) => normalize(value).includes(wanted)),
+  )
+}
+
 function renderSection(title, value) {
   if (!value) return []
   return [`## ${title}`, String(value).trim(), ""]
@@ -526,23 +571,75 @@ function ensureWorkflow(workflow, alias) {
   }
 }
 
+async function validateWorkflows(options = {}) {
+  const config = await readWorkflowConfig()
+  const workflows = getWorkflowAliasMap(config)
+  const projects = await fetchAllProjects({ includeArchived: options.includeArchived })
+  const defaultAlias = defaultWorkflowAlias()
+  const aliases = Object.keys(workflows)
+  const results = []
+
+  for (const [alias, workflow] of Object.entries(workflows)) {
+    const selector = workflow?.project?.id || workflow?.project?.name || workflow?.project?.nice_id || workflow?.project
+    const project = projects.find((item) => projectMatches(item, selector))
+    const errors = []
+    const warnings = []
+    const states = workflow?.states || workflow?.statuses || {}
+    let statuses = []
+
+    if (!selector) {
+      errors.push("project selector is missing")
+    }
+
+    if (!project) {
+      errors.push(`project not found: ${selector || "<missing>"}`)
+    } else {
+      try {
+        statuses = await fetchAllStatuses(project.id)
+      } catch (error) {
+        errors.push(`status lookup failed: ${error.message}`)
+      }
+    }
+
+    for (const [stateKey, statusName] of Object.entries(states)) {
+      if (!statuses.some((status) => statusMatches(status, statusName))) {
+        errors.push(`state '${stateKey}' status not found: ${statusName}`)
+      }
+    }
+
+    if (!states.backlog) warnings.push("state 'backlog' is not configured")
+    if (!states.ready) warnings.push("state 'ready' is not configured")
+
+    results.push({
+      alias,
+      default: alias === defaultAlias,
+      ok: errors.length === 0,
+      project_selector: selector || null,
+      project: project
+        ? { id: project.id, name: project.name, nice_id: project.nice_id, archived: project.archived }
+        : null,
+      states,
+      statuses: statuses.map((status) => ({ id: status.id, name: status.name })),
+      errors,
+      warnings,
+    })
+  }
+
+  return {
+    ok: results.every((item) => item.ok) && (!defaultAlias || aliases.includes(defaultAlias)),
+    config_path: configPath(),
+    default_workflow: defaultAlias || null,
+    default_workflow_found: defaultAlias ? aliases.includes(defaultAlias) : null,
+    workflows: results,
+  }
+}
+
 async function niftyRequest(path, options = {}) {
   const token = await getAccessToken()
   const { query, body, headers, ...rest } = options
   const url = new URL(path, API_BASE_URL)
-
-  if (query) {
-    for (const [key, value] of Object.entries(query)) {
-      if (value === undefined || value === null || value === "") continue
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          url.searchParams.append(key, String(item))
-        }
-        continue
-      }
-      url.searchParams.set(key, String(value))
-    }
-  }
+  appendQueryParams(url, query)
+  const method = rest.method || "GET"
 
   const response = await fetch(url, {
     ...rest,
@@ -554,12 +651,29 @@ async function niftyRequest(path, options = {}) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
 
-  return parseResponse(response)
+  return parseResponse(response, {
+    method,
+    path: `${url.pathname}${url.search}`,
+  })
 }
 
 function json(value) {
   if (value === undefined) return "OK"
   return JSON.stringify(value, null, 2)
+}
+
+export const __test = {
+  appendQueryParams,
+  buildTaskDescription,
+  filterTasksByStatus,
+  findMatchingProjects,
+  getTaskProjectID,
+  getTaskStatusID,
+  isTokenUsable,
+  normalize,
+  projectMatches,
+  statusMatches,
+  summarizeTask,
 }
 
 export const NiftyPlugin = async () => {
@@ -710,6 +824,31 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_find_project: tool({
+        description: "Searches Nifty projects by name, nice ID, or project ID",
+        args: {
+          query: tool.schema.string().describe("Project search text, nice ID, or project ID"),
+          include_archived: tool.schema.boolean().optional().describe("Include archived projects"),
+          limit: tool.schema.number().int().min(1).max(100).optional().describe("Maximum matches to return"),
+        },
+        async execute(args) {
+          const projects = await fetchAllProjects({ includeArchived: args.include_archived })
+          const matches = findMatchingProjects(projects, args.query).slice(0, args.limit || 25)
+
+          return json({
+            query: args.query,
+            count: matches.length,
+            projects: matches.map((project) => ({
+              id: project.id,
+              nice_id: project.nice_id,
+              name: project.name,
+              archived: project.archived,
+              subteam: project.subteam,
+            })),
+          })
+        },
+      }),
+
       nifty_list_members: tool({
         description: "Lists Nifty workspace members",
         args: {},
@@ -772,6 +911,59 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_validate_workflows: tool({
+        description: "Validates workflow aliases against real Nifty projects and statuses",
+        args: {
+          include_archived: tool.schema.boolean().optional().describe("Include archived projects when resolving aliases"),
+        },
+        async execute(args) {
+          const result = await validateWorkflows({ includeArchived: args.include_archived })
+          return json(result)
+        },
+      }),
+
+      nifty_health_check: tool({
+        description: "Checks Nifty credentials, token access, workflow config, and default workflow readiness",
+        args: {},
+        async execute() {
+          const config = getClientConfig()
+          const cached = await readTokenCache()
+          const checks = {
+            credentials: {
+              client_id: Boolean(config.clientID),
+              client_secret: Boolean(config.clientSecret),
+              authorize_url: Boolean(config.authorizeURL),
+              access_token_override: Boolean(config.accessToken),
+              refresh_token_available: Boolean(config.refreshToken || cached?.refresh_token),
+              cached_access_token_usable: isTokenUsable(cached),
+            },
+            api: { ok: false, error: null },
+            workflows: null,
+          }
+
+          try {
+            await niftyRequest("/api/v1.0/users/me")
+            checks.api.ok = true
+          } catch (error) {
+            checks.api.error = error.message
+          }
+
+          try {
+            checks.workflows = await validateWorkflows()
+          } catch (error) {
+            checks.workflows = { ok: false, error: error.message }
+          }
+
+          return json({
+            ok: checks.api.ok && checks.workflows?.ok !== false,
+            token_cache: TOKEN_PATH,
+            workflow_config: configPath(),
+            default_workflow: defaultWorkflowAlias() || null,
+            checks,
+          })
+        },
+      }),
+
       nifty_list_workflow_tasks: tool({
         description: "Lists tasks for a configured workflow alias and optional state name",
         args: {
@@ -816,7 +1008,9 @@ export const NiftyPlugin = async () => {
               nice_id: resolved.project.nice_id,
             },
             status: status ? { id: status.id, name: status.name } : null,
-            tasks: result.tasks.map((task) => summarizeTask(task, result.statusesByID)),
+            tasks: filterTasksByStatus(result.tasks, status?.id).map((task) =>
+              summarizeTask(task, result.statusesByID),
+            ),
             has_more: result.hasMore,
           })
         },

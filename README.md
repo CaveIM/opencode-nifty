@@ -126,6 +126,9 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 
 - `nifty_auth_localhost_start`
 - `nifty_auth_localhost_login`
+- `nifty_health_check`
+- `nifty_validate_workflows`
+- `nifty_find_project`
 - `nifty_list_workflows`
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
@@ -135,9 +138,33 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 ## Example Prompts
 
 - `run nifty_list_workflows`
+- `run nifty_health_check`
+- `run nifty_validate_workflows`
+- `run nifty_find_project with query Addons`
 - `run nifty_list_workflow_tasks with state_key backlog`
 - `run nifty_capture_backlog_item with name Add retry handling`
 - `run nifty_prepare_task_for_delivery with task_id <id> state_key ready`
 - `run nifty_move_task_to_status with task_id <id> state_key in_progress`
 
 If `NIFTY_DEFAULT_WORKFLOW` is not set, provide `workflow_alias` explicitly.
+
+## Updating Existing Installs
+
+Run:
+
+```bash
+git pull
+./scripts/update.sh
+```
+
+The installer copies the latest plugin into the target OpenCode config and merges any missing example workflow aliases into the existing workflow config without overwriting local edits.
+
+## Validation
+
+Before opening a pull request or after changing the plugin, run:
+
+```bash
+npm run lint
+npm run format:check
+npm test
+```

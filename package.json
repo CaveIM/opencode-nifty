@@ -2,6 +2,11 @@
   "name": "opencode-nifty-kit",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "node scripts/lint.mjs",
+    "format:check": "node scripts/format-check.mjs"
+  },
   "dependencies": {
     "@opencode-ai/plugin": "1.4.3"
   }
