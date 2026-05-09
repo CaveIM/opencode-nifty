@@ -1,0 +1,27 @@
+{
+  "workflows": {
+    "addons": {
+      "project": {
+        "name": "Addons"
+      },
+      "states": {
+        "backlog": "Backlog",
+        "ready": "To Do",
+        "in_progress": "In Progress",
+        "review": "Review"
+      }
+    },
+    "development": {
+      "project": {
+        "nice_id": "DEV"
+      },
+      "states": {
+        "backlog": "Backlog",
+        "ready": "Ready",
+        "in_progress": "In Progress",
+        "review": "Review",
+        "done": "Done"
+      }
+    }
+  }
+}
