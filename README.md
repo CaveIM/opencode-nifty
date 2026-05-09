@@ -110,8 +110,21 @@ Example config:
 5. Set `NIFTY_DEFAULT_WORKFLOW` per container when one container is focused on one Nifty project.
 6. Use `workflow_alias` explicitly when one container needs to operate across multiple projects.
 
+## First-Time Auth
+
+In containerized OpenCode sessions, use the non-blocking auth helper:
+
+```text
+run nifty_auth_localhost_start
+```
+
+It starts the callback server in the background and immediately returns the browser URL.
+
+If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the container to the host.
+
 ## Tools You’ll Use Most
 
+- `nifty_auth_localhost_start`
 - `nifty_auth_localhost_login`
 - `nifty_list_workflows`
 - `nifty_list_workflow_tasks`
