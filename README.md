@@ -95,11 +95,16 @@ Example config:
         "ready": "To Do",
         "in_progress": "In Progress",
         "review": "Review"
+      },
+      "lists": {
+        "current": "Current"
       }
     }
   }
 }
 ```
+
+Nifty lists are represented by the API as milestones with `is_list=true`. Add optional `lists` aliases when a project needs another planning level beyond status.
 
 ## Typical Multi-Project Pattern
 
@@ -129,9 +134,14 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_health_check`
 - `nifty_validate_workflows`
 - `nifty_find_project`
+- `nifty_list_milestones`
+- `nifty_create_milestone`
+- `nifty_update_milestone_tasks`
+- `nifty_list_labels`
 - `nifty_list_workflows`
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
+- `nifty_batch_capture_backlog_items`
 - `nifty_prepare_task_for_delivery`
 - `nifty_move_task_to_status`
 
@@ -142,7 +152,9 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `run nifty_validate_workflows`
 - `run nifty_find_project with query Addons`
 - `run nifty_list_workflow_tasks with state_key backlog`
+- `run nifty_list_workflow_tasks with state_key backlog and list_key current`
 - `run nifty_capture_backlog_item with name Add retry handling`
+- `run nifty_batch_capture_backlog_items with dry_run true`
 - `run nifty_prepare_task_for_delivery with task_id <id> state_key ready`
 - `run nifty_move_task_to_status with task_id <id> state_key in_progress`
 

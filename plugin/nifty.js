@@ -3,6 +3,7 @@ import { dirname, join } from "node:path"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
+import { randomBytes } from "node:crypto"
 import { tool } from "@opencode-ai/plugin"
 
 const API_BASE_URL = "https://openapi.niftypm.com"
@@ -97,7 +98,7 @@ function getLocalRedirectURI(host, port) {
   return `http://${host}:${port}/callback`
 }
 
-function getAuthorizeURL(host, port) {
+function getAuthorizeURL(host, port, state) {
   const config = getClientConfig()
   if (!config.authorizeURL) {
     throw new Error("Missing NIFTY_AUTHORIZE_URL.")
@@ -105,10 +106,27 @@ function getAuthorizeURL(host, port) {
 
   const url = new URL(config.authorizeURL)
   url.searchParams.set("redirect_uri", getLocalRedirectURI(host, port))
+  if (state) url.searchParams.set("state", state)
   return url.toString()
 }
 
-async function waitForAuthorizationCode(host, port, signal) {
+function createOAuthState() {
+  return randomBytes(16).toString("hex")
+}
+
+async function assertPortAvailable(host, port) {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.once("error", (error) => {
+      reject(new Error(`Unable to start localhost auth server on ${host}:${port}: ${error.message}`))
+    })
+    server.listen(port, host, () => {
+      server.close(() => resolve())
+    })
+  })
+}
+
+async function waitForAuthorizationCode(host, port, signal, expectedState) {
   return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
       try {
@@ -121,6 +139,7 @@ async function waitForAuthorizationCode(host, port, signal) {
 
         const error = requestURL.searchParams.get("error")
         const code = requestURL.searchParams.get("code")
+        const state = requestURL.searchParams.get("state")
 
         if (error) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
@@ -133,6 +152,14 @@ async function waitForAuthorizationCode(host, port, signal) {
         if (!code) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
           response.end("<h1>Missing code</h1><p>You can close this tab.</p>")
+          return
+        }
+
+        if (expectedState && state !== expectedState) {
+          response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
+          response.end("<h1>Invalid OAuth state</h1><p>You can close this tab.</p>")
+          server.close()
+          reject(new Error("Nifty authorization failed: OAuth state mismatch."))
           return
         }
 
@@ -164,7 +191,7 @@ async function waitForAuthorizationCode(host, port, signal) {
   })
 }
 
-function startBackgroundAuthorizationServer(host, port) {
+function startBackgroundAuthorizationServer(host, port, state) {
   const redirectURI = getLocalRedirectURI(host, port)
   const script = `
     import { createServer } from "node:http";
@@ -176,6 +203,7 @@ function startBackgroundAuthorizationServer(host, port) {
     const port = Number(process.env.NIFTY_AUTH_PORT || "8787");
     const redirectURI = process.env.NIFTY_REDIRECT_URI || \`http://\${host}:\${port}/callback\`;
     const tokenPath = process.env.NIFTY_TOKEN_PATH || homedir() + "/.config/opencode/nifty-auth.json";
+    const expectedState = process.env.NIFTY_AUTH_STATE;
 
     function html(title, body) {
       return \`<!doctype html><html><head><title>\${title}</title></head><body><h1>\${title}</h1><p>\${body}</p></body></html>\`;
@@ -192,6 +220,7 @@ function startBackgroundAuthorizationServer(host, port) {
 
         const error = requestURL.searchParams.get("error");
         const code = requestURL.searchParams.get("code");
+        const state = requestURL.searchParams.get("state");
 
         if (error) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
@@ -203,6 +232,13 @@ function startBackgroundAuthorizationServer(host, port) {
         if (!code) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           response.end(html("Missing authorization code", "Nifty did not include a code in the callback URL."));
+          return;
+        }
+
+        if (expectedState && state !== expectedState) {
+          response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          response.end(html("Invalid OAuth state", "The callback state did not match. Retry auth from OpenCode."));
+          server.close(() => process.exit(1));
           return;
         }
 
@@ -260,6 +296,7 @@ function startBackgroundAuthorizationServer(host, port) {
       ...process.env,
       NIFTY_AUTH_HOST: host,
       NIFTY_AUTH_PORT: String(port),
+      NIFTY_AUTH_STATE: state,
       NIFTY_REDIRECT_URI: redirectURI,
       NIFTY_TOKEN_PATH: TOKEN_PATH,
     },
@@ -406,6 +443,36 @@ async function fetchAllStatuses(projectID) {
   return fetchStatuses(projectID, false)
 }
 
+async function fetchMilestones(projectID, options = {}) {
+  const response = await niftyRequest("/api/v1.0/milestones", {
+    query: cleanObject({
+      project_id: projectID,
+      is_list: options.isList === undefined ? undefined : String(options.isList),
+      limit: options.limit || 100,
+      offset: options.offset || 0,
+      sort: options.sort || "ascending",
+    }),
+  })
+  return {
+    items: response.items || response.milestones || [],
+    hasMore: Boolean(response.hasMore || response.has_more),
+  }
+}
+
+async function fetchAllMilestones(projectID, options = {}) {
+  const items = []
+  let offset = 0
+
+  while (true) {
+    const response = await fetchMilestones(projectID, { ...options, limit: 100, offset })
+    items.push(...response.items)
+    if (!response.hasMore || response.items.length < 100) break
+    offset += response.items.length
+  }
+
+  return items
+}
+
 function projectMatches(project, selector) {
   const wanted = normalize(selector)
   if (!wanted) return false
@@ -445,6 +512,38 @@ function statusMatches(status, selector) {
   return [status.id, status.name]
     .filter(Boolean)
     .some((value) => normalize(value) === wanted)
+}
+
+function milestoneMatches(milestone, selector) {
+  const wanted = normalize(selector)
+  if (!wanted) return false
+  return [milestone.id, milestone.name]
+    .filter(Boolean)
+    .some((value) => normalize(value) === wanted)
+}
+
+async function resolveMilestoneSelector(projectID, input = {}) {
+  if (!input.milestone_id && !input.milestone_name && !input.list_key && !input.list_name) {
+    return undefined
+  }
+
+  const milestones = await fetchAllMilestones(projectID, {
+    isList: input.isList,
+  })
+  const workflowLists = input.workflow?.lists || input.workflow?.milestones || {}
+  const listName = input.list_key ? workflowLists[input.list_key] : input.list_name
+  const selector = input.milestone_id || input.milestone_name || listName
+
+  if (!selector) {
+    throw new Error(`Workflow list '${input.list_key}' is not configured.`)
+  }
+
+  const milestone = milestones.find((item) => milestoneMatches(item, selector))
+  if (!milestone) {
+    throw new Error(`Unable to resolve milestone/list '${selector}' for project ${projectID}.`)
+  }
+
+  return milestone
 }
 
 async function resolveStatusSelector(projectID, input = {}) {
@@ -585,7 +684,9 @@ async function validateWorkflows(options = {}) {
     const errors = []
     const warnings = []
     const states = workflow?.states || workflow?.statuses || {}
+    const lists = workflow?.lists || workflow?.milestones || {}
     let statuses = []
+    let milestones = []
 
     if (!selector) {
       errors.push("project selector is missing")
@@ -596,14 +697,21 @@ async function validateWorkflows(options = {}) {
     } else {
       try {
         statuses = await fetchAllStatuses(project.id)
+        milestones = await fetchAllMilestones(project.id)
       } catch (error) {
-        errors.push(`status lookup failed: ${error.message}`)
+        errors.push(`project metadata lookup failed: ${error.message}`)
       }
     }
 
     for (const [stateKey, statusName] of Object.entries(states)) {
       if (!statuses.some((status) => statusMatches(status, statusName))) {
         errors.push(`state '${stateKey}' status not found: ${statusName}`)
+      }
+    }
+
+    for (const [listKey, listName] of Object.entries(lists)) {
+      if (!milestones.some((milestone) => milestoneMatches(milestone, listName))) {
+        errors.push(`list '${listKey}' milestone/list not found: ${listName}`)
       }
     }
 
@@ -619,7 +727,13 @@ async function validateWorkflows(options = {}) {
         ? { id: project.id, name: project.name, nice_id: project.nice_id, archived: project.archived }
         : null,
       states,
+      lists,
       statuses: statuses.map((status) => ({ id: status.id, name: status.name })),
+      milestones: milestones.map((milestone) => ({
+        id: milestone.id,
+        name: milestone.name,
+        is_list: milestone.is_list,
+      })),
       errors,
       warnings,
     })
@@ -670,6 +784,7 @@ export const __test = {
   getTaskProjectID,
   getTaskStatusID,
   isTokenUsable,
+  milestoneMatches,
   normalize,
   projectMatches,
   statusMatches,
@@ -738,7 +853,9 @@ export const NiftyPlugin = async () => {
           port: tool.schema.number().int().min(1).max(65535).default(8787).describe("Local port to listen on"),
         },
         async execute(args, context) {
-          const authorizeURL = getAuthorizeURL(args.host, args.port)
+          await assertPortAvailable(args.host, args.port)
+          const state = createOAuthState()
+          const authorizeURL = getAuthorizeURL(args.host, args.port, state)
           const redirectURI = getLocalRedirectURI(args.host, args.port)
 
           context.metadata({
@@ -749,7 +866,7 @@ export const NiftyPlugin = async () => {
             },
           })
 
-          const code = await waitForAuthorizationCode(args.host, args.port, context.abort)
+          const code = await waitForAuthorizationCode(args.host, args.port, context.abort, state)
           const token = await requestToken({
             grant_type: "authorization_code",
             code,
@@ -778,8 +895,10 @@ export const NiftyPlugin = async () => {
           port: tool.schema.number().int().min(1).max(65535).default(8787).describe("Local port to listen on"),
         },
         async execute(args) {
-          const authorizeURL = getAuthorizeURL(args.host, args.port)
-          const redirectURI = startBackgroundAuthorizationServer(args.host, args.port)
+          await assertPortAvailable(args.host, args.port)
+          const state = createOAuthState()
+          const authorizeURL = getAuthorizeURL(args.host, args.port, state)
+          const redirectURI = startBackgroundAuthorizationServer(args.host, args.port, state)
 
           return [
             "Open this URL in your browser to finish connecting Nifty:",
@@ -878,6 +997,164 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_list_milestones: tool({
+        description: "Lists Nifty milestones or lists for a project",
+        args: {
+          project_id: tool.schema.string().describe("Project ID"),
+          is_list: tool.schema.boolean().optional().describe("Only return Nifty lists when true, milestones when false"),
+          limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
+          offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
+          sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/milestones", {
+            query: cleanObject({
+              project_id: args.project_id,
+              is_list: args.is_list === undefined ? undefined : String(args.is_list),
+              limit: args.limit || 100,
+              offset: args.offset || 0,
+              sort: args.sort || "ascending",
+            }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_get_milestone: tool({
+        description: "Gets a Nifty milestone or list by ID",
+        args: {
+          milestone_id: tool.schema.string().describe("Milestone or list ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/milestones/${encodeURIComponent(args.milestone_id)}`)
+          return json(response)
+        },
+      }),
+
+      nifty_create_milestone: tool({
+        description: "Creates a Nifty milestone or list",
+        args: {
+          project_id: tool.schema.string().describe("Project ID"),
+          name: tool.schema.string().describe("Milestone/list name"),
+          description: tool.schema.string().optional().describe("Milestone/list description"),
+          is_list: tool.schema.boolean().optional().describe("Create as Nifty list"),
+          task_group_id: tool.schema.string().optional().describe("Task group/status ID"),
+          start: tool.schema.string().optional().describe("Start date, ISO format"),
+          end: tool.schema.string().optional().describe("End date, ISO format"),
+          dependency: tool.schema.string().optional().describe("Dependency milestone ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/milestones", {
+            method: "POST",
+            body: cleanObject({
+              project_id: args.project_id,
+              name: args.name,
+              description: args.description || "",
+              is_list: args.is_list,
+              task_group_id: args.task_group_id,
+              start: args.start,
+              end: args.end,
+              dependency: args.dependency,
+            }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_update_milestone: tool({
+        description: "Updates a Nifty milestone or list",
+        args: {
+          milestone_id: tool.schema.string().describe("Milestone or list ID"),
+          name: tool.schema.string().optional().describe("Milestone/list name"),
+          description: tool.schema.string().optional().describe("Milestone/list description"),
+          is_list: tool.schema.boolean().optional().describe("Whether this is a Nifty list"),
+          start: tool.schema.string().optional().describe("Start date, ISO format"),
+          end: tool.schema.string().optional().describe("End date, ISO format"),
+          dependency: tool.schema.string().optional().describe("Dependency milestone ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/milestones/${encodeURIComponent(args.milestone_id)}`, {
+            method: "PUT",
+            body: cleanObject({
+              name: args.name,
+              description: args.description,
+              is_list: args.is_list,
+              start: args.start,
+              end: args.end,
+              dependency: args.dependency,
+            }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_update_milestone_tasks: tool({
+        description: "Adds or removes tasks from a Nifty milestone/list",
+        args: {
+          milestone_id: tool.schema.string().describe("Milestone or list ID"),
+          task_ids: tool.schema.array(tool.schema.string()).describe("Task IDs to add or remove"),
+          mode: tool.schema.enum(["add", "remove"]).describe("Whether to add or remove tasks"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/milestones/${encodeURIComponent(args.milestone_id)}/tasks`, {
+            method: args.mode === "add" ? "PUT" : "DELETE",
+            body: { tasks: args.task_ids },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_list_labels: tool({
+        description: "Lists Nifty labels/tags",
+        args: {
+          type: tool.schema.number().int().optional().describe("0 for task labels, 1 for member labels"),
+          limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
+          offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/labels", {
+            query: cleanObject({
+              type: args.type,
+              limit: args.limit || 100,
+              offset: args.offset || 0,
+            }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_create_label: tool({
+        description: "Creates a Nifty label/tag",
+        args: {
+          name: tool.schema.string().describe("Label name"),
+          color: tool.schema.string().describe("Hex color, for example #4A90D9"),
+          type: tool.schema.number().int().optional().describe("0 for task labels, 1 for member labels"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/labels", {
+            method: "POST",
+            body: cleanObject({ name: args.name, color: args.color, type: args.type }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_update_label: tool({
+        description: "Updates a Nifty label/tag",
+        args: {
+          label_id: tool.schema.string().describe("Label ID"),
+          name: tool.schema.string().describe("Label name"),
+          color: tool.schema.string().describe("Hex color, for example #E74C3C"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/labels/${encodeURIComponent(args.label_id)}`, {
+            method: "PUT",
+            body: { name: args.name, color: args.color },
+          })
+          return json(response)
+        },
+      }),
+
       nifty_list_workflows: tool({
         description: "Lists configured Nifty workflow aliases and resolved projects",
         args: {},
@@ -901,6 +1178,7 @@ export const NiftyPlugin = async () => {
               project_name: project?.name || null,
               project_nice_id: project?.nice_id || null,
               states: workflow?.states || workflow?.statuses || {},
+              lists: workflow?.lists || workflow?.milestones || {},
             }
           })
 
@@ -970,6 +1248,9 @@ export const NiftyPlugin = async () => {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
           state_key: tool.schema.string().optional().describe("Configured state key such as backlog or ready"),
           status_name: tool.schema.string().optional().describe("Raw status name override, for example Backlog or Ready"),
+          list_key: tool.schema.string().optional().describe("Configured workflow list key"),
+          list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
+          milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
           include_completed: tool.schema.boolean().optional().describe("Include completed tasks"),
           include_subtasks: tool.schema.boolean().optional().describe("Include subtasks in the response"),
           limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
@@ -984,11 +1265,18 @@ export const NiftyPlugin = async () => {
             state_key: args.state_key,
             status_name: args.status_name,
           })
+          const milestone = await resolveMilestoneSelector(resolved.project.id, {
+            workflow: resolved.workflow,
+            list_key: args.list_key,
+            list_name: args.list_name,
+            milestone_id: args.milestone_id,
+          })
 
           const result = await listTasksWithStatusNames(
             cleanObject({
               project_id: resolved.project.id,
               task_group_id: status?.id,
+              milestone_id: milestone?.id,
               completed:
                 args.include_completed === undefined ? undefined : String(args.include_completed),
               include_subtasks:
@@ -1008,6 +1296,7 @@ export const NiftyPlugin = async () => {
               nice_id: resolved.project.nice_id,
             },
             status: status ? { id: status.id, name: status.name } : null,
+            milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
             tasks: filterTasksByStatus(result.tasks, status?.id).map((task) =>
               summarizeTask(task, result.statusesByID),
             ),
@@ -1030,6 +1319,9 @@ export const NiftyPlugin = async () => {
           checklist: tool.schema.array(tool.schema.string()).optional().describe("Execution checklist"),
           state_key: tool.schema.string().optional().describe("Workflow state key, defaults to backlog"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
+          list_key: tool.schema.string().optional().describe("Configured workflow list key"),
+          list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
+          milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
           due_date: tool.schema.string().optional().describe("Due date, ISO format"),
@@ -1045,6 +1337,12 @@ export const NiftyPlugin = async () => {
             state_key: args.state_key || "backlog",
             status_name: args.status_name,
           })
+          const milestone = await resolveMilestoneSelector(resolved.project.id, {
+            workflow: resolved.workflow,
+            list_key: args.list_key,
+            list_name: args.list_name,
+            milestone_id: args.milestone_id,
+          })
 
           const description = buildTaskDescription(args)
           const response = await niftyRequest("/api/v1.0/tasks", {
@@ -1052,6 +1350,7 @@ export const NiftyPlugin = async () => {
             body: cleanObject({
               name: args.name,
               task_group_id: status.id,
+              milestone_id: milestone?.id,
               description,
               due_date: args.due_date,
               start_date: args.start_date,
@@ -1068,7 +1367,89 @@ export const NiftyPlugin = async () => {
               name: resolved.project.name,
             },
             status: { id: status.id, name: status.name },
+            milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
             task: response,
+          })
+        },
+      }),
+
+      nifty_batch_capture_backlog_items: tool({
+        description: "Creates multiple standardized workflow backlog items, with dry-run support",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          state_key: tool.schema.string().optional().describe("Workflow state key, defaults to backlog"),
+          status_name: tool.schema.string().optional().describe("Raw status name override"),
+          list_key: tool.schema.string().optional().describe("Configured workflow list key"),
+          list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
+          milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
+          dry_run: tool.schema.boolean().optional().describe("Return planned creates without writing to Nifty"),
+          items: tool.schema.array(tool.schema.object({
+            name: tool.schema.string(),
+            summary: tool.schema.string().optional(),
+            problem: tool.schema.string().optional(),
+            desired_outcome: tool.schema.string().optional(),
+            acceptance_criteria: tool.schema.array(tool.schema.string()).optional(),
+            implementation_notes: tool.schema.array(tool.schema.string()).optional(),
+            open_questions: tool.schema.array(tool.schema.string()).optional(),
+            checklist: tool.schema.array(tool.schema.string()).optional(),
+            assignee_ids: tool.schema.array(tool.schema.string()).optional(),
+            label_ids: tool.schema.array(tool.schema.string()).optional(),
+            due_date: tool.schema.string().optional(),
+            start_date: tool.schema.string().optional(),
+            story_points: tool.schema.number().optional(),
+          })).describe("Items to create"),
+        },
+        async execute(args) {
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias })
+          ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias())
+
+          const status = await resolveStatusSelector(resolved.project.id, {
+            workflow: resolved.workflow,
+            state_key: args.state_key || "backlog",
+            status_name: args.status_name,
+          })
+          const milestone = await resolveMilestoneSelector(resolved.project.id, {
+            workflow: resolved.workflow,
+            list_key: args.list_key,
+            list_name: args.list_name,
+            milestone_id: args.milestone_id,
+          })
+
+          const planned = args.items.map((item) => ({
+            name: item.name,
+            task_group_id: status.id,
+            milestone_id: milestone?.id,
+            description: buildTaskDescription(item),
+            due_date: item.due_date,
+            start_date: item.start_date,
+            assignees: item.assignee_ids,
+            labels: item.label_ids,
+            story_points: item.story_points,
+          })).map(cleanObject)
+
+          if (args.dry_run) {
+            return json({
+              dry_run: true,
+              workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+              project: { id: resolved.project.id, name: resolved.project.name },
+              status: { id: status.id, name: status.name },
+              milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
+              planned,
+            })
+          }
+
+          const created = []
+          for (const body of planned) {
+            created.push(await niftyRequest("/api/v1.0/tasks", { method: "POST", body }))
+          }
+
+          return json({
+            dry_run: false,
+            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+            project: { id: resolved.project.id, name: resolved.project.name },
+            status: { id: status.id, name: status.name },
+            milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
+            created,
           })
         },
       }),
@@ -1326,6 +1707,9 @@ export const NiftyPlugin = async () => {
           reminder: tool.schema.string().optional().describe("Reminder value"),
           state_key: tool.schema.string().optional().describe("Configured state key to move into after update"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
+          list_key: tool.schema.string().optional().describe("Configured workflow list key"),
+          list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
+          milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
           comment: tool.schema.string().optional().describe("Optional note to append as a task comment"),
         },
         async execute(args) {
@@ -1348,6 +1732,12 @@ export const NiftyPlugin = async () => {
             state_key: args.state_key,
             status_name: args.status_name,
           })
+          const milestone = await resolveMilestoneSelector(resolved.project.id, {
+            workflow: resolved.workflow,
+            list_key: args.list_key,
+            list_name: args.list_name,
+            milestone_id: args.milestone_id,
+          })
 
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
@@ -1355,6 +1745,7 @@ export const NiftyPlugin = async () => {
               name: args.name,
               description,
               task_group_id: targetStatus?.id,
+              milestone_id: milestone?.id,
               due_date: args.due_date,
               start_date: args.start_date,
               reminder: args.reminder,
@@ -1381,6 +1772,7 @@ export const NiftyPlugin = async () => {
             target_status: targetStatus
               ? { id: targetStatus.id, name: targetStatus.name }
               : null,
+            milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
             response,
           })
         },

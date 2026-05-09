@@ -23,6 +23,14 @@ test("matches statuses by id or name", () => {
   assert.equal(__test.statusMatches(status, "review"), false)
 })
 
+test("matches milestones and lists by id or name", () => {
+  const milestone = { id: "m1", name: "Phase One" }
+
+  assert.equal(__test.milestoneMatches(milestone, "m1"), true)
+  assert.equal(__test.milestoneMatches(milestone, "phase one"), true)
+  assert.equal(__test.milestoneMatches(milestone, "phase"), false)
+})
+
 test("renders structured task descriptions", () => {
   const description = __test.buildTaskDescription({
     summary: "Add retries",

@@ -60,6 +60,10 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
       })
     }
 
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+
     if (requestURL.pathname === "/api/v1.0/tasks") {
       return Response.json({
         tasks: [
@@ -82,4 +86,56 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
   const parsed = JSON.parse(output)
 
   assert.deepEqual(parsed.tasks.map((task) => task.id), ["1"])
+})
+
+test("nifty_batch_capture_backlog_items dry-run plans standardized creates", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-batch-"))
+  const configPath = join(dir, "workflows.json")
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      workflows: {
+        addons: {
+          project: { name: "Addons" },
+          states: { backlog: "Backlog" },
+          lists: { sprint: "Sprint 1" },
+        },
+      },
+    }),
+    "utf8",
+  )
+  process.env.NIFTY_WORKFLOW_CONFIG = configPath
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Addons", nice_id: "ADD" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "Backlog" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [{ id: "m1", name: "Sprint 1", is_list: true }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_batch_capture_backlog_items.execute(
+    {
+      workflow_alias: "addons",
+      list_key: "sprint",
+      dry_run: true,
+      items: [{ name: "Add batch capture", summary: "Capture multiple ideas" }],
+    },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.dry_run, true)
+  assert.equal(parsed.planned[0].task_group_id, "s1")
+  assert.equal(parsed.planned[0].milestone_id, "m1")
+  assert.match(parsed.planned[0].description, /Capture multiple ideas/)
 })

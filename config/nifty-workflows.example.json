@@ -9,6 +9,9 @@
         "ready": "To Do",
         "in_progress": "In Progress",
         "review": "Review"
+      },
+      "lists": {
+        "current": "Current"
       }
     },
     "development": {
