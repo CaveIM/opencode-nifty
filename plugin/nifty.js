@@ -1,5 +1,6 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
+import { existsSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
@@ -381,6 +382,12 @@ function normalize(value) {
 }
 
 function configPath() {
+  const projectConfigPath = join(process.cwd(), "nifty-workflows.json")
+
+  if (existsSync(projectConfigPath)) {
+    return projectConfigPath
+  }
+
   return env("NIFTY_WORKFLOW_CONFIG") || WORKFLOW_CONFIG_PATH
 }
 
