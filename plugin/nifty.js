@@ -381,19 +381,22 @@ function normalize(value) {
     .trim()
 }
 
-function configPath() {
-  const projectConfigPath = join(process.cwd(), "nifty-workflows.json")
+function configPath(context = {}) {
+  const configuredPath = env("NIFTY_WORKFLOW_CONFIG")
+  if (configuredPath) return configuredPath
 
-  if (existsSync(projectConfigPath)) {
-    return projectConfigPath
-  }
+  const candidates = [context.directory, context.worktree, process.cwd()]
+    .filter(Boolean)
+    .map((directory) => join(directory, "nifty-workflows.json"))
+  const uniqueCandidates = [...new Set(candidates)]
+  const projectConfigPath = uniqueCandidates.find((candidate) => existsSync(candidate))
 
-  return env("NIFTY_WORKFLOW_CONFIG") || WORKFLOW_CONFIG_PATH
+  return projectConfigPath || WORKFLOW_CONFIG_PATH
 }
 
-async function readWorkflowConfig() {
+async function readWorkflowConfig(context = {}) {
   try {
-    const raw = await readFile(configPath(), "utf8")
+    const raw = await readFile(configPath(context), "utf8")
     const parsed = JSON.parse(raw)
     return parsed && typeof parsed === "object" ? parsed : { workflows: {} }
   } catch {
@@ -488,8 +491,8 @@ function projectMatches(project, selector) {
     .some((value) => normalize(value) === wanted)
 }
 
-async function resolveProjectSelector(input = {}) {
-  const config = await readWorkflowConfig()
+async function resolveProjectSelector(input = {}, context = {}) {
+  const config = await readWorkflowConfig(context)
   const workflows = getWorkflowAliasMap(config)
   const workflowAlias = input.workflow_alias || defaultWorkflowAlias()
   const workflow = workflowAlias ? workflows[workflowAlias] : undefined
@@ -669,16 +672,16 @@ async function listTasksWithStatusNames(query, projectID) {
   }
 }
 
-function ensureWorkflow(workflow, alias) {
+function ensureWorkflow(workflow, alias, context = {}) {
   if (!workflow) {
     throw new Error(
-      `Workflow alias '${alias}' is not configured. Set NIFTY_WORKFLOW_CONFIG or create ${configPath()}.`,
+      `Workflow alias '${alias}' is not configured. Set NIFTY_WORKFLOW_CONFIG or create ${configPath(context)}.`,
     )
   }
 }
 
 async function validateWorkflows(options = {}) {
-  const config = await readWorkflowConfig()
+  const config = await readWorkflowConfig(options)
   const workflows = getWorkflowAliasMap(config)
   const projects = await fetchAllProjects({ includeArchived: options.includeArchived })
   const defaultAlias = defaultWorkflowAlias()
@@ -748,7 +751,7 @@ async function validateWorkflows(options = {}) {
 
   return {
     ok: results.every((item) => item.ok) && (!defaultAlias || aliases.includes(defaultAlias)),
-    config_path: configPath(),
+    config_path: configPath(options),
     default_workflow: defaultAlias || null,
     default_workflow_found: defaultAlias ? aliases.includes(defaultAlias) : null,
     workflows: results,
@@ -786,6 +789,7 @@ function json(value) {
 export const __test = {
   appendQueryParams,
   buildTaskDescription,
+  configPath,
   filterTasksByStatus,
   findMatchingProjects,
   getTaskProjectID,
@@ -1165,8 +1169,8 @@ export const NiftyPlugin = async () => {
       nifty_list_workflows: tool({
         description: "Lists configured Nifty workflow aliases and resolved projects",
         args: {},
-        async execute() {
-          const config = await readWorkflowConfig()
+        async execute(_args, context) {
+          const config = await readWorkflowConfig(context)
           const workflows = getWorkflowAliasMap(config)
           const projects = await fetchAllProjects()
 
@@ -1190,7 +1194,7 @@ export const NiftyPlugin = async () => {
           })
 
           return json({
-            config_path: configPath(),
+            config_path: configPath(context),
             workflows: items,
           })
         },
@@ -1201,8 +1205,12 @@ export const NiftyPlugin = async () => {
         args: {
           include_archived: tool.schema.boolean().optional().describe("Include archived projects when resolving aliases"),
         },
-        async execute(args) {
-          const result = await validateWorkflows({ includeArchived: args.include_archived })
+        async execute(args, context) {
+          const result = await validateWorkflows({
+            includeArchived: args.include_archived,
+            directory: context.directory,
+            worktree: context.worktree,
+          })
           return json(result)
         },
       }),
@@ -1210,7 +1218,7 @@ export const NiftyPlugin = async () => {
       nifty_health_check: tool({
         description: "Checks Nifty credentials, token access, workflow config, and default workflow readiness",
         args: {},
-        async execute() {
+        async execute(_args, context) {
           const config = getClientConfig()
           const cached = await readTokenCache()
           const checks = {
@@ -1234,7 +1242,10 @@ export const NiftyPlugin = async () => {
           }
 
           try {
-            checks.workflows = await validateWorkflows()
+            checks.workflows = await validateWorkflows({
+              directory: context.directory,
+              worktree: context.worktree,
+            })
           } catch (error) {
             checks.workflows = { ok: false, error: error.message }
           }
@@ -1242,7 +1253,7 @@ export const NiftyPlugin = async () => {
           return json({
             ok: checks.api.ok && checks.workflows?.ok !== false,
             token_cache: TOKEN_PATH,
-            workflow_config: configPath(),
+            workflow_config: configPath(context),
             default_workflow: defaultWorkflowAlias() || null,
             checks,
           })
@@ -1263,9 +1274,13 @@ export const NiftyPlugin = async () => {
           limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
         },
-        async execute(args) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias })
-          ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias())
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          ensureWorkflow(
+            resolved.workflow,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
+            context,
+          )
 
           const status = await resolveStatusSelector(resolved.project.id, {
             workflow: resolved.workflow,
@@ -1335,9 +1350,13 @@ export const NiftyPlugin = async () => {
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
           story_points: tool.schema.number().optional().describe("Story points"),
         },
-        async execute(args) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias })
-          ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias())
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          ensureWorkflow(
+            resolved.workflow,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
+            context,
+          )
 
           const status = await resolveStatusSelector(resolved.project.id, {
             workflow: resolved.workflow,
@@ -1406,9 +1425,13 @@ export const NiftyPlugin = async () => {
             story_points: tool.schema.number().optional(),
           })).describe("Items to create"),
         },
-        async execute(args) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias })
-          ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias())
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          ensureWorkflow(
+            resolved.workflow,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
+            context,
+          )
 
           const status = await resolveStatusSelector(resolved.project.id, {
             workflow: resolved.workflow,
@@ -1641,10 +1664,10 @@ export const NiftyPlugin = async () => {
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           comment: tool.schema.string().optional().describe("Optional note to add after the move"),
         },
-        async execute(args) {
+        async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
           const resolved = args.workflow_alias
-            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias })
+            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
             : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined }
 
           if (!resolved.project?.id) {
@@ -1652,7 +1675,7 @@ export const NiftyPlugin = async () => {
           }
 
           if (args.workflow_alias) {
-            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias)
+            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, context)
           }
 
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -1719,10 +1742,10 @@ export const NiftyPlugin = async () => {
           milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
           comment: tool.schema.string().optional().describe("Optional note to append as a task comment"),
         },
-        async execute(args) {
+        async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
           const resolved = args.workflow_alias
-            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias })
+            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
             : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined }
 
           if (!resolved.project?.id) {
@@ -1730,7 +1753,7 @@ export const NiftyPlugin = async () => {
           }
 
           if (args.workflow_alias) {
-            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias)
+            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, context)
           }
 
           const description = buildTaskDescription(args)

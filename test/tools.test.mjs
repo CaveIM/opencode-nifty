@@ -17,15 +17,73 @@ afterEach(() => {
   process.env = { ...originalEnv }
 })
 
-function context() {
+function context(overrides = {}) {
   return {
     abort: new AbortController().signal,
+    directory: undefined,
+    worktree: undefined,
     metadata() {},
     ask() {
       throw new Error("ask not supported in tests")
     },
+    ...overrides,
   }
 }
+
+test("workflow config uses explicit env path before project-local config", async () => {
+  const envDir = await mkdtemp(join(tmpdir(), "nifty-env-config-"))
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-project-config-"))
+  const envConfig = join(envDir, "env-workflows.json")
+  const projectConfig = join(projectDir, "nifty-workflows.json")
+  await writeFile(
+    envConfig,
+    JSON.stringify({ workflows: { envAlias: { project: { name: "Env Project" }, states: {} } } }),
+    "utf8",
+  )
+  await writeFile(
+    projectConfig,
+    JSON.stringify({ workflows: { projectAlias: { project: { name: "Project Config" }, states: {} } } }),
+    "utf8",
+  )
+  process.env.NIFTY_WORKFLOW_CONFIG = envConfig
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/projects") return Response.json({ projects: [] })
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_list_workflows.execute({}, context({ directory: projectDir }))
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.config_path, envConfig)
+  assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["envAlias"])
+})
+
+test("workflow config falls back to project-local file from tool context", async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-local-config-"))
+  const projectConfig = join(projectDir, "nifty-workflows.json")
+  await writeFile(
+    projectConfig,
+    JSON.stringify({ workflows: { localAlias: { project: { name: "Local Project" }, states: {} } } }),
+    "utf8",
+  )
+  delete process.env.NIFTY_WORKFLOW_CONFIG
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/projects") return Response.json({ projects: [] })
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_list_workflows.execute({}, context({ directory: projectDir }))
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.config_path, projectConfig)
+  assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["localAlias"])
+})
 
 test("nifty_list_workflow_tasks filters returned tasks to the requested status", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-workflow-"))

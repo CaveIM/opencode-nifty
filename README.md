@@ -85,6 +85,13 @@ Then point `NIFTY_WORKFLOW_CONFIG` at it, or let install place the example into 
 
 Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json` or in the installed OpenCode config file. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
 
+Workflow config lookup order:
+
+1. `NIFTY_WORKFLOW_CONFIG`
+2. `nifty-workflows.json` in the active OpenCode project directory/worktree
+3. `nifty-workflows.json` in the shell working directory
+4. `~/.config/opencode/nifty-workflows.json`
+
 Example config:
 
 ```json
