@@ -147,6 +147,10 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_create_milestone`
 - `nifty_update_milestone_tasks`
 - `nifty_list_labels`
+- `nifty_list_documents`
+- `nifty_create_document`
+- `nifty_update_document`
+- `nifty_delete_document`
 - `nifty_list_workflows`
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
@@ -164,6 +168,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `run nifty_list_workflow_tasks with state_key backlog and list_key current`
 - `run nifty_capture_backlog_item with name Add retry handling`
 - `run nifty_batch_capture_backlog_items with dry_run true`
+- `run nifty_create_document with name "Launch notes" and content_text "Draft notes"`
+- `run nifty_list_documents`
 - `run nifty_prepare_task_for_delivery with task_id <id> state_key ready`
 - `run nifty_move_task_to_status with task_id <id> state_key in_progress`
 

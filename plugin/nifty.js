@@ -1166,6 +1166,231 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_list_documents: tool({
+        description: "Lists Nifty documents for a project, task, folder, or workflow alias",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          project_id: tool.schema.string().optional().describe("Project ID"),
+          project_name: tool.schema.string().optional().describe("Project name"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
+          task_id: tool.schema.string().optional().describe("Task ID"),
+          parent_doc_id: tool.schema.string().optional().describe("Parent document ID"),
+          folder_id: tool.schema.string().optional().describe("Folder ID"),
+          author: tool.schema.string().optional().describe("Author ID"),
+          name: tool.schema.string().optional().describe("Document name filter"),
+          tag: tool.schema.string().optional().describe("Document tag filter"),
+          limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
+          offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
+          sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order"),
+        },
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector(
+            {
+              workflow_alias: args.workflow_alias,
+              project_id: args.project_id,
+              project_name: args.project_name,
+              project_nice_id: args.project_nice_id,
+            },
+            context,
+          )
+
+          const response = await niftyRequest("/api/v1.0/docs", {
+            query: cleanObject({
+              project_id: resolved.project.id,
+              task_id: args.task_id,
+              parent_doc_id: args.parent_doc_id,
+              folder_id: args.folder_id,
+              author: args.author,
+              name: args.name,
+              tag: args.tag,
+              limit: args.limit || 100,
+              offset: args.offset || 0,
+              sort: args.sort || "ascending",
+            }),
+          })
+          return json({
+            project: {
+              id: resolved.project.id,
+              name: resolved.project.name,
+              nice_id: resolved.project.nice_id,
+            },
+            ...response,
+          })
+        },
+      }),
+
+      nifty_get_document: tool({
+        description: "Gets a Nifty document by ID",
+        args: {
+          document_id: tool.schema.string().describe("Document ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`)
+          return json(response)
+        },
+      }),
+
+      nifty_create_document: tool({
+        description: "Creates a Nifty project document",
+        args: {
+          name: tool.schema.string().describe("Document name"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          project_id: tool.schema.string().optional().describe("Project ID"),
+          project_name: tool.schema.string().optional().describe("Project name"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
+          parent_doc_id: tool.schema.string().optional().describe("Parent document ID"),
+          folder_id: tool.schema.string().optional().describe("Folder ID"),
+          folder_stack: tool.schema.array(tool.schema.string()).optional().describe("Folder path stack"),
+          type: tool.schema.string().optional().describe("Document type"),
+          subtype: tool.schema.string().optional().describe("Document subtype"),
+          private: tool.schema.boolean().optional().describe("Whether the document is private"),
+          access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
+          content: tool.schema.record(tool.schema.any()).optional().describe("Raw Nifty document content object"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
+          external_id: tool.schema.string().optional().describe("External ID"),
+          order: tool.schema.number().optional().describe("Document order"),
+        },
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector(
+            {
+              workflow_alias: args.workflow_alias,
+              project_id: args.project_id,
+              project_name: args.project_name,
+              project_nice_id: args.project_nice_id,
+            },
+            context,
+          )
+          const content = args.content || (args.content_text ? { text: args.content_text } : undefined)
+
+          const response = await niftyRequest("/api/v1.0/docs", {
+            method: "POST",
+            body: cleanObject({
+              name: args.name,
+              project_id: resolved.project.id,
+              parent_doc_id: args.parent_doc_id,
+              folder_id: args.folder_id,
+              folder_stack: args.folder_stack,
+              type: args.type,
+              subtype: args.subtype,
+              private: args.private,
+              access_type: args.access_type,
+              content,
+              external_id: args.external_id,
+              order: args.order,
+            }),
+          })
+
+          return json({
+            project: {
+              id: resolved.project.id,
+              name: resolved.project.name,
+              nice_id: resolved.project.nice_id,
+            },
+            document: response,
+          })
+        },
+      }),
+
+      nifty_update_document: tool({
+        description: "Updates a Nifty document",
+        args: {
+          document_id: tool.schema.string().describe("Document ID"),
+          name: tool.schema.string().optional().describe("Document name"),
+          archived: tool.schema.boolean().optional().describe("Archive or unarchive the document"),
+          access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
+          force: tool.schema.boolean().optional().describe("Force update flag"),
+          content: tool.schema.record(tool.schema.any()).optional().describe("Raw Nifty document content object"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
+          folder_id: tool.schema.string().optional().describe("Folder ID"),
+          folder_stack: tool.schema.array(tool.schema.string()).optional().describe("Folder path stack"),
+          multipage: tool.schema.boolean().optional().describe("Whether this is a multipage document"),
+          order: tool.schema.number().optional().describe("Document order"),
+        },
+        async execute(args) {
+          const content = args.content || (args.content_text ? { text: args.content_text } : undefined)
+          const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`, {
+            method: "PUT",
+            body: cleanObject({
+              name: args.name,
+              archived: args.archived,
+              access_type: args.access_type,
+              force: args.force,
+              content,
+              folder_id: args.folder_id,
+              folder_stack: args.folder_stack,
+              multipage: args.multipage,
+              order: args.order,
+            }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_delete_document: tool({
+        description: "Deletes a Nifty document by ID",
+        args: {
+          document_id: tool.schema.string().describe("Document ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`, {
+            method: "DELETE",
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_move_document: tool({
+        description: "Moves a Nifty document to another project folder",
+        args: {
+          document_id: tool.schema.string().describe("Document ID"),
+          workflow_alias: tool.schema.string().optional().describe("Target workflow alias, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          project_id: tool.schema.string().optional().describe("Target project ID"),
+          project_name: tool.schema.string().optional().describe("Target project name"),
+          project_nice_id: tool.schema.string().optional().describe("Target project nice ID"),
+          folder_id: tool.schema.string().describe("Target folder ID"),
+          folder_stack: tool.schema.string().describe("Target folder stack"),
+        },
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector(
+            {
+              workflow_alias: args.workflow_alias,
+              project_id: args.project_id,
+              project_name: args.project_name,
+              project_nice_id: args.project_nice_id,
+            },
+            context,
+          )
+          const response = await niftyRequest(
+            `/api/v1.0/docs/${encodeURIComponent(args.document_id)}/move_to_project`,
+            {
+              method: "PUT",
+              body: {
+                project_id: resolved.project.id,
+                folder_id: args.folder_id,
+                folder_stack: args.folder_stack,
+              },
+            },
+          )
+          return json(response)
+        },
+      }),
+
+      nifty_update_document_labels: tool({
+        description: "Adds or removes labels from a Nifty document",
+        args: {
+          document_id: tool.schema.string().describe("Document ID"),
+          label_ids: tool.schema.array(tool.schema.string()).describe("Label IDs to add or remove"),
+          mode: tool.schema.enum(["add", "remove"]).describe("Whether to add or remove labels"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}/labels`, {
+            method: args.mode === "add" ? "PUT" : "DELETE",
+            body: { labels: args.label_ids },
+          })
+          return json(response)
+        },
+      }),
+
       nifty_list_workflows: tool({
         description: "Lists configured Nifty workflow aliases and resolved projects",
         args: {},

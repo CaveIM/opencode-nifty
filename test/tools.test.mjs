@@ -197,3 +197,78 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
   assert.equal(parsed.planned[0].milestone_id, "m1")
   assert.match(parsed.planned[0].description, /Capture multiple ideas/)
 })
+
+test("nifty_create_document resolves project from workflow alias", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-doc-"))
+  const configPath = join(dir, "workflows.json")
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      workflows: {
+        docs: {
+          project: { name: "Docs Project" },
+          states: {},
+        },
+      },
+    }),
+    "utf8",
+  )
+  process.env.NIFTY_WORKFLOW_CONFIG = configPath
+
+  let capturedBody
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p-docs", name: "Docs Project", nice_id: "DOC" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/docs" && options.method === "POST") {
+      capturedBody = JSON.parse(options.body)
+      return Response.json({ message: "created", doc_id: "d1", folder: "f1" }, { status: 201 })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_create_document.execute(
+    {
+      workflow_alias: "docs",
+      name: "Launch Notes",
+      content_text: "Ship it",
+    },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(capturedBody.project_id, "p-docs")
+  assert.equal(capturedBody.name, "Launch Notes")
+  assert.deepEqual(capturedBody.content, { text: "Ship it" })
+  assert.equal(parsed.document.doc_id, "d1")
+})
+
+test("nifty_update_document sends only provided fields", async () => {
+  let capturedBody
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/docs/d1" && options.method === "PUT") {
+      capturedBody = JSON.parse(options.body)
+      return Response.json({ message: "updated", doc_id: "d1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_update_document.execute(
+    {
+      document_id: "d1",
+      name: "Updated",
+      archived: false,
+    },
+    context(),
+  )
+
+  assert.deepEqual(capturedBody, { name: "Updated", archived: false })
+})
