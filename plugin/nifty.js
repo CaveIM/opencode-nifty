@@ -1005,7 +1005,7 @@ function json(value) {
   return JSON.stringify(value, null, 2)
 }
 
-export const __test = {
+const __test = {
   appendQueryParams,
   botCommentText,
   buildTaskDescription,
@@ -2617,3 +2617,5 @@ export const NiftyPlugin = async () => {
     },
   }
 }
+
+NiftyPlugin.__test = __test

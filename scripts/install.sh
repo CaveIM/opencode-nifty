@@ -46,7 +46,7 @@ trap cleanup EXIT
 
 mkdir -p "$TARGET_PLUGIN_DIR" "$TARGET_COMMAND_DIR"
 
-node --input-type=module -e 'import { readFileSync, writeFileSync } from "node:fs"; const source = process.argv[1]; const target = process.argv[2]; const plugin = readFileSync(source, "utf8").replace("export const __test =", "const __test ="); writeFileSync(target, plugin, "utf8");' "$SOURCE_PLUGIN_FILE" "$TARGET_PLUGIN_FILE"
+cp "$SOURCE_PLUGIN_FILE" "$TARGET_PLUGIN_FILE"
 
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pkg = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {}; pkg.type = "module"; pkg.dependencies = pkg.dependencies || {}; pkg.dependencies["@opencode-ai/plugin"] = pkg.dependencies["@opencode-ai/plugin"] || "1.4.3"; writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf8");' "$TARGET_PACKAGE_JSON"
 

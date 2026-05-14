@@ -1,6 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { __test } from "../plugin/nifty.js"
+import * as pluginModule from "../plugin/nifty.js"
+import { NiftyPlugin } from "../plugin/nifty.js"
+
+const { __test } = NiftyPlugin
+
+test("exports only OpenCode plugin functions", () => {
+  assert.deepEqual(Object.keys(pluginModule), ["NiftyPlugin"])
+})
 
 test("normalizes user-facing names for matching", () => {
   assert.equal(__test.normalize(" Small But Mighty Dev! "), "small but mighty dev")
