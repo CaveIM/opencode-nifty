@@ -9,7 +9,6 @@ TARGET_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 TARGET_PLUGIN_DIR="$TARGET_CONFIG_DIR/plugins"
 TARGET_PLUGIN_FILE="$TARGET_PLUGIN_DIR/nifty.js"
 TARGET_PACKAGE_JSON="$TARGET_CONFIG_DIR/package.json"
-TARGET_WORKFLOW_FILE="$TARGET_CONFIG_DIR/nifty-workflows.json"
 TARGET_AGENTS_FILE="$TARGET_CONFIG_DIR/AGENTS.md"
 TARGET_COMMAND_DIR="$TARGET_CONFIG_DIR/commands"
 TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.json"
@@ -17,7 +16,6 @@ if [ -f "$TARGET_CONFIG_DIR/opencode.jsonc" ] && [ ! -f "$TARGET_OPENCODE_CONFIG
   TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.jsonc"
 fi
 SOURCE_PLUGIN_FILE="$ROOT_DIR/plugin/nifty.js"
-SOURCE_WORKFLOW_FILE="$ROOT_DIR/config/nifty-workflows.example.json"
 
 fetch_source_file() {
   local path="$1"
@@ -33,12 +31,10 @@ fetch_source_file() {
 }
 
 WORK_DIR=""
-if [ ! -f "$SOURCE_PLUGIN_FILE" ] || [ ! -f "$SOURCE_WORKFLOW_FILE" ]; then
+if [ ! -f "$SOURCE_PLUGIN_FILE" ]; then
   WORK_DIR="$(mktemp -d)"
   SOURCE_PLUGIN_FILE="$WORK_DIR/nifty.js"
-  SOURCE_WORKFLOW_FILE="$WORK_DIR/nifty-workflows.example.json"
   fetch_source_file "plugin/nifty.js" "$SOURCE_PLUGIN_FILE"
-  fetch_source_file "config/nifty-workflows.example.json" "$SOURCE_WORKFLOW_FILE"
 fi
 
 cleanup() {
@@ -51,8 +47,6 @@ trap cleanup EXIT
 mkdir -p "$TARGET_PLUGIN_DIR" "$TARGET_COMMAND_DIR"
 
 cp "$SOURCE_PLUGIN_FILE" "$TARGET_PLUGIN_FILE"
-
-node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const examplePath = process.argv[1]; const targetPath = process.argv[2]; const example = JSON.parse(readFileSync(examplePath, "utf8")); const target = existsSync(targetPath) ? JSON.parse(readFileSync(targetPath, "utf8")) : { workflows: {} }; target.workflows = target.workflows || {}; for (const [alias, workflow] of Object.entries(example.workflows || {})) { if (!target.workflows[alias]) target.workflows[alias] = workflow; } writeFileSync(targetPath, JSON.stringify(target, null, 2) + "\n", "utf8");' "$SOURCE_WORKFLOW_FILE" "$TARGET_WORKFLOW_FILE"
 
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pkg = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {}; pkg.type = "module"; pkg.dependencies = pkg.dependencies || {}; pkg.dependencies["@opencode-ai/plugin"] = pkg.dependencies["@opencode-ai/plugin"] || "1.4.3"; writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf8");' "$TARGET_PACKAGE_JSON"
 
@@ -71,7 +65,7 @@ cat > "$TARGET_COMMAND_DIR/nifty-setup.md" <<'EOF'
 ---
 description: Set up or validate the recommended Nifty workflow
 ---
-Use the OpenCode tool `nifty_setup_recommended_workflow` with `dry_run true` first. If the user asks to create missing statuses and lists, use `dry_run false`. Do not run a shell command.
+Use the OpenCode tool `nifty_setup_recommended_workflow` with `dry_run true` first. If the user asks to create missing statuses and lists, use `dry_run false`. If the user asks to create the project workflow config file, set `write_config true`. Do not run a shell command.
 EOF
 
 if command -v npm >/dev/null 2>&1; then
@@ -84,7 +78,6 @@ fi
 
 printf 'Installed Nifty plugin to %s\n' "$TARGET_PLUGIN_FILE"
 printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
-printf 'Workflow config path: %s\n' "$TARGET_WORKFLOW_FILE"
 printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"
 printf 'OpenCode Nifty commands: %s/nifty-health.md and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
-printf 'Set NIFTY_WORKFLOW_CONFIG=%s if you want to force this file path.\n' "$TARGET_WORKFLOW_FILE"
+printf 'No workflow config was created. Ask OpenCode to run nifty_setup_recommended_workflow with write_config true when you want a project-local nifty-workflows.json.\n'

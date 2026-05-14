@@ -471,6 +471,12 @@ function configPath(context = {}) {
   return projectConfigPath || WORKFLOW_CONFIG_PATH
 }
 
+function projectWorkflowConfigPath(context = {}, explicitPath) {
+  if (explicitPath) return explicitPath
+  const directory = context.directory || context.worktree || process.cwd()
+  return join(directory, "nifty-workflows.json")
+}
+
 async function readWorkflowConfig(context = {}) {
   try {
     const raw = await readFile(configPath(context), "utf8")
@@ -485,6 +491,38 @@ function getWorkflowAliasMap(config) {
   return config?.workflows && typeof config.workflows === "object"
     ? config.workflows
     : {}
+}
+
+async function writeWorkflowAliasConfig(path, alias, workflow, options = {}) {
+  let config = { workflows: {} }
+  let existed = false
+
+  try {
+    const raw = await readFile(path, "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === "object") config = parsed
+    existed = true
+  } catch {
+    config = { workflows: {} }
+  }
+
+  config.workflows = getWorkflowAliasMap(config)
+  const aliasExisted = Boolean(config.workflows[alias])
+  const overwrite = options.overwrite === true
+
+  if (!aliasExisted || overwrite) {
+    config.workflows[alias] = workflow
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, "utf8")
+  }
+
+  return {
+    path,
+    file_existed: existed,
+    alias_existed: aliasExisted,
+    written: !aliasExisted || overwrite,
+    overwritten: aliasExisted && overwrite,
+  }
 }
 
 async function fetchProjects(limit = 100, offset = 0, archived) {
@@ -982,10 +1020,12 @@ export const __test = {
   normalize,
   projectMatches,
   projectConfigSelector,
+  projectWorkflowConfigPath,
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
   statusMatches,
   summarizeTask,
+  writeWorkflowAliasConfig,
   workflowAlias,
 }
 
@@ -1712,6 +1752,9 @@ export const NiftyPlugin = async () => {
           dry_run: tool.schema.boolean().optional().describe("Plan only; defaults to true"),
           create_statuses: tool.schema.boolean().optional().describe("Create missing statuses; defaults to true"),
           create_lists: tool.schema.boolean().optional().describe("Create missing Nifty lists; defaults to true"),
+          write_config: tool.schema.boolean().optional().describe("Write or merge the workflow alias into a project-local nifty-workflows.json"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path to write; defaults to the active project directory"),
+          overwrite_config: tool.schema.boolean().optional().describe("Overwrite an existing alias in the config file; defaults to false"),
         },
         async execute(args, context) {
           const resolved = await resolveProjectSelector(
@@ -1729,6 +1772,15 @@ export const NiftyPlugin = async () => {
             createStatuses: args.create_statuses !== false,
             createLists: args.create_lists !== false,
           })
+          const configSnippet = recommendedWorkflowConfig(alias, projectConfigSelector(resolved.project))
+          const configWrite = args.write_config
+            ? await writeWorkflowAliasConfig(
+                projectWorkflowConfigPath(context, args.config_path),
+                alias,
+                configSnippet.workflows[alias],
+                { overwrite: args.overwrite_config === true },
+              )
+            : null
 
           return json({
             workflow_alias: alias,
@@ -1738,7 +1790,8 @@ export const NiftyPlugin = async () => {
               nice_id: resolved.project.nice_id || null,
             },
             ...plan,
-            config_snippet: recommendedWorkflowConfig(alias, projectConfigSelector(resolved.project)),
+            config_snippet: configSnippet,
+            config_write: configWrite,
           })
         },
       }),

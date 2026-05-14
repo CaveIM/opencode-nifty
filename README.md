@@ -45,7 +45,7 @@ If the repo is already cloned, run:
 ./scripts/install.sh
 ```
 
-The installer does not need to be run from a specific project directory. When run from a clone, it finds files relative to the script location. When run through `curl | bash`, it downloads the plugin and example workflow config from GitHub. The project directory matters later when OpenCode looks for a project-local `nifty-workflows.json`.
+The installer does not need to be run from a specific project directory. When run from a clone, it finds files relative to the script location. When run through `curl | bash`, it downloads the plugin from GitHub. The project directory matters later when you ask OpenCode to create a project-local `nifty-workflows.json`.
 
 By default this installs into:
 
@@ -59,7 +59,7 @@ Override the target if needed:
 OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
 
-The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js`, registers `./plugins/nifty.js` in your global OpenCode config, and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
+The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and registers `./plugins/nifty.js` in your global OpenCode config. It does not create a workflow config file. Create project-local workflow config only when you are ready to connect a project to Nifty.
 
 It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Two global slash commands are installed as shortcuts:
 
@@ -106,15 +106,9 @@ opencode
 
 Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, and list names. Prefer a project-local `nifty-workflows.json` in the repo where OpenCode is launched, because it travels with that project/container without editing the plugin kit.
 
-From your project directory, create a local config:
+The installer does not create this file. From the project root, ask OpenCode to run `nifty_setup_recommended_workflow` with `write_config true` when you are ready to create or merge `./nifty-workflows.json` for that project.
 
-```bash
-cp /path/to/opencode-nifty/config/nifty-workflows.example.json ./nifty-workflows.json
-```
-
-Then edit `./nifty-workflows.json` for that project. You can also point `NIFTY_WORKFLOW_CONFIG` at any config file, or let the installer use the copy in the target OpenCode config directory.
-
-Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json` or in the installed OpenCode config file. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
+Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json`. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
 
 Workflow config lookup order:
 
@@ -149,10 +143,10 @@ Nifty lists are represented by the API as milestones with `is_list=true`. Add op
 ## Activate In A Project
 
 1. Install the plugin in the environment that runs OpenCode.
-2. Put `nifty-workflows.json` in the project root, for example `/workspaces/gov-cms/nifty-workflows.json`.
-3. Set `NIFTY_DEFAULT_WORKFLOW` to the alias you want OpenCode to use by default.
-4. Start OpenCode from that project root with Nifty env vars loaded.
-5. In OpenCode, run the tool `nifty_health_check`.
+2. Start OpenCode from the project root with Nifty env vars loaded.
+3. Ask OpenCode to find the Nifty project and run `nifty_setup_recommended_workflow` with `write_config true`.
+4. Set `NIFTY_DEFAULT_WORKFLOW` to the alias you want OpenCode to use by default.
+5. Restart OpenCode from that project root, then run `/nifty-health` or the `nifty_health_check` tool.
 
 Example project-local config using the recommended lifecycle:
 
@@ -191,7 +185,7 @@ Example project-local config using the recommended lifecycle:
 }
 ```
 
-To have OpenCode generate that shape for a real project, run the OpenCode tool `nifty_recommended_workflow`. To compare a project against the recommended statuses/lists without writing to Nifty, run `nifty_setup_recommended_workflow` with `dry_run true`. To create missing statuses and lists, run the same tool with `dry_run false`.
+To have OpenCode generate that shape for a real project, run the OpenCode tool `nifty_recommended_workflow`. To compare a project against the recommended statuses/lists without writing to Nifty, run `nifty_setup_recommended_workflow` with `dry_run true`. To create or merge `./nifty-workflows.json`, add `write_config true`. To create missing statuses and lists in Nifty, run the same tool with `dry_run false`.
 
 These are OpenCode tools, not shell commands. Ask OpenCode to run `nifty_health_check`; do not type `nifty_health_check` in the terminal.
 
@@ -254,6 +248,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `run nifty_validate_workflows`
 - `run nifty_recommended_workflow with workflow_alias gov and project_nice_id GOV`
 - `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true`
+- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true and write_config true`
 - `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run false`
 - `run nifty_find_project with query Addons`
 - `run nifty_list_workflow_tasks with state_key backlog`
@@ -281,7 +276,7 @@ git pull
 ./scripts/update.sh
 ```
 
-The installer copies the latest plugin into the target OpenCode config and merges any missing example workflow aliases into the existing workflow config without overwriting local edits.
+The installer copies the latest plugin into the target OpenCode config and updates OpenCode guidance/commands. It does not create or modify workflow config files.
 
 ## Validation
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, test } from "node:test"
@@ -365,6 +365,39 @@ test("recommended workflow setup dry-run reports missing statuses and lists", as
   assert.equal(parsed.statuses.missing.some((status) => status.name === "In Dev"), true)
   assert.deepEqual(parsed.lists.existing, [{ key: "ui", name: "UI", id: "m-ui" }])
   assert.equal(parsed.config_snippet.workflows.gov.project.nice_id, "GOV")
+  assert.equal(parsed.config_write, null)
+})
+
+test("recommended workflow setup writes project-local workflow config when requested", async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-write-config-"))
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Gov CMS", nice_id: "GOV" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_setup_recommended_workflow.execute(
+    { workflow_alias: "gov", project_name: "Gov CMS", dry_run: true, write_config: true },
+    context({ directory: projectDir }),
+  )
+  const parsed = JSON.parse(output)
+  const writtenConfig = JSON.parse(await readFile(join(projectDir, "nifty-workflows.json"), "utf8"))
+
+  assert.equal(parsed.config_write.path, join(projectDir, "nifty-workflows.json"))
+  assert.equal(parsed.config_write.written, true)
+  assert.equal(writtenConfig.workflows.gov.project.nice_id, "GOV")
+  assert.equal(writtenConfig.workflows.gov.states.ready_for_prod, "Ready for Prod")
 })
 
 test("recommended workflow setup creates missing statuses and lists when dry_run is false", async () => {
