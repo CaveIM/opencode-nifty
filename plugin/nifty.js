@@ -860,6 +860,15 @@ function buildTaskDescription(input) {
   return lines.join("\n").trim() || undefined
 }
 
+function parseJSONArg(value, label) {
+  if (!value) return undefined
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`${label} must be valid JSON: ${error.message}`)
+  }
+}
+
 function botCommentText(text, enabled = true) {
   const trimmed = String(text || "").trimStart()
   if (!enabled) return trimmed
@@ -1018,6 +1027,7 @@ const __test = {
   milestoneMatches,
   niftyShellCommandHint,
   normalize,
+  parseJSONArg,
   projectMatches,
   projectConfigSelector,
   projectWorkflowConfigPath,
@@ -1478,7 +1488,7 @@ export const NiftyPlugin = async () => {
           subtype: tool.schema.string().optional().describe("Document subtype"),
           private: tool.schema.boolean().optional().describe("Whether the document is private"),
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
-          content: tool.schema.record(tool.schema.any()).optional().describe("Raw Nifty document content object"),
+          content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
           content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
           external_id: tool.schema.string().optional().describe("External ID"),
           order: tool.schema.number().optional().describe("Document order"),
@@ -1493,7 +1503,7 @@ export const NiftyPlugin = async () => {
             },
             context,
           )
-          const content = args.content || (args.content_text ? { text: args.content_text } : undefined)
+          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined)
 
           const response = await niftyRequest("/api/v1.0/docs", {
             method: "POST",
@@ -1532,7 +1542,7 @@ export const NiftyPlugin = async () => {
           archived: tool.schema.boolean().optional().describe("Archive or unarchive the document"),
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
           force: tool.schema.boolean().optional().describe("Force update flag"),
-          content: tool.schema.record(tool.schema.any()).optional().describe("Raw Nifty document content object"),
+          content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
           content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
           folder_id: tool.schema.string().optional().describe("Folder ID"),
           folder_stack: tool.schema.array(tool.schema.string()).optional().describe("Folder path stack"),
@@ -1540,7 +1550,7 @@ export const NiftyPlugin = async () => {
           order: tool.schema.number().optional().describe("Document order"),
         },
         async execute(args) {
-          const content = args.content || (args.content_text ? { text: args.content_text } : undefined)
+          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined)
           const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`, {
             method: "PUT",
             body: cleanObject({

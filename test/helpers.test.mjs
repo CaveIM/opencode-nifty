@@ -50,6 +50,12 @@ test("renders structured task descriptions", () => {
   assert.match(description, /- \[ \] Add tests/)
 })
 
+test("parses JSON string arguments", () => {
+  assert.deepEqual(__test.parseJSONArg('{"text":"hello"}', "content_json"), { text: "hello" })
+  assert.equal(__test.parseJSONArg(undefined, "content_json"), undefined)
+  assert.throws(() => __test.parseJSONArg("{", "content_json"), /content_json must be valid JSON/)
+})
+
 test("prefixes bot comments with a robot marker", () => {
   assert.equal(__test.botCommentText("Starting work"), "🤖 Starting work")
   assert.equal(__test.botCommentText("🤖 Already marked"), "🤖 Already marked")

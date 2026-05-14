@@ -5,6 +5,13 @@ SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." 2>/dev/null && pwd || pwd)"
 INSTALL_REF="${NIFTY_INSTALL_REF:-main}"
 RAW_BASE_URL="${NIFTY_INSTALL_BASE_URL:-https://raw.githubusercontent.com/CaveIM/opencode-nifty/$INSTALL_REF}"
+if [ -n "${NIFTY_OPENCODE_PLUGIN_VERSION:-}" ]; then
+  OPENCODE_PLUGIN_VERSION="$NIFTY_OPENCODE_PLUGIN_VERSION"
+elif command -v opencode >/dev/null 2>&1; then
+  OPENCODE_PLUGIN_VERSION="$(opencode --version)"
+else
+  OPENCODE_PLUGIN_VERSION="1.14.50"
+fi
 TARGET_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 TARGET_PLUGIN_DIR="$TARGET_CONFIG_DIR/plugins"
 TARGET_PLUGIN_FILE="$TARGET_PLUGIN_DIR/nifty.js"
@@ -48,7 +55,7 @@ mkdir -p "$TARGET_PLUGIN_DIR" "$TARGET_COMMAND_DIR"
 
 cp "$SOURCE_PLUGIN_FILE" "$TARGET_PLUGIN_FILE"
 
-node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pkg = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {}; pkg.type = "module"; pkg.dependencies = pkg.dependencies || {}; pkg.dependencies["@opencode-ai/plugin"] = pkg.dependencies["@opencode-ai/plugin"] || "1.4.3"; writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf8");' "$TARGET_PACKAGE_JSON"
+node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const version = process.argv[2]; const pkg = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {}; pkg.type = "module"; pkg.dependencies = pkg.dependencies || {}; pkg.dependencies["@opencode-ai/plugin"] = version; writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf8");' "$TARGET_PACKAGE_JSON" "$OPENCODE_PLUGIN_VERSION"
 
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pluginPath = "./plugins/nifty.js"; if (!existsSync(path)) { writeFileSync(path, JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: [pluginPath] }, null, 2) + "\n", "utf8"); process.exit(0); } let text = readFileSync(path, "utf8"); if (text.includes(`"${pluginPath}"`)) process.exit(0); const pluginMatch = text.match(/("plugin"\s*:\s*\[)/); if (pluginMatch?.index !== undefined) { const insertAt = pluginMatch.index + pluginMatch[0].length; text = `${text.slice(0, insertAt)}\n    "${pluginPath}",${text.slice(insertAt)}`; writeFileSync(path, text, "utf8"); process.exit(0); } const firstBrace = text.indexOf("{"); if (firstBrace === -1) throw new Error(`${path} is not an object config file.`); const insertion = `\n  "plugin": ["${pluginPath}"],`; text = `${text.slice(0, firstBrace + 1)}${insertion}${text.slice(firstBrace + 1)}`; writeFileSync(path, text, "utf8");' "$TARGET_OPENCODE_CONFIG_FILE"
 
@@ -69,7 +76,11 @@ Use the OpenCode tool `nifty_setup_recommended_workflow` with `dry_run true` fir
 EOF
 
 if command -v npm >/dev/null 2>&1; then
-  if [ ! -d "$TARGET_CONFIG_DIR/node_modules/@opencode-ai/plugin" ]; then
+  INSTALLED_PLUGIN_VERSION=""
+  if [ -f "$TARGET_CONFIG_DIR/node_modules/@opencode-ai/plugin/package.json" ]; then
+    INSTALLED_PLUGIN_VERSION="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; const path = process.argv[1]; console.log(JSON.parse(readFileSync(path, "utf8")).version || "");' "$TARGET_CONFIG_DIR/node_modules/@opencode-ai/plugin/package.json")"
+  fi
+  if [ "$INSTALLED_PLUGIN_VERSION" != "$OPENCODE_PLUGIN_VERSION" ]; then
     (cd "$TARGET_CONFIG_DIR" && npm install >/dev/null)
   fi
 else
