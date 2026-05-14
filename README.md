@@ -59,7 +59,7 @@ Override the target if needed:
 OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
 
-The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and registers `./plugins/nifty.js` in your global OpenCode config. It does not create a workflow config file. Create project-local workflow config only when you are ready to connect a project to Nifty.
+The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and registers `./plugins/nifty.js` in your global OpenCode config. It also creates a non-overwriting `.nifty.env` template in the directory where you run the installer. It does not create a workflow config file. Create project-local workflow config only when you are ready to connect a project to Nifty.
 
 It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Three global slash commands are installed as shortcuts:
 
@@ -75,7 +75,7 @@ curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/
 
 ## Configure Credentials
 
-Copy the env template:
+The installer creates `.nifty.env` in the directory where it runs. If you cloned the kit and want to create one manually, copy the env template:
 
 ```bash
 cp env/nifty.env.example .nifty.env

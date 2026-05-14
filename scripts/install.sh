@@ -19,6 +19,7 @@ TARGET_PACKAGE_JSON="$TARGET_CONFIG_DIR/package.json"
 TARGET_AGENTS_FILE="$TARGET_CONFIG_DIR/AGENTS.md"
 TARGET_COMMAND_DIR="$TARGET_CONFIG_DIR/commands"
 TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.json"
+TARGET_ENV_FILE="${NIFTY_ENV_FILE:-$PWD/.nifty.env}"
 if [ -f "$TARGET_CONFIG_DIR/opencode.jsonc" ] && [ ! -f "$TARGET_OPENCODE_CONFIG_FILE" ]; then
   TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.jsonc"
 fi
@@ -82,6 +83,19 @@ description: Set up or validate the recommended Nifty workflow
 Use the OpenCode tool `nifty_setup_recommended_workflow` with `dry_run true` first. If the user asks to create missing statuses and lists, use `dry_run false`. If the user asks to create the project workflow config file, set `write_config true`. Do not run a shell command.
 EOF
 
+if [ ! -f "$TARGET_ENV_FILE" ]; then
+  cat > "$TARGET_ENV_FILE" <<'EOF'
+# Nifty OAuth app credentials. Do not commit this file.
+NIFTY_CLIENT_ID=
+NIFTY_CLIENT_SECRET=
+NIFTY_AUTHORIZE_URL=
+NIFTY_REDIRECT_URI=http://127.0.0.1:8787/callback
+
+# Optional
+NIFTY_DEFAULT_WORKFLOW=
+EOF
+fi
+
 if command -v npm >/dev/null 2>&1; then
   INSTALLED_PLUGIN_VERSION=""
   if [ -f "$TARGET_CONFIG_DIR/node_modules/@opencode-ai/plugin/package.json" ]; then
@@ -96,6 +110,7 @@ fi
 
 printf 'Installed Nifty plugin to %s\n' "$TARGET_PLUGIN_FILE"
 printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
+printf 'Nifty env template: %s\n' "$TARGET_ENV_FILE"
 printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"
 printf 'OpenCode Nifty commands: %s/nifty-auth.md, %s/nifty-health.md, and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
 printf 'No workflow config was created. Ask OpenCode to run nifty_setup_recommended_workflow with write_config true when you want a project-local nifty-workflows.json.\n'
