@@ -25,7 +25,13 @@ It gives you:
 
 ## Install Into A Container Or Machine
 
-Clone this repo into the machine or devcontainer that runs OpenCode, then run the installer from the repo root:
+Fast install after this repo is public:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | bash
+```
+
+Or clone this repo into the machine or devcontainer that runs OpenCode, then run the installer:
 
 ```bash
 git clone git@github.com:CaveIM/opencode-nifty.git
@@ -38,6 +44,8 @@ If the repo is already cloned, run:
 ```bash
 ./scripts/install.sh
 ```
+
+The installer does not need to be run from a specific project directory. When run from a clone, it finds files relative to the script location. When run through `curl | bash`, it downloads the plugin and example workflow config from GitHub. The project directory matters later when OpenCode looks for a project-local `nifty-workflows.json`.
 
 By default this installs into:
 
@@ -52,6 +60,12 @@ OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
 
 The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
+
+By default the one-line installer downloads from `main`. To install another branch or tag, set `NIFTY_INSTALL_REF`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | NIFTY_INSTALL_REF=v1.0.0 bash
+```
 
 ## Configure Credentials
 

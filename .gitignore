@@ -1,3 +1,31 @@
 node_modules/
+
+# Local Nifty/OpenCode config and credentials
 .nifty.env
 nifty-workflows.json
+nifty-auth.json
+.opencode/
+.config/opencode/nifty-auth.json
+
+# Local env files
+.env
+.env.*
+*.env
+
+# Credential/key material
+credentials*.json
+*token*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+
+# Local editor/OS noise
+.DS_Store
+.vscode/
+.idea/
+*.log
