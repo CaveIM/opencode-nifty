@@ -12,6 +12,9 @@ elif command -v opencode >/dev/null 2>&1; then
 else
   OPENCODE_PLUGIN_VERSION="1.14.50"
 fi
+NIFTY_DEFAULT_CLIENT_ID="${NIFTY_DEFAULT_CLIENT_ID:-lpuxRCzhf9mFOpfUuzS7xNmfNKO5pq3F}"
+NIFTY_DEFAULT_REDIRECT_URI="${NIFTY_DEFAULT_REDIRECT_URI:-http://127.0.0.1:8787/callback}"
+NIFTY_DEFAULT_AUTHORIZE_URL="${NIFTY_DEFAULT_AUTHORIZE_URL:-https://nifty.pm/authorize?response_type=code&client_id=lpuxRCzhf9mFOpfUuzS7xNmfNKO5pq3F&redirect_uri=http://127.0.0.1:8787/callback&scope=file,doc,message,project,task,member,time_tracking,subteam,task_group,subtask,milestone,label}"
 TARGET_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 TARGET_PLUGIN_DIR="$TARGET_CONFIG_DIR/plugins"
 TARGET_PLUGIN_FILE="$TARGET_PLUGIN_DIR/nifty.js"
@@ -84,12 +87,12 @@ Use the OpenCode tool `nifty_setup_recommended_workflow` with `dry_run true` fir
 EOF
 
 if [ ! -f "$TARGET_ENV_FILE" ]; then
-  cat > "$TARGET_ENV_FILE" <<'EOF'
+  cat > "$TARGET_ENV_FILE" <<EOF
 # Nifty OAuth app credentials. Do not commit this file.
-NIFTY_CLIENT_ID=
+NIFTY_CLIENT_ID=$NIFTY_DEFAULT_CLIENT_ID
 NIFTY_CLIENT_SECRET=
-NIFTY_AUTHORIZE_URL=
-NIFTY_REDIRECT_URI=http://127.0.0.1:8787/callback
+NIFTY_AUTHORIZE_URL=$NIFTY_DEFAULT_AUTHORIZE_URL
+NIFTY_REDIRECT_URI=$NIFTY_DEFAULT_REDIRECT_URI
 
 # Optional
 NIFTY_DEFAULT_WORKFLOW=

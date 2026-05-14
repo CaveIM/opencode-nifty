@@ -81,11 +81,9 @@ The installer creates `.nifty.env` in the directory where it runs. If you cloned
 cp env/nifty.env.example .nifty.env
 ```
 
-Fill in:
+The template includes the shared Nifty app client ID, authorize URL, and localhost callback URL. Fill in:
 
-- `NIFTY_CLIENT_ID`
 - `NIFTY_CLIENT_SECRET`
-- `NIFTY_AUTHORIZE_URL`
 
 Optional but recommended:
 
