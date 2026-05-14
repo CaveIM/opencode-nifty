@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
@@ -89,24 +89,57 @@ function recommendedWorkflowSummary() {
   }
 }
 
-function env(name) {
-  const value = process.env[name]
-  return typeof value === "string" && value.trim() ? value.trim() : undefined
+function parseEnvFile(content) {
+  const values = {}
+  for (const rawLine of String(content || "").split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith("#") || !line.includes("=")) continue
+    const index = line.indexOf("=")
+    const key = line.slice(0, index).trim()
+    let value = line.slice(index + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    values[key] = value
+  }
+  return values
 }
 
-function getClientConfig() {
+function envFileValues(context = {}) {
+  const candidates = [context.directory, context.worktree, process.cwd()]
+    .filter(Boolean)
+    .map((directory) => join(directory, ".nifty.env"))
+  for (const path of [...new Set(candidates)]) {
+    if (!existsSync(path)) continue
+    try {
+      return parseEnvFile(readFileSync(path, "utf8"))
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function env(name, context = {}) {
+  const value = process.env[name]
+  if (typeof value === "string" && value.trim()) return value.trim()
+  const fileValue = envFileValues(context)[name]
+  return typeof fileValue === "string" && fileValue.trim() ? fileValue.trim() : undefined
+}
+
+function getClientConfig(context = {}) {
   return {
-    clientID: env("NIFTY_CLIENT_ID"),
-    clientSecret: env("NIFTY_CLIENT_SECRET"),
-    redirectURI: env("NIFTY_REDIRECT_URI"),
-    authorizeURL: env("NIFTY_AUTHORIZE_URL"),
-    accessToken: env("NIFTY_ACCESS_TOKEN"),
-    refreshToken: env("NIFTY_REFRESH_TOKEN"),
+    clientID: env("NIFTY_CLIENT_ID", context),
+    clientSecret: env("NIFTY_CLIENT_SECRET", context),
+    redirectURI: env("NIFTY_REDIRECT_URI", context),
+    authorizeURL: env("NIFTY_AUTHORIZE_URL", context),
+    accessToken: env("NIFTY_ACCESS_TOKEN", context),
+    refreshToken: env("NIFTY_REFRESH_TOKEN", context),
   }
 }
 
-function defaultWorkflowAlias() {
-  return env("NIFTY_DEFAULT_WORKFLOW")
+function defaultWorkflowAlias(context = {}) {
+  return env("NIFTY_DEFAULT_WORKFLOW", context)
 }
 
 async function readTokenCache() {
@@ -139,8 +172,8 @@ function basicAuth(clientID, clientSecret) {
   return Buffer.from(`${clientID}:${clientSecret}`).toString("base64")
 }
 
-async function requestToken(body) {
-  const config = getClientConfig()
+async function requestToken(body, context = {}) {
+  const config = getClientConfig(context)
   if (!config.clientID || !config.clientSecret) {
     throw new Error(
       "Missing Nifty client credentials. Set NIFTY_CLIENT_ID and NIFTY_CLIENT_SECRET.",
@@ -176,8 +209,8 @@ function getLocalRedirectURI(host, port) {
   return `http://${host}:${port}/callback`
 }
 
-function getAuthorizeURL(host, port, state) {
-  const config = getClientConfig()
+function getAuthorizeURL(host, port, state, context = {}) {
+  const config = getClientConfig(context)
   if (!config.authorizeURL) {
     throw new Error("Missing NIFTY_AUTHORIZE_URL.")
   }
@@ -269,8 +302,9 @@ async function waitForAuthorizationCode(host, port, signal, expectedState) {
   })
 }
 
-function startBackgroundAuthorizationServer(host, port, state) {
+function startBackgroundAuthorizationServer(host, port, state, context = {}) {
   const redirectURI = getLocalRedirectURI(host, port)
+  const config = getClientConfig(context)
   const script = `
     import { createServer } from "node:http";
     import { chmod, writeFile, mkdir } from "node:fs/promises";
@@ -375,6 +409,9 @@ function startBackgroundAuthorizationServer(host, port, state) {
       NIFTY_AUTH_HOST: host,
       NIFTY_AUTH_PORT: String(port),
       NIFTY_AUTH_STATE: state,
+      NIFTY_CLIENT_ID: config.clientID || "",
+      NIFTY_CLIENT_SECRET: config.clientSecret || "",
+      NIFTY_AUTHORIZE_URL: config.authorizeURL || "",
       NIFTY_REDIRECT_URI: redirectURI,
       NIFTY_TOKEN_PATH: TOKEN_PATH,
     },
@@ -1027,6 +1064,7 @@ const __test = {
   milestoneMatches,
   niftyShellCommandHint,
   normalize,
+  parseEnvFile,
   parseJSONArg,
   projectMatches,
   projectConfigSelector,
@@ -1051,8 +1089,8 @@ export const NiftyPlugin = async () => {
       nifty_auth_help: tool({
         description: "Shows how to authorize the Nifty plugin",
         args: {},
-        async execute() {
-          const config = getClientConfig()
+        async execute(_args, context) {
+          const config = getClientConfig(context)
           const cached = await readTokenCache()
           return [
             "Nifty plugin setup:",
@@ -1078,8 +1116,8 @@ export const NiftyPlugin = async () => {
         args: {
           code: tool.schema.string().describe("Authorization code returned by Nifty"),
         },
-        async execute(args) {
-          const config = getClientConfig()
+        async execute(args, context) {
+          const config = getClientConfig(context)
           if (!config.redirectURI) {
             throw new Error("Missing NIFTY_REDIRECT_URI.")
           }
@@ -1088,7 +1126,7 @@ export const NiftyPlugin = async () => {
             grant_type: "authorization_code",
             code: args.code,
             redirect_uri: config.redirectURI,
-          })
+          }, context)
 
           return json({
             ok: true,
@@ -1109,7 +1147,7 @@ export const NiftyPlugin = async () => {
         async execute(args, context) {
           await assertPortAvailable(args.host, args.port)
           const state = createOAuthState()
-          const authorizeURL = getAuthorizeURL(args.host, args.port, state)
+          const authorizeURL = getAuthorizeURL(args.host, args.port, state, context)
           const redirectURI = getLocalRedirectURI(args.host, args.port)
 
           context.metadata({
@@ -1125,7 +1163,7 @@ export const NiftyPlugin = async () => {
             grant_type: "authorization_code",
             code,
             redirect_uri: redirectURI,
-          })
+          }, context)
 
           return [
             "Open this URL in your browser to finish connecting Nifty:",
@@ -1148,11 +1186,11 @@ export const NiftyPlugin = async () => {
           host: tool.schema.string().default("127.0.0.1").describe("Local host to listen on"),
           port: tool.schema.number().int().min(1).max(65535).default(8787).describe("Local port to listen on"),
         },
-        async execute(args) {
+        async execute(args, context) {
           await assertPortAvailable(args.host, args.port)
           const state = createOAuthState()
-          const authorizeURL = getAuthorizeURL(args.host, args.port, state)
-          const redirectURI = startBackgroundAuthorizationServer(args.host, args.port, state)
+          const authorizeURL = getAuthorizeURL(args.host, args.port, state, context)
+          const redirectURI = startBackgroundAuthorizationServer(args.host, args.port, state, context)
 
           return [
             "Open this URL in your browser to finish connecting Nifty:",
@@ -1687,7 +1725,7 @@ export const NiftyPlugin = async () => {
         description: "Checks Nifty credentials, token access, workflow config, and default workflow readiness",
         args: {},
         async execute(_args, context) {
-          const config = getClientConfig()
+          const config = getClientConfig(context)
           const cached = await readTokenCache()
           const checks = {
             credentials: {

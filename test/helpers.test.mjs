@@ -56,6 +56,22 @@ test("parses JSON string arguments", () => {
   assert.throws(() => __test.parseJSONArg("{", "content_json"), /content_json must be valid JSON/)
 })
 
+test("parses dotenv-style Nifty env files", () => {
+  assert.deepEqual(
+    __test.parseEnvFile(`
+# comment
+NIFTY_CLIENT_ID=abc
+NIFTY_CLIENT_SECRET="secret value"
+NIFTY_AUTHORIZE_URL='https://nifty.pm/authorize?x=1'
+`),
+    {
+      NIFTY_CLIENT_ID: "abc",
+      NIFTY_CLIENT_SECRET: "secret value",
+      NIFTY_AUTHORIZE_URL: "https://nifty.pm/authorize?x=1",
+    },
+  )
+})
+
 test("prefixes bot comments with a robot marker", () => {
   assert.equal(__test.botCommentText("Starting work"), "🤖 Starting work")
   assert.equal(__test.botCommentText("🤖 Already marked"), "🤖 Already marked")
