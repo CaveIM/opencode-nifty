@@ -61,8 +61,9 @@ OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 
 The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and registers `./plugins/nifty.js` in your global OpenCode config. It does not create a workflow config file. Create project-local workflow config only when you are ready to connect a project to Nifty.
 
-It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Two global slash commands are installed as shortcuts:
+It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Three global slash commands are installed as shortcuts:
 
+- `/nifty-auth`
 - `/nifty-health`
 - `/nifty-setup`
 
@@ -242,6 +243,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 ## Example Prompts
 
 - `run nifty_list_workflows`
+- `/nifty-auth`
 - `run nifty_health_check`
 - `/nifty-health`
 - `/nifty-setup`
