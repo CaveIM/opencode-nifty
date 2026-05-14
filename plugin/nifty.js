@@ -12,6 +12,11 @@ const TOKEN_PATH = join(homedir(), ".config", "opencode", "nifty-auth.json")
 const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000
 const BOT_COMMENT_PREFIX = "🤖"
+const NIFTY_SHELL_COMMAND_HINT = [
+  "Nifty is installed as OpenCode plugin tools, not as a shell command.",
+  "Use the OpenCode tool `nifty_health_check` for health checks.",
+  "For setup, use `nifty_recommended_workflow` or `nifty_setup_recommended_workflow`.",
+].join(" ")
 
 const RECOMMENDED_WORKFLOW = {
   statuses: [
@@ -823,6 +828,14 @@ function botCommentText(text, enabled = true) {
   return trimmed.startsWith(BOT_COMMENT_PREFIX) ? trimmed : `${BOT_COMMENT_PREFIX} ${trimmed}`
 }
 
+function niftyShellCommandHint(command) {
+  const normalized = normalize(command)
+  if (normalized === "nifty health check" || normalized === "nifty healthcheck") {
+    return NIFTY_SHELL_COMMAND_HINT
+  }
+  return undefined
+}
+
 async function listTasksWithStatusNames(query, projectID) {
   const [statuses, response] = await Promise.all([
     fetchAllStatuses(projectID),
@@ -965,6 +978,7 @@ export const __test = {
   getTaskStatusID,
   isTokenUsable,
   milestoneMatches,
+  niftyShellCommandHint,
   normalize,
   projectMatches,
   projectConfigSelector,
@@ -977,6 +991,12 @@ export const __test = {
 
 export const NiftyPlugin = async () => {
   return {
+    "tool.execute.before": async (input, output) => {
+      if (input.tool !== "bash") return
+      const hint = niftyShellCommandHint(output.args?.command)
+      if (hint) throw new Error(hint)
+    },
+
     tool: {
       nifty_auth_help: tool({
         description: "Shows how to authorize the Nifty plugin",

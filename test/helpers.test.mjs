@@ -50,6 +50,12 @@ test("prefixes bot comments with a robot marker", () => {
   assert.equal(__test.botCommentText("Personal note", false), "Personal note")
 })
 
+test("detects mistaken Nifty shell health commands", () => {
+  assert.match(__test.niftyShellCommandHint("nifty health check"), /nifty_health_check/)
+  assert.match(__test.niftyShellCommandHint("nifty_health_check"), /nifty_health_check/)
+  assert.equal(__test.niftyShellCommandHint("npm test"), undefined)
+})
+
 test("builds recommended workflow config snippets", () => {
   const config = __test.recommendedWorkflowConfig("gov", { nice_id: "GOV" })
 

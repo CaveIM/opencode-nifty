@@ -61,6 +61,11 @@ OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 
 The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
 
+It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Two global slash commands are installed as shortcuts:
+
+- `/nifty-health`
+- `/nifty-setup`
+
 By default the one-line installer downloads from `main`. To install another branch or tag, set `NIFTY_INSTALL_REF`:
 
 ```bash
@@ -244,6 +249,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 
 - `run nifty_list_workflows`
 - `run nifty_health_check`
+- `/nifty-health`
+- `/nifty-setup`
 - `run nifty_validate_workflows`
 - `run nifty_recommended_workflow with workflow_alias gov and project_nice_id GOV`
 - `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true`
