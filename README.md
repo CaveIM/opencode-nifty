@@ -59,7 +59,7 @@ Override the target if needed:
 OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
 
-The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
+The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js`, registers `./plugins/nifty.js` in your global OpenCode config, and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
 
 It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Two global slash commands are installed as shortcuts:
 

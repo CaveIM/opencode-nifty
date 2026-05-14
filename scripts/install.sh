@@ -12,6 +12,10 @@ TARGET_PACKAGE_JSON="$TARGET_CONFIG_DIR/package.json"
 TARGET_WORKFLOW_FILE="$TARGET_CONFIG_DIR/nifty-workflows.json"
 TARGET_AGENTS_FILE="$TARGET_CONFIG_DIR/AGENTS.md"
 TARGET_COMMAND_DIR="$TARGET_CONFIG_DIR/commands"
+TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.json"
+if [ -f "$TARGET_CONFIG_DIR/opencode.jsonc" ] && [ ! -f "$TARGET_OPENCODE_CONFIG_FILE" ]; then
+  TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.jsonc"
+fi
 SOURCE_PLUGIN_FILE="$ROOT_DIR/plugin/nifty.js"
 SOURCE_WORKFLOW_FILE="$ROOT_DIR/config/nifty-workflows.example.json"
 
@@ -52,6 +56,8 @@ node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } 
 
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pkg = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {}; pkg.type = "module"; pkg.dependencies = pkg.dependencies || {}; pkg.dependencies["@opencode-ai/plugin"] = pkg.dependencies["@opencode-ai/plugin"] || "1.4.3"; writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf8");' "$TARGET_PACKAGE_JSON"
 
+node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pluginPath = "./plugins/nifty.js"; if (!existsSync(path)) { writeFileSync(path, JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: [pluginPath] }, null, 2) + "\n", "utf8"); process.exit(0); } let text = readFileSync(path, "utf8"); if (text.includes(`"${pluginPath}"`)) process.exit(0); const pluginMatch = text.match(/("plugin"\s*:\s*\[)/); if (pluginMatch?.index !== undefined) { const insertAt = pluginMatch.index + pluginMatch[0].length; text = `${text.slice(0, insertAt)}\n    "${pluginPath}",${text.slice(insertAt)}`; writeFileSync(path, text, "utf8"); process.exit(0); } const firstBrace = text.indexOf("{"); if (firstBrace === -1) throw new Error(`${path} is not an object config file.`); const insertion = `\n  "plugin": ["${pluginPath}"],`; text = `${text.slice(0, firstBrace + 1)}${insertion}${text.slice(firstBrace + 1)}`; writeFileSync(path, text, "utf8");' "$TARGET_OPENCODE_CONFIG_FILE"
+
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const start = "<!-- opencode-nifty:start -->"; const end = "<!-- opencode-nifty:end -->"; const block = `${start}\n## OpenCode Nifty\n- When the user mentions Nifty, use the OpenCode tools named \`nifty_*\`; do not run shell commands such as \`nifty health check\`.\n- For \"Nifty health check\", use the OpenCode tool \`nifty_health_check\`.\n- For recommended lifecycle setup, use \`nifty_recommended_workflow\` and \`nifty_setup_recommended_workflow\`.\n- Automated Nifty workflow comments should keep the default robot marker unless the user explicitly wants a personal/direct comment.\n${end}`; const current = existsSync(path) ? readFileSync(path, "utf8") : ""; const pattern = new RegExp(`${start}[\\s\\S]*?${end}`); const next = pattern.test(current) ? current.replace(pattern, block) : `${current.trimEnd()}${current.trim() ? "\n\n" : ""}${block}\n`; writeFileSync(path, next.endsWith("\n") ? next : `${next}\n`, "utf8");' "$TARGET_AGENTS_FILE"
 
 cat > "$TARGET_COMMAND_DIR/nifty-health.md" <<'EOF'
@@ -77,6 +83,7 @@ else
 fi
 
 printf 'Installed Nifty plugin to %s\n' "$TARGET_PLUGIN_FILE"
+printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
 printf 'Workflow config path: %s\n' "$TARGET_WORKFLOW_FILE"
 printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"
 printf 'OpenCode Nifty commands: %s/nifty-health.md and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
