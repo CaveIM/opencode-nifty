@@ -25,7 +25,15 @@ It gives you:
 
 ## Install Into A Container Or Machine
 
-Clone this repo, then run:
+Clone this repo into the machine or devcontainer that runs OpenCode, then run the installer from the repo root:
+
+```bash
+git clone git@github.com:CaveIM/opencode-nifty.git
+cd opencode-nifty
+./scripts/install.sh
+```
+
+If the repo is already cloned, run:
 
 ```bash
 ./scripts/install.sh
@@ -42,6 +50,8 @@ Override the target if needed:
 ```bash
 OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
+
+The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and merges any missing example workflow aliases into `~/.config/opencode/nifty-workflows.json` without overwriting local edits.
 
 ## Configure Credentials
 
@@ -75,13 +85,15 @@ opencode
 
 ## Configure Workflows
 
-Copy the example workflow config:
+Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, and list names. Prefer a project-local `nifty-workflows.json` in the repo where OpenCode is launched, because it travels with that project/container without editing the plugin kit.
+
+From your project directory, create a local config:
 
 ```bash
-cp config/nifty-workflows.example.json ./nifty-workflows.json
+cp /path/to/opencode-nifty/config/nifty-workflows.example.json ./nifty-workflows.json
 ```
 
-Then point `NIFTY_WORKFLOW_CONFIG` at it, or let install place the example into the target OpenCode config directory.
+Then edit `./nifty-workflows.json` for that project. You can also point `NIFTY_WORKFLOW_CONFIG` at any config file, or let the installer use the copy in the target OpenCode config directory.
 
 Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json` or in the installed OpenCode config file. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
 
@@ -115,6 +127,55 @@ Example config:
 
 Nifty lists are represented by the API as milestones with `is_list=true`. Add optional `lists` aliases when a project needs another planning level beyond status.
 
+## Activate In A Project
+
+1. Install the plugin in the environment that runs OpenCode.
+2. Put `nifty-workflows.json` in the project root, for example `/workspaces/gov-cms/nifty-workflows.json`.
+3. Set `NIFTY_DEFAULT_WORKFLOW` to the alias you want OpenCode to use by default.
+4. Start OpenCode from that project root with Nifty env vars loaded.
+5. In OpenCode, run the tool `nifty_health_check`.
+
+Example project-local config using the recommended lifecycle:
+
+```json
+{
+  "workflows": {
+    "gov": {
+      "project": { "nice_id": "GOV" },
+      "states": {
+        "ideas": "Ideas",
+        "shaping": "Shaping",
+        "validated": "Validated",
+        "ready": "Ready",
+        "in_dev": "In Dev",
+        "dev_review": "Dev Review",
+        "ready_for_staging": "Ready for Staging",
+        "in_staging": "In Staging",
+        "ready_for_prod": "Ready for Prod",
+        "released": "Released",
+        "done": "Done",
+        "blocked": "Blocked"
+      },
+      "lists": {
+        "ui": "UI",
+        "api": "API",
+        "infrastructure": "Infrastructure",
+        "auth": "Auth",
+        "billing": "Billing",
+        "content": "Content",
+        "docs": "Docs",
+        "data": "Data/Migrations",
+        "devops": "DevOps"
+      }
+    }
+  }
+}
+```
+
+To have OpenCode generate that shape for a real project, run the OpenCode tool `nifty_recommended_workflow`. To compare a project against the recommended statuses/lists without writing to Nifty, run `nifty_setup_recommended_workflow` with `dry_run true`. To create missing statuses and lists, run the same tool with `dry_run false`.
+
+These are OpenCode tools, not shell commands. Ask OpenCode to run `nifty_health_check`; do not type `nifty_health_check` in the terminal.
+
 ## Typical Multi-Project Pattern
 
 1. Keep this repo in GitHub.
@@ -142,6 +203,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_auth_localhost_login`
 - `nifty_health_check`
 - `nifty_validate_workflows`
+- `nifty_recommended_workflow`
+- `nifty_setup_recommended_workflow`
 - `nifty_find_project`
 - `nifty_list_milestones`
 - `nifty_create_milestone`
@@ -157,12 +220,20 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_batch_capture_backlog_items`
 - `nifty_prepare_task_for_delivery`
 - `nifty_move_task_to_status`
+- `nifty_complete_task`
+- `nifty_archive_task`
+- `nifty_delete_task`
+- `nifty_clone_task`
+- `nifty_link_tasks`
 
 ## Example Prompts
 
 - `run nifty_list_workflows`
 - `run nifty_health_check`
 - `run nifty_validate_workflows`
+- `run nifty_recommended_workflow with workflow_alias gov and project_nice_id GOV`
+- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true`
+- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run false`
 - `run nifty_find_project with query Addons`
 - `run nifty_list_workflow_tasks with state_key backlog`
 - `run nifty_list_workflow_tasks with state_key backlog and list_key current`
@@ -172,6 +243,11 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `run nifty_list_documents`
 - `run nifty_prepare_task_for_delivery with task_id <id> state_key ready`
 - `run nifty_move_task_to_status with task_id <id> state_key in_progress`
+- `run nifty_complete_task with task_id <id>`
+- `run nifty_archive_task with task_id <id>`
+- `run nifty_link_tasks with task_id <id> and task_ids ["<other-id>"]`
+
+Automated comments created by workflow tools are prefixed with `🤖`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
 
 If `NIFTY_DEFAULT_WORKFLOW` is not set, provide `workflow_alias` explicitly.
 

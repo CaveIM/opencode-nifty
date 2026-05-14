@@ -272,3 +272,148 @@ test("nifty_update_document sends only provided fields", async () => {
 
   assert.deepEqual(capturedBody, { name: "Updated", archived: false })
 })
+
+test("task lifecycle tools call expected endpoints and bodies", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+    return Response.json({ ok: true })
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_complete_task.execute({ task_id: "t1", completed: true }, context())
+  await plugin.tool.nifty_archive_task.execute({ task_id: "t1", archived: true }, context())
+  await plugin.tool.nifty_link_tasks.execute({ task_id: "t1", task_ids: ["t2"] }, context())
+  await plugin.tool.nifty_update_task_labels.execute(
+    { task_id: "t1", label_ids: ["l1"], mode: "add" },
+    context(),
+  )
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["POST", "/api/v1.0/tasks/t1/complete"],
+    ["POST", "/api/v1.0/tasks/t1/archive"],
+    ["POST", "/api/v1.0/tasks/t1/link_task"],
+    ["PUT", "/api/v1.0/tasks/t1/labels"],
+  ])
+  assert.deepEqual(JSON.parse(calls[0].body), { completed: true })
+  assert.deepEqual(JSON.parse(calls[2].body), { tasks: ["t2"] })
+  assert.deepEqual(JSON.parse(calls[3].body), { labels: ["l1"] })
+})
+
+test("clone and attach document tools send Nifty string bodies", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+    return Response.json({ ok: true })
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_clone_task.execute({ task_id: "t1" }, context())
+  await plugin.tool.nifty_attach_task_document.execute({ task_id: "t1", document_id: "d1" }, context())
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["POST", "/api/v1.0/tasks/t1/clone"],
+    ["PUT", "/api/v1.0/tasks/t1/documents"],
+  ])
+  assert.equal(calls[0].body, JSON.stringify(""))
+  assert.equal(calls[1].body, JSON.stringify("d1"))
+})
+
+test("recommended workflow tool returns lifecycle and config snippet", async () => {
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_recommended_workflow.execute(
+    { workflow_alias: "gov", project_nice_id: "GOV" },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.workflow_alias, "gov")
+  assert.equal(parsed.config_snippet.workflows.gov.project.nice_id, "GOV")
+  assert.equal(parsed.config_snippet.workflows.gov.states.in_dev, "In Dev")
+  assert.equal(parsed.config_snippet.workflows.gov.lists.ui, "UI")
+})
+
+test("recommended workflow setup dry-run reports missing statuses and lists", async () => {
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Gov CMS", nice_id: "GOV" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s-ready", name: "Ready" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      assert.equal(requestURL.searchParams.get("is_list"), "true")
+      return Response.json({ items: [{ id: "m-ui", name: "UI", is_list: true }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_setup_recommended_workflow.execute(
+    { workflow_alias: "gov", project_name: "Gov CMS", dry_run: true },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.dry_run, true)
+  assert.deepEqual(parsed.statuses.existing, [{ key: "ready", name: "Ready", id: "s-ready" }])
+  assert.equal(parsed.statuses.missing.some((status) => status.name === "In Dev"), true)
+  assert.deepEqual(parsed.lists.existing, [{ key: "ui", name: "UI", id: "m-ui" }])
+  assert.equal(parsed.config_snippet.workflows.gov.project.nice_id, "GOV")
+})
+
+test("recommended workflow setup creates missing statuses and lists when dry_run is false", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups" && !options.method) {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones" && !options.method) {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups" && options.method === "POST") {
+      const body = JSON.parse(options.body)
+      return Response.json({ id: `s-${body.name}`, ...body })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones" && options.method === "POST") {
+      const body = JSON.parse(options.body)
+      return Response.json({ id: `m-${body.name}`, ...body })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_setup_recommended_workflow.execute(
+    { workflow_alias: "gov", project_id: "p1", dry_run: false },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+  const statusCreates = calls.filter((call) => call.path === "/api/v1.0/taskgroups" && call.method === "POST")
+  const listCreates = calls.filter((call) => call.path === "/api/v1.0/milestones" && call.method === "POST")
+
+  assert.equal(parsed.dry_run, false)
+  assert.equal(statusCreates.length, 12)
+  assert.equal(listCreates.length, 9)
+  assert.deepEqual(JSON.parse(statusCreates[0].body), {
+    project_id: "p1",
+    name: "Ideas",
+    order: 100,
+    color: "#9E9E9E",
+    isCompletionGroup: false,
+  })
+  assert.deepEqual(JSON.parse(listCreates[0].body), {
+    project_id: "p1",
+    name: "UI",
+    description: "",
+    is_list: true,
+  })
+})

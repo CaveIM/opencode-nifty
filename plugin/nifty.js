@@ -11,6 +11,78 @@ const API_BASE_URL = "https://openapi.niftypm.com"
 const TOKEN_PATH = join(homedir(), ".config", "opencode", "nifty-auth.json")
 const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000
+const BOT_COMMENT_PREFIX = "🤖"
+
+const RECOMMENDED_WORKFLOW = {
+  statuses: [
+    { key: "ideas", name: "Ideas", order: 100, color: "#9E9E9E" },
+    { key: "shaping", name: "Shaping", order: 200, color: "#7E57C2" },
+    { key: "validated", name: "Validated", order: 300, color: "#42A5F5" },
+    { key: "ready", name: "Ready", order: 400, color: "#26A69A" },
+    { key: "in_dev", name: "In Dev", order: 500, color: "#FFA726" },
+    { key: "dev_review", name: "Dev Review", order: 600, color: "#FF7043" },
+    { key: "ready_for_staging", name: "Ready for Staging", order: 700, color: "#AB47BC" },
+    { key: "in_staging", name: "In Staging", order: 800, color: "#5C6BC0" },
+    { key: "ready_for_prod", name: "Ready for Prod", order: 900, color: "#66BB6A" },
+    { key: "released", name: "Released", order: 1000, color: "#29B6F6" },
+    { key: "done", name: "Done", order: 1100, color: "#8BC34A" },
+    { key: "blocked", name: "Blocked", order: 1200, color: "#EF5350" },
+  ],
+  lists: [
+    { key: "ui", name: "UI" },
+    { key: "api", name: "API" },
+    { key: "infrastructure", name: "Infrastructure" },
+    { key: "auth", name: "Auth" },
+    { key: "billing", name: "Billing" },
+    { key: "content", name: "Content" },
+    { key: "docs", name: "Docs" },
+    { key: "data", name: "Data/Migrations" },
+    { key: "devops", name: "DevOps" },
+  ],
+}
+
+function recommendedWorkflowConfig(alias, projectSelector = {}, options = {}) {
+  return {
+    workflows: {
+      [alias]: {
+        project: projectSelector,
+        states: Object.fromEntries(
+          RECOMMENDED_WORKFLOW.statuses.map((status) => [status.key, status.name]),
+        ),
+        lists: Object.fromEntries(
+          RECOMMENDED_WORKFLOW.lists.map((list) => [list.key, list.name]),
+        ),
+        ...(options.milestones?.length
+          ? {
+              milestones: Object.fromEntries(
+                options.milestones.map((name) => [normalize(name).replaceAll(" ", "_"), name]),
+              ),
+            }
+          : {}),
+      },
+    },
+  }
+}
+
+function workflowAlias(alias, project = {}) {
+  const fallback = normalize(project.nice_id || project.name || project.id || "default").replaceAll(" ", "_")
+  return alias || defaultWorkflowAlias() || fallback || "default"
+}
+
+function projectConfigSelector(project = {}) {
+  if (project.nice_id) return { nice_id: project.nice_id }
+  if (project.name) return { name: project.name }
+  return { id: project.id }
+}
+
+function recommendedWorkflowSummary() {
+  return {
+    principle: "Use statuses for lifecycle, lists for stable app areas, and milestones for release/sprint/timebox goals.",
+    statuses: RECOMMENDED_WORKFLOW.statuses,
+    lists: RECOMMENDED_WORKFLOW.lists,
+    milestone_examples: ["MVP Launch", "v1.0 Release", "May Sprint 2", "Production Cutover"],
+  }
+}
 
 function env(name) {
   const value = process.env[name]
@@ -453,6 +525,19 @@ async function fetchAllStatuses(projectID) {
   return fetchStatuses(projectID, false)
 }
 
+async function createStatus(projectID, status) {
+  return niftyRequest("/api/v1.0/taskgroups", {
+    method: "POST",
+    body: cleanObject({
+      project_id: projectID,
+      name: status.name,
+      order: status.order,
+      color: status.color,
+      isCompletionGroup: status.key === "done",
+    }),
+  })
+}
+
 async function fetchMilestones(projectID, options = {}) {
   const response = await niftyRequest("/api/v1.0/milestones", {
     query: cleanObject({
@@ -481,6 +566,82 @@ async function fetchAllMilestones(projectID, options = {}) {
   }
 
   return items
+}
+
+async function createList(projectID, list) {
+  return niftyRequest("/api/v1.0/milestones", {
+    method: "POST",
+    body: {
+      project_id: projectID,
+      name: list.name,
+      description: "",
+      is_list: true,
+    },
+  })
+}
+
+async function recommendedWorkflowSetupPlan(projectID, options = {}) {
+  const [statuses, lists] = await Promise.all([
+    fetchAllStatuses(projectID),
+    fetchAllMilestones(projectID, { isList: true }),
+  ])
+
+  const statusPlan = RECOMMENDED_WORKFLOW.statuses.map((status) => ({
+    ...status,
+    existing: statuses.find((item) => statusMatches(item, status.name)) || null,
+  }))
+  const listPlan = RECOMMENDED_WORKFLOW.lists.map((list) => ({
+    ...list,
+    existing: lists.find((item) => milestoneMatches(item, list.name)) || null,
+  }))
+
+  const createdStatuses = []
+  const createdLists = []
+  const dryRun = options.dryRun !== false
+  const createStatuses = options.createStatuses !== false
+  const createLists = options.createLists !== false
+
+  if (!dryRun) {
+    if (createStatuses) {
+      for (const status of statusPlan.filter((item) => !item.existing)) {
+        createdStatuses.push(await createStatus(projectID, status))
+      }
+    }
+
+    if (createLists) {
+      for (const list of listPlan.filter((item) => !item.existing)) {
+        createdLists.push(await createList(projectID, list))
+      }
+    }
+  }
+
+  return {
+    dry_run: dryRun,
+    statuses: {
+      existing: statusPlan
+        .filter((item) => item.existing)
+        .map((item) => ({ key: item.key, name: item.name, id: item.existing.id })),
+      missing: createStatuses
+        ? statusPlan.filter((item) => !item.existing).map(({ existing, ...item }) => item)
+        : [],
+      skipped: createStatuses
+        ? []
+        : statusPlan.filter((item) => !item.existing).map(({ existing, ...item }) => item),
+      created: createdStatuses,
+    },
+    lists: {
+      existing: listPlan
+        .filter((item) => item.existing)
+        .map((item) => ({ key: item.key, name: item.name, id: item.existing.id })),
+      missing: createLists
+        ? listPlan.filter((item) => !item.existing).map(({ existing, ...item }) => item)
+        : [],
+      skipped: createLists
+        ? []
+        : listPlan.filter((item) => !item.existing).map(({ existing, ...item }) => item),
+      created: createdLists,
+    },
+  }
 }
 
 function projectMatches(project, selector) {
@@ -656,6 +817,12 @@ function buildTaskDescription(input) {
   return lines.join("\n").trim() || undefined
 }
 
+function botCommentText(text, enabled = true) {
+  const trimmed = String(text || "").trimStart()
+  if (!enabled) return trimmed
+  return trimmed.startsWith(BOT_COMMENT_PREFIX) ? trimmed : `${BOT_COMMENT_PREFIX} ${trimmed}`
+}
+
 async function listTasksWithStatusNames(query, projectID) {
   const [statuses, response] = await Promise.all([
     fetchAllStatuses(projectID),
@@ -761,6 +928,7 @@ async function validateWorkflows(options = {}) {
 async function niftyRequest(path, options = {}) {
   const token = await getAccessToken()
   const { query, body, headers, ...rest } = options
+  const hasBody = Object.prototype.hasOwnProperty.call(options, "body") && body !== undefined
   const url = new URL(path, API_BASE_URL)
   appendQueryParams(url, query)
   const method = rest.method || "GET"
@@ -769,10 +937,10 @@ async function niftyRequest(path, options = {}) {
     ...rest,
     headers: {
       Authorization: `Bearer ${token}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
   })
 
   return parseResponse(response, {
@@ -788,6 +956,7 @@ function json(value) {
 
 export const __test = {
   appendQueryParams,
+  botCommentText,
   buildTaskDescription,
   configPath,
   filterTasksByStatus,
@@ -798,8 +967,12 @@ export const __test = {
   milestoneMatches,
   normalize,
   projectMatches,
+  projectConfigSelector,
+  recommendedWorkflowConfig,
+  recommendedWorkflowSummary,
   statusMatches,
   summarizeTask,
+  workflowAlias,
 }
 
 export const NiftyPlugin = async () => {
@@ -1485,6 +1658,71 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_recommended_workflow: tool({
+        description: "Shows the recommended Nifty lifecycle workflow and optional workflow config snippet",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias to use in the config snippet"),
+          project_id: tool.schema.string().optional().describe("Project ID for the config snippet"),
+          project_name: tool.schema.string().optional().describe("Project name for the config snippet"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID for the config snippet"),
+        },
+        async execute(args) {
+          const project = cleanObject({
+            id: args.project_id,
+            name: args.project_name,
+            nice_id: args.project_nice_id,
+          })
+          const alias = workflowAlias(args.workflow_alias, project)
+
+          return json({
+            ...recommendedWorkflowSummary(),
+            workflow_alias: alias,
+            config_snippet: recommendedWorkflowConfig(alias, projectConfigSelector(project)),
+          })
+        },
+      }),
+
+      nifty_setup_recommended_workflow: tool({
+        description: "Dry-runs or creates the recommended Nifty statuses and lists for a project",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias for the returned config snippet"),
+          project_id: tool.schema.string().optional().describe("Project ID"),
+          project_name: tool.schema.string().optional().describe("Project name"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
+          dry_run: tool.schema.boolean().optional().describe("Plan only; defaults to true"),
+          create_statuses: tool.schema.boolean().optional().describe("Create missing statuses; defaults to true"),
+          create_lists: tool.schema.boolean().optional().describe("Create missing Nifty lists; defaults to true"),
+        },
+        async execute(args, context) {
+          const resolved = await resolveProjectSelector(
+            {
+              workflow_alias: args.workflow_alias,
+              project_id: args.project_id,
+              project_name: args.project_name,
+              project_nice_id: args.project_nice_id,
+            },
+            context,
+          )
+          const alias = workflowAlias(resolved.workflowAlias || args.workflow_alias, resolved.project)
+          const plan = await recommendedWorkflowSetupPlan(resolved.project.id, {
+            dryRun: args.dry_run !== false,
+            createStatuses: args.create_statuses !== false,
+            createLists: args.create_lists !== false,
+          })
+
+          return json({
+            workflow_alias: alias,
+            project: {
+              id: resolved.project.id,
+              name: resolved.project.name || null,
+              nice_id: resolved.project.nice_id || null,
+            },
+            ...plan,
+            config_snippet: recommendedWorkflowConfig(alias, projectConfigSelector(resolved.project)),
+          })
+        },
+      }),
+
       nifty_list_workflow_tasks: tool({
         description: "Lists tasks for a configured workflow alias and optional state name",
         args: {
@@ -1879,6 +2117,158 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_delete_task: tool({
+        description: "Deletes a Nifty task by ID",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
+            method: "DELETE",
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_delete_tasks: tool({
+        description: "Deletes multiple Nifty tasks from a project",
+        args: {
+          project_id: tool.schema.string().describe("Project ID"),
+          task_ids: tool.schema.array(tool.schema.string()).describe("Task IDs to delete"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/tasks", {
+            method: "DELETE",
+            body: {
+              project_id: args.project_id,
+              task_ids: args.task_ids,
+            },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_complete_task: tool({
+        description: "Completes or reopens a Nifty task",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          completed: tool.schema.boolean().default(true).describe("Completion state"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/complete`, {
+            method: "POST",
+            body: { completed: args.completed },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_archive_task: tool({
+        description: "Archives or unarchives a Nifty task",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          archived: tool.schema.boolean().default(true).describe("Archived state"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/archive`, {
+            method: "POST",
+            body: { archived: args.archived },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_clone_task: tool({
+        description: "Clones a Nifty task",
+        args: {
+          task_id: tool.schema.string().describe("Task ID to clone"),
+          body_string: tool.schema.string().optional().describe("Optional raw string body for Nifty's clone endpoint"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/clone`, {
+            method: "POST",
+            body: args.body_string || "",
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_link_tasks: tool({
+        description: "Links other tasks to a Nifty task",
+        args: {
+          task_id: tool.schema.string().describe("Task ID that linked tasks should be associated with"),
+          task_ids: tool.schema.array(tool.schema.string()).describe("Task IDs to link"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/link_task`, {
+            method: "POST",
+            body: { tasks: args.task_ids },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_update_task_labels: tool({
+        description: "Adds, removes, or replaces Nifty task labels",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          label_ids: tool.schema.array(tool.schema.string()).describe("Label IDs to apply"),
+          mode: tool.schema.enum(["add", "remove", "replace"]).describe("How to apply the labels"),
+        },
+        async execute(args) {
+          if (args.mode === "replace") {
+            const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
+              method: "PUT",
+              body: { labels: args.label_ids },
+            })
+            return json(response)
+          }
+
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/labels`, {
+            method: args.mode === "add" ? "PUT" : "DELETE",
+            body: { labels: args.label_ids },
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_attach_task_document: tool({
+        description: "Attaches a Nifty document to a task",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          document_id: tool.schema.string().describe("Document ID to attach"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/documents`, {
+            method: "PUT",
+            body: args.document_id,
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_move_tasks: tool({
+        description: "Moves multiple Nifty tasks to a target entity",
+        args: {
+          task_ids: tool.schema.array(tool.schema.string()).describe("Task IDs to move"),
+          target_type: tool.schema.string().describe("Target type expected by Nifty, such as task_group, milestone, or project"),
+          target_id: tool.schema.string().describe("Target ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/tasks/move", {
+            method: "POST",
+            body: {
+              to: {
+                type: args.target_type,
+                id: args.target_id,
+              },
+              task_ids: args.task_ids,
+            },
+          })
+          return json(response)
+        },
+      }),
+
       nifty_move_task_to_status: tool({
         description: "Moves a task to a named status or configured workflow state",
         args: {
@@ -1925,7 +2315,7 @@ export const NiftyPlugin = async () => {
               method: "POST",
               body: {
                 type: "text",
-                text: args.comment,
+                text: botCommentText(args.comment),
                 task_id: args.task_id,
               },
             })
@@ -2015,7 +2405,7 @@ export const NiftyPlugin = async () => {
               method: "POST",
               body: {
                 type: "text",
-                text: args.comment,
+                text: botCommentText(args.comment),
                 task_id: args.task_id,
               },
             })
@@ -2094,6 +2484,7 @@ export const NiftyPlugin = async () => {
           entity_key: tool.schema.string().optional().describe("Document entity key when doc_id is used"),
           external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const targets = [
@@ -2114,7 +2505,7 @@ export const NiftyPlugin = async () => {
             method: "POST",
             body: cleanObject({
               type: "text",
-              text: args.text,
+              text: botCommentText(args.text, args.bot_marker !== false),
               chat_id: args.chat_id,
               message_id: args.message_id,
               task_id: args.task_id,
@@ -2136,12 +2527,13 @@ export const NiftyPlugin = async () => {
           text: tool.schema.string().describe("Updated message text"),
           hide_link_preview: tool.schema.boolean().optional().describe("Hide link previews"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/messages/${encodeURIComponent(args.message_id)}`, {
             method: "PUT",
             body: cleanObject({
-              text: args.text,
+              text: botCommentText(args.text, args.bot_marker !== false),
               hide_link_preview: args.hide_link_preview,
               nifty_files: args.nifty_files,
             }),

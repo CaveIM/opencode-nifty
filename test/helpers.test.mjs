@@ -43,6 +43,22 @@ test("renders structured task descriptions", () => {
   assert.match(description, /- \[ \] Add tests/)
 })
 
+test("prefixes bot comments with a robot marker", () => {
+  assert.equal(__test.botCommentText("Starting work"), "🤖 Starting work")
+  assert.equal(__test.botCommentText("🤖 Already marked"), "🤖 Already marked")
+  assert.equal(__test.botCommentText("   Trimmed"), "🤖 Trimmed")
+  assert.equal(__test.botCommentText("Personal note", false), "Personal note")
+})
+
+test("builds recommended workflow config snippets", () => {
+  const config = __test.recommendedWorkflowConfig("gov", { nice_id: "GOV" })
+
+  assert.equal(config.workflows.gov.project.nice_id, "GOV")
+  assert.equal(config.workflows.gov.states.ready, "Ready")
+  assert.equal(config.workflows.gov.states.ready_for_prod, "Ready for Prod")
+  assert.equal(config.workflows.gov.lists.data, "Data/Migrations")
+})
+
 test("detects usable and expired tokens", () => {
   assert.equal(
     __test.isTokenUsable({ access_token: "token", expires_at: Date.now() + 5 * 60 * 1000 }),
