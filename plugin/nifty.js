@@ -9,6 +9,7 @@ import { tool } from "@opencode-ai/plugin"
 
 const API_BASE_URL = "https://openapi.niftypm.com"
 const TOKEN_PATH = join(homedir(), ".config", "opencode", "nifty-auth.json")
+const AUTH_LOG_PATH = join(homedir(), ".config", "opencode", "nifty-auth-server.log")
 const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000
 const BOT_COMMENT_PREFIX = "🤖"
@@ -237,6 +238,47 @@ async function assertPortAvailable(host, port) {
   })
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function waitForCallbackServer(host, port) {
+  const readinessHost = host === "0.0.0.0" ? "127.0.0.1" : host
+  const url = getLocalRedirectURI(readinessHost, port)
+  const deadline = Date.now() + 3000
+  let lastError
+
+  while (Date.now() < deadline) {
+    try {
+      await fetchWithTimeout(url, 500)
+      return
+    } catch (error) {
+      lastError = error
+      await sleep(100)
+    }
+  }
+
+  throw new Error(
+    [
+      `Nifty auth callback server did not respond at ${url}.`,
+      `Check that port ${port} is forwarded and inspect ${AUTH_LOG_PATH}.`,
+      lastError?.message ? `Last error: ${lastError.message}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  )
+}
+
 async function waitForAuthorizationCode(host, port, signal, expectedState) {
   return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
@@ -302,12 +344,12 @@ async function waitForAuthorizationCode(host, port, signal, expectedState) {
   })
 }
 
-function startBackgroundAuthorizationServer(host, port, state, context = {}) {
+async function startBackgroundAuthorizationServer(host, port, state, context = {}) {
   const redirectURI = getLocalRedirectURI(host, port)
   const config = getClientConfig(context)
   const script = `
     import { createServer } from "node:http";
-    import { chmod, writeFile, mkdir } from "node:fs/promises";
+    import { appendFile, chmod, writeFile, mkdir } from "node:fs/promises";
     import { dirname } from "node:path";
     import { homedir } from "node:os";
 
@@ -315,7 +357,15 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
     const port = Number(process.env.NIFTY_AUTH_PORT || "8787");
     const redirectURI = process.env.NIFTY_REDIRECT_URI || \`http://\${host}:\${port}/callback\`;
     const tokenPath = process.env.NIFTY_TOKEN_PATH || homedir() + "/.config/opencode/nifty-auth.json";
+    const logPath = process.env.NIFTY_AUTH_LOG_PATH || homedir() + "/.config/opencode/nifty-auth-server.log";
     const expectedState = process.env.NIFTY_AUTH_STATE;
+
+    async function log(message) {
+      try {
+        await mkdir(dirname(logPath), { recursive: true });
+        await appendFile(logPath, \`[\${new Date().toISOString()}] \${message}\\n\`, "utf8");
+      } catch {}
+    }
 
     function html(title, body) {
       return \`<!doctype html><html><head><title>\${title}</title></head><body><h1>\${title}</h1><p>\${body}</p></body></html>\`;
@@ -337,6 +387,7 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
         if (error) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           response.end(html("Nifty authorization failed", "You can close this tab and return to OpenCode."));
+          await log("authorization failed callback received");
           server.close(() => process.exit(1));
           return;
         }
@@ -350,6 +401,7 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
         if (expectedState && state !== expectedState) {
           response.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           response.end(html("Invalid OAuth state", "The callback state did not match. Retry auth from OpenCode."));
+          await log("invalid oauth state received");
           server.close(() => process.exit(1));
           return;
         }
@@ -359,6 +411,7 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
         if (!clientID || !clientSecret) {
           response.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
           response.end(html("Missing Nifty credentials", "Set NIFTY_CLIENT_ID and NIFTY_CLIENT_SECRET in this OpenCode environment."));
+          await log("missing client credentials in auth server environment");
           server.close(() => process.exit(1));
           return;
         }
@@ -377,6 +430,7 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
         if (!tokenResponse.ok) {
           response.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
           response.end(html("Nifty token exchange failed", "Check your redirect URI and Nifty app credentials."));
+          await log(\`token exchange failed with status \${tokenResponse.status}\`);
           server.close(() => process.exit(1));
           return;
         }
@@ -389,16 +443,27 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
 
         response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         response.end(html("Nifty connected", "You can close this tab and return to OpenCode."));
+        await log("token exchange completed successfully");
         server.close(() => process.exit(0));
-      } catch {
+      } catch (error) {
+        await log(\`request handling failed: \${error?.stack || error}\`);
         response.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
         response.end(html("Nifty auth server failed", "Return to OpenCode and retry."));
         server.close(() => process.exit(1));
       }
     });
 
-    server.listen(port, host);
-    setTimeout(() => server.close(() => process.exit(1)), 10 * 60 * 1000);
+    server.once("error", async (error) => {
+      await log(\`listen failed on \${host}:\${port}: \${error?.message || error}\`);
+      process.exit(1);
+    });
+    server.listen(port, host, () => {
+      void log(\`listening on \${host}:\${port}; redirect_uri=\${redirectURI}\`);
+    });
+    setTimeout(async () => {
+      await log("auth server timed out");
+      server.close(() => process.exit(1));
+    }, 10 * 60 * 1000);
   `
 
   const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
@@ -414,9 +479,11 @@ function startBackgroundAuthorizationServer(host, port, state, context = {}) {
       NIFTY_AUTHORIZE_URL: config.authorizeURL || "",
       NIFTY_REDIRECT_URI: redirectURI,
       NIFTY_TOKEN_PATH: TOKEN_PATH,
+      NIFTY_AUTH_LOG_PATH: AUTH_LOG_PATH,
     },
   })
   child.unref()
+  await waitForCallbackServer(host, port)
   return redirectURI
 }
 
@@ -1190,7 +1257,7 @@ export const NiftyPlugin = async () => {
           await assertPortAvailable(args.host, args.port)
           const state = createOAuthState()
           const authorizeURL = getAuthorizeURL(args.host, args.port, state, context)
-          const redirectURI = startBackgroundAuthorizationServer(args.host, args.port, state, context)
+          const redirectURI = await startBackgroundAuthorizationServer(args.host, args.port, state, context)
 
           return [
             "Open this URL in your browser to finish connecting Nifty:",
@@ -1199,6 +1266,7 @@ export const NiftyPlugin = async () => {
             "The callback server is running in the background for 10 minutes.",
             `Redirect URI: ${redirectURI}`,
             `Token cache: ${TOKEN_PATH}`,
+            `Auth server log: ${AUTH_LOG_PATH}`,
           ].join("\n")
         },
       }),
