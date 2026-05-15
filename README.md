@@ -232,6 +232,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
 - `nifty_batch_capture_backlog_items`
+- `nifty_create_subtask`
 - `nifty_prepare_task_for_delivery`
 - `nifty_move_task_to_status`
 - `nifty_complete_task`
@@ -239,6 +240,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_delete_task`
 - `nifty_clone_task`
 - `nifty_link_tasks`
+
+Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
 
 ## Example Prompts
 

@@ -2276,6 +2276,40 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_create_subtask: tool({
+        description: "Creates a Nifty subtask under an existing parent task",
+        args: {
+          parent_task_id: tool.schema.string().describe("Parent task ID"),
+          name: tool.schema.string().describe("Subtask name"),
+          task_group_id: tool.schema.string().describe("Status or task group ID"),
+          description: tool.schema.string().optional().describe("Subtask description"),
+          milestone_id: tool.schema.string().optional().describe("Milestone ID"),
+          due_date: tool.schema.string().optional().describe("Due date, ISO format"),
+          start_date: tool.schema.string().optional().describe("Start date, ISO format"),
+          assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
+          label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
+          story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
+        },
+        async execute(args) {
+          const response = await niftyRequest("/api/v1.0/tasks", {
+            method: "POST",
+            body: cleanWriteObject({
+              name: args.name,
+              task_group_id: args.task_group_id,
+              description: args.description,
+              task_id: args.parent_task_id,
+              milestone_id: args.milestone_id,
+              due_date: args.due_date,
+              start_date: args.start_date,
+              assignees: args.assignee_ids,
+              labels: args.label_ids,
+              story_points: args.story_points,
+            }),
+          })
+          return json(response)
+        },
+      }),
+
       nifty_update_task: tool({
         description: "Updates a Nifty task",
         args: {

@@ -329,6 +329,37 @@ test("nifty_create_task omits blank optional fields", async () => {
   assert.deepEqual(capturedBody, { name: "Minimal task", task_group_id: "status-1" })
 })
 
+test("nifty_create_subtask sends parent task id", async () => {
+  let capturedBody
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/tasks" && options.method === "POST") {
+      capturedBody = JSON.parse(options.body)
+      return Response.json({ id: "st1", name: capturedBody.name })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_create_subtask.execute(
+    {
+      parent_task_id: "parent-1",
+      name: "Implement API detail",
+      task_group_id: "status-1",
+      description: "",
+    },
+    context(),
+  )
+
+  assert.deepEqual(capturedBody, {
+    name: "Implement API detail",
+    task_group_id: "status-1",
+    task_id: "parent-1",
+  })
+})
+
 test("task lifecycle tools call expected endpoints and bodies", async () => {
   const calls = []
   globalThis.fetch = async (url, options = {}) => {
