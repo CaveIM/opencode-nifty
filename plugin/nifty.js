@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { existsSync, readFileSync } from "node:fs"
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
@@ -10,6 +10,7 @@ import { tool } from "@opencode-ai/plugin"
 const API_BASE_URL = "https://openapi.niftypm.com"
 const TOKEN_PATH = join(homedir(), ".config", "opencode", "nifty-auth.json")
 const AUTH_LOG_PATH = join(homedir(), ".config", "opencode", "nifty-auth-server.log")
+const AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node"
 const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000
 const BOT_COMMENT_PREFIX = "🤖"
@@ -466,9 +467,16 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
     }, 10 * 60 * 1000);
   `
 
-  const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
+  mkdirSync(dirname(AUTH_LOG_PATH), { recursive: true })
+  appendFileSync(
+    AUTH_LOG_PATH,
+    `[${new Date().toISOString()}] starting auth server with ${AUTH_NODE_BINARY} on ${host}:${port}; redirect_uri=${redirectURI}\n`,
+    "utf8",
+  )
+  const logFd = openSync(AUTH_LOG_PATH, "a")
+  const child = spawn(AUTH_NODE_BINARY, ["--input-type=module", "-e", script], {
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", logFd, logFd],
     env: {
       ...process.env,
       NIFTY_AUTH_HOST: host,
@@ -481,6 +489,10 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
       NIFTY_TOKEN_PATH: TOKEN_PATH,
       NIFTY_AUTH_LOG_PATH: AUTH_LOG_PATH,
     },
+  })
+  closeSync(logFd)
+  child.once("error", (error) => {
+    appendFileSync(AUTH_LOG_PATH, `[${new Date().toISOString()}] spawn failed: ${error.message}\n`, "utf8")
   })
   child.unref()
   await waitForCallbackServer(host, port)
