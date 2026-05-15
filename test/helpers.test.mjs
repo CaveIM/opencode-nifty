@@ -89,7 +89,9 @@ test("builds recommended workflow config snippets", () => {
   const config = __test.recommendedWorkflowConfig("gov", { nice_id: "GOV" })
 
   assert.equal(config.workflows.gov.project.nice_id, "GOV")
-  assert.equal(config.workflows.gov.states.ready, "Ready")
+  assert.equal(config.workflows.gov.states.todo, "To Do")
+  assert.equal(config.workflows.gov.states.planned, "Planned")
+  assert.equal(config.workflows.gov.states.not_now, "Not Now")
   assert.equal(config.workflows.gov.states.ready_for_prod, "Ready for Prod")
   assert.equal(config.workflows.gov.lists.data, "Data/Migrations")
 })
@@ -131,6 +133,11 @@ test("requires exact bulk task confirmation", () => {
     () => __test.requireBulkTaskConfirmation("delete", ["t1", "t2"], "delete tasks"),
     /delete 2 tasks/,
   )
+})
+
+test("chooses recommended or legacy capture default state", () => {
+  assert.equal(__test.defaultCaptureStateKey({ states: { ideas: "Ideas" } }), "ideas")
+  assert.equal(__test.defaultCaptureStateKey({ states: { backlog: "Backlog" } }), "backlog")
 })
 
 test("filters tasks by exact status id", () => {

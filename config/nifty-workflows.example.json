@@ -6,7 +6,7 @@
       },
       "states": {
         "backlog": "Backlog",
-        "ready": "To Do",
+        "todo": "To Do",
         "in_progress": "In Progress",
         "review": "Review"
       },
@@ -20,7 +20,7 @@
       },
       "states": {
         "backlog": "Backlog",
-        "ready": "Ready",
+        "todo": "To Do",
         "in_progress": "In Progress",
         "review": "Review",
         "done": "Done"

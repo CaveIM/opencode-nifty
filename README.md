@@ -12,7 +12,7 @@ It gives you:
 
 - Nifty auth helpers
 - Raw Nifty API tools for projects, tasks, discussions, and comments
-- Higher-level workflow tools for backlog, ready, in-progress, and review flows
+- Higher-level workflow tools for ideas, to-do, in-progress, and review flows
 - A workflow alias config so each container or user can point OpenCode at different Nifty projects without changing plugin code
 
 ## Repo Layout
@@ -127,7 +127,7 @@ Example config:
       "project": { "name": "Addons" },
       "states": {
         "backlog": "Backlog",
-        "ready": "To Do",
+        "todo": "To Do",
         "in_progress": "In Progress",
         "review": "Review"
       },
@@ -159,14 +159,15 @@ Example project-local config using the recommended lifecycle:
       "states": {
         "ideas": "Ideas",
         "shaping": "Shaping",
-        "validated": "Validated",
-        "ready": "Ready",
-        "in_dev": "In Dev",
+        "planned": "Planned",
+        "not_now": "Not Now",
+        "todo": "To Do",
+        "in_progress": "In Progress",
         "dev_review": "Dev Review",
         "ready_for_staging": "Ready for Staging",
         "in_staging": "In Staging",
         "ready_for_prod": "Ready for Prod",
-        "released": "Released",
+        "released": "Released in Prod",
         "done": "Done",
         "blocked": "Blocked"
       },
@@ -269,7 +270,7 @@ Use `nifty_update_plugin` to update the installed plugin from GitHub. If it repo
 - `run nifty_batch_capture_backlog_items with dry_run true`
 - `run nifty_create_document with name "Launch notes" and content_text "Draft notes"`
 - `run nifty_list_documents`
-- `run nifty_prepare_task_for_delivery with task_id <id> state_key ready`
+- `run nifty_prepare_task_for_delivery with task_id <id> state_key todo`
 - `run nifty_move_task_to_status with task_id <id> state_key in_progress`
 - `run nifty_complete_task with task_id <id>`
 - `run nifty_archive_task with task_id <id>`

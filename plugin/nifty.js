@@ -25,14 +25,15 @@ const RECOMMENDED_WORKFLOW = {
   statuses: [
     { key: "ideas", name: "Ideas", order: 100, color: "#9E9E9E" },
     { key: "shaping", name: "Shaping", order: 200, color: "#7E57C2" },
-    { key: "validated", name: "Validated", order: 300, color: "#42A5F5" },
-    { key: "ready", name: "Ready", order: 400, color: "#26A69A" },
-    { key: "in_dev", name: "In Dev", order: 500, color: "#FFA726" },
+    { key: "planned", name: "Planned", order: 300, color: "#42A5F5" },
+    { key: "not_now", name: "Not Now", order: 350, color: "#78909C" },
+    { key: "todo", name: "To Do", order: 400, color: "#26A69A" },
+    { key: "in_progress", name: "In Progress", order: 500, color: "#FFA726" },
     { key: "dev_review", name: "Dev Review", order: 600, color: "#FF7043" },
     { key: "ready_for_staging", name: "Ready for Staging", order: 700, color: "#AB47BC" },
     { key: "in_staging", name: "In Staging", order: 800, color: "#5C6BC0" },
     { key: "ready_for_prod", name: "Ready for Prod", order: 900, color: "#66BB6A" },
-    { key: "released", name: "Released", order: 1000, color: "#29B6F6" },
+    { key: "released", name: "Released in Prod", order: 1000, color: "#29B6F6" },
     { key: "done", name: "Done", order: 1100, color: "#8BC34A" },
     { key: "blocked", name: "Blocked", order: 1200, color: "#EF5350" },
   ],
@@ -694,6 +695,11 @@ function getWorkflowAliasMap(config) {
     : {}
 }
 
+function defaultCaptureStateKey(workflow = {}) {
+  const states = workflow.states || workflow.statuses || {}
+  return states.ideas ? "ideas" : "backlog"
+}
+
 async function writeWorkflowAliasConfig(path, alias, workflow, options = {}) {
   let config = { workflows: {} }
   let existed = false
@@ -1151,8 +1157,8 @@ async function validateWorkflows(options = {}) {
       }
     }
 
-    if (!states.backlog) warnings.push("state 'backlog' is not configured")
-    if (!states.ready) warnings.push("state 'ready' is not configured")
+    if (!states.ideas && !states.backlog) warnings.push("state 'ideas' or 'backlog' is not configured")
+    if (!states.todo && !states.ready) warnings.push("state 'todo' or 'ready' is not configured")
 
     results.push({
       alias,
@@ -1218,6 +1224,7 @@ const __test = {
   botCommentText,
   buildTaskDescription,
   configPath,
+  defaultCaptureStateKey,
   filterTasksByStatus,
   findMatchingProjects,
   getTaskProjectID,
@@ -2081,8 +2088,8 @@ export const NiftyPlugin = async () => {
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
-          state_key: tool.schema.string().optional().describe("Configured state key such as backlog or ready"),
-          status_name: tool.schema.string().optional().describe("Raw status name override, for example Backlog or Ready"),
+          state_key: tool.schema.string().optional().describe("Configured state key such as ideas or todo"),
+          status_name: tool.schema.string().optional().describe("Raw status name override, for example Ideas or To Do"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
           milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
@@ -2146,7 +2153,7 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_capture_backlog_item: tool({
-        description: "Creates a new workflow task, defaulting to the backlog state",
+        description: "Creates a new workflow task, defaulting to the ideas state",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
@@ -2158,7 +2165,7 @@ export const NiftyPlugin = async () => {
           implementation_notes: tool.schema.array(tool.schema.string()).optional().describe("Implementation notes"),
           open_questions: tool.schema.array(tool.schema.string()).optional().describe("Open questions"),
           checklist: tool.schema.array(tool.schema.string()).optional().describe("Execution checklist"),
-          state_key: tool.schema.string().optional().describe("Workflow state key, defaults to backlog"),
+          state_key: tool.schema.string().optional().describe("Workflow state key, defaults to ideas"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
@@ -2180,7 +2187,7 @@ export const NiftyPlugin = async () => {
 
           const status = await resolveStatusSelector(resolved.project.id, {
             workflow: resolved.workflow,
-            state_key: args.state_key || "backlog",
+            state_key: args.state_key || defaultCaptureStateKey(resolved.workflow),
             status_name: args.status_name,
           })
           const milestone = await resolveMilestoneSelector(resolved.project.id, {
@@ -2220,11 +2227,11 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_batch_capture_backlog_items: tool({
-        description: "Creates multiple standardized workflow backlog items, with dry-run support",
+        description: "Creates multiple standardized workflow idea/backlog items, with dry-run support",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
-          state_key: tool.schema.string().optional().describe("Workflow state key, defaults to backlog"),
+          state_key: tool.schema.string().optional().describe("Workflow state key, defaults to ideas"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
@@ -2257,7 +2264,7 @@ export const NiftyPlugin = async () => {
 
           const status = await resolveStatusSelector(resolved.project.id, {
             workflow: resolved.workflow,
-            state_key: args.state_key || "backlog",
+            state_key: args.state_key || defaultCaptureStateKey(resolved.workflow),
             status_name: args.status_name,
           })
           const milestone = await resolveMilestoneSelector(resolved.project.id, {
@@ -2671,7 +2678,7 @@ export const NiftyPlugin = async () => {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Project ID when not using a workflow alias"),
-          state_key: tool.schema.string().optional().describe("Configured state key such as backlog or ready"),
+          state_key: tool.schema.string().optional().describe("Configured state key such as ideas or todo"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           comment: tool.schema.string().optional().describe("Optional note to add after the move"),
         },
@@ -2728,7 +2735,7 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_prepare_task_for_delivery: tool({
-        description: "Standardizes a task description and optionally moves it to a ready state",
+        description: "Standardizes a task description and optionally moves it to a target workflow state",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),

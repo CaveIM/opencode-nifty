@@ -459,7 +459,7 @@ test("recommended workflow tool returns lifecycle and config snippet", async () 
 
   assert.equal(parsed.workflow_alias, "gov")
   assert.equal(parsed.config_snippet.workflows.gov.project.nice_id, "GOV")
-  assert.equal(parsed.config_snippet.workflows.gov.states.in_dev, "In Dev")
+  assert.equal(parsed.config_snippet.workflows.gov.states.in_progress, "In Progress")
   assert.equal(parsed.config_snippet.workflows.gov.lists.ui, "UI")
 })
 
@@ -471,7 +471,7 @@ test("recommended workflow setup dry-run reports missing statuses and lists", as
       return Response.json({ projects: [{ id: "p1", name: "Gov CMS", nice_id: "GOV" }] })
     }
     if (requestURL.pathname === "/api/v1.0/taskgroups") {
-      return Response.json({ items: [{ id: "s-ready", name: "Ready" }] })
+      return Response.json({ items: [{ id: "s-todo", name: "To Do" }] })
     }
     if (requestURL.pathname === "/api/v1.0/milestones") {
       assert.equal(requestURL.searchParams.get("is_list"), "true")
@@ -489,8 +489,8 @@ test("recommended workflow setup dry-run reports missing statuses and lists", as
   const parsed = JSON.parse(output)
 
   assert.equal(parsed.dry_run, true)
-  assert.deepEqual(parsed.statuses.existing, [{ key: "ready", name: "Ready", id: "s-ready" }])
-  assert.equal(parsed.statuses.missing.some((status) => status.name === "In Dev"), true)
+  assert.deepEqual(parsed.statuses.existing, [{ key: "todo", name: "To Do", id: "s-todo" }])
+  assert.equal(parsed.statuses.missing.some((status) => status.name === "In Progress"), true)
   assert.deepEqual(parsed.lists.existing, [{ key: "ui", name: "UI", id: "m-ui" }])
   assert.equal(parsed.config_snippet.workflows.gov.project.nice_id, "GOV")
   assert.equal(parsed.config_write, null)
@@ -562,7 +562,7 @@ test("recommended workflow setup creates missing statuses and lists when dry_run
   const listCreates = calls.filter((call) => call.path === "/api/v1.0/milestones" && call.method === "POST")
 
   assert.equal(parsed.dry_run, false)
-  assert.equal(statusCreates.length, 12)
+  assert.equal(statusCreates.length, 13)
   assert.equal(listCreates.length, 9)
   assert.deepEqual(JSON.parse(statusCreates[0].body), {
     project_id: "p1",
