@@ -120,6 +120,19 @@ test("builds request query strings consistently", () => {
   assert.equal(url.searchParams.has("omitted"), false)
 })
 
+test("compares installed and latest plugin source", () => {
+  assert.equal(__test.samePluginSource("const a = 1\n", "const a = 1"), true)
+  assert.equal(__test.samePluginSource("const a = 1", "const a = 2"), false)
+})
+
+test("requires exact bulk task confirmation", () => {
+  assert.doesNotThrow(() => __test.requireBulkTaskConfirmation("delete", ["t1", "t2"], "delete 2 tasks"))
+  assert.throws(
+    () => __test.requireBulkTaskConfirmation("delete", ["t1", "t2"], "delete tasks"),
+    /delete 2 tasks/,
+  )
+})
+
 test("filters tasks by exact status id", () => {
   const tasks = [
     { id: "1", task_group: "backlog" },

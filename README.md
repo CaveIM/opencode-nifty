@@ -215,11 +215,13 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 
 - `nifty_auth_localhost_start`
 - `nifty_auth_localhost_login`
+- `nifty_update_plugin`
 - `nifty_health_check`
 - `nifty_validate_workflows`
 - `nifty_recommended_workflow`
 - `nifty_setup_recommended_workflow`
 - `nifty_find_project`
+- `nifty_delete_status`
 - `nifty_list_milestones`
 - `nifty_create_milestone`
 - `nifty_update_milestone_tasks`
@@ -243,10 +245,15 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 
 Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
 
+Bulk task deletion requires an explicit confirmation phrase such as `delete 3 tasks`. Ask the user before providing that phrase.
+
+Use `nifty_update_plugin` to update the installed plugin from GitHub. If it reports `updated: false`, there is no newer plugin available. If it reports `updated: true`, restart OpenCode so the new plugin version is loaded.
+
 ## Example Prompts
 
 - `run nifty_list_workflows`
 - `/nifty-auth`
+- `/nifty-update`
 - `run nifty_health_check`
 - `/nifty-health`
 - `/nifty-setup`

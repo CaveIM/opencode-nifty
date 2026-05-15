@@ -5,9 +5,11 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { createServer } from "node:http"
 import { randomBytes } from "node:crypto"
+import { fileURLToPath } from "node:url"
 import { tool } from "@opencode-ai/plugin"
 
 const API_BASE_URL = "https://openapi.niftypm.com"
+const NIFTY_REPO_RAW_BASE = "https://raw.githubusercontent.com/CaveIM/opencode-nifty"
 const TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join(homedir(), ".config", "opencode", "nifty-auth.json")
 const AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join(homedir(), ".config", "opencode", "nifty-auth-server.log")
 const AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node"
@@ -277,6 +279,72 @@ async function waitForCallbackServer(host, port) {
       .filter(Boolean)
       .join(" "),
   )
+}
+
+async function fetchText(url) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Unable to fetch ${url}: ${response.status} ${response.statusText}`)
+  }
+  return response.text()
+}
+
+async function fetchLatestCommit(ref) {
+  try {
+    const response = await fetch(`https://api.github.com/repos/CaveIM/opencode-nifty/commits/${encodeURIComponent(ref)}`)
+    if (!response.ok) return null
+    const payload = await response.json()
+    return payload?.sha || null
+  } catch {
+    return null
+  }
+}
+
+function currentPluginSource() {
+  return readFileSync(fileURLToPath(import.meta.url), "utf8")
+}
+
+function samePluginSource(current, latest) {
+  return String(current).trim() === String(latest).trim()
+}
+
+async function runInstallScript(script, ref, context = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("bash", ["-s"], {
+      cwd: context.directory || context.worktree || process.cwd(),
+      env: {
+        ...process.env,
+        NIFTY_INSTALL_REF: ref,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+    const output = []
+    const append = (chunk) => {
+      output.push(String(chunk))
+      while (output.join("").length > 20000) output.shift()
+    }
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM")
+      reject(new Error("Nifty plugin installer timed out."))
+    }, 120000)
+
+    child.stdout.on("data", append)
+    child.stderr.on("data", append)
+    child.once("error", (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.once("close", (code) => {
+      clearTimeout(timeout)
+      const text = output.join("")
+      if (code === 0) {
+        resolve(text)
+        return
+      }
+      reject(new Error(`Nifty plugin installer failed with exit code ${code}.\n${text}`))
+    })
+    child.stdin.end(script)
+  })
 }
 
 async function waitForAuthorizationCode(host, port, signal, expectedState) {
@@ -574,6 +642,16 @@ function cleanWriteObject(input) {
       return true
     }),
   )
+}
+
+function requireBulkTaskConfirmation(action, taskIDs, confirmation) {
+  const count = Array.isArray(taskIDs) ? taskIDs.length : 0
+  const expected = `${action} ${count} ${count === 1 ? "task" : "tasks"}`
+  if (confirmation !== expected) {
+    throw new Error(
+      `Bulk task ${action} requires explicit confirmation. Re-run with confirmation: ${JSON.stringify(expected)}.`,
+    )
+  }
 }
 
 function normalize(value) {
@@ -1153,8 +1231,10 @@ const __test = {
   projectMatches,
   projectConfigSelector,
   projectWorkflowConfigPath,
+  requireBulkTaskConfirmation,
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
+  samePluginSource,
   statusMatches,
   summarizeTask,
   writeWorkflowAliasConfig,
@@ -1170,6 +1250,47 @@ export const NiftyPlugin = async () => {
     },
 
     tool: {
+      nifty_update_plugin: tool({
+        description: "Updates the installed Nifty OpenCode plugin from GitHub when a newer version is available",
+        args: {
+          ref: tool.schema.string().default("main").describe("GitHub ref to install, usually main or a commit SHA"),
+          force: tool.schema.boolean().default(false).describe("Run the installer even when the installed plugin already matches the ref"),
+        },
+        async execute(args, context) {
+          const ref = args.ref || "main"
+          const latestPluginURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/plugin/nifty.js`
+          const latestInstallURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/scripts/install.sh`
+          const [latestPlugin, latestCommit] = await Promise.all([
+            fetchText(latestPluginURL),
+            fetchLatestCommit(ref),
+          ])
+          const currentPlugin = currentPluginSource()
+
+          if (!args.force && samePluginSource(currentPlugin, latestPlugin)) {
+            return json({
+              ok: true,
+              updated: false,
+              ref,
+              latest_commit: latestCommit,
+              message: "No new Nifty plugin version is available.",
+              restart_required: false,
+            })
+          }
+
+          const installScript = await fetchText(latestInstallURL)
+          const installer_output = await runInstallScript(installScript, ref, context)
+          return json({
+            ok: true,
+            updated: true,
+            ref,
+            latest_commit: latestCommit,
+            restart_required: true,
+            message: "Nifty plugin updated. Restart OpenCode so it loads the new plugin version.",
+            installer_output,
+          })
+        },
+      }),
+
       nifty_auth_help: tool({
         description: "Shows how to authorize the Nifty plugin",
         args: {},
@@ -1369,6 +1490,19 @@ export const NiftyPlugin = async () => {
               project_id: args.project_id,
               archived: args.archived ?? false,
             }),
+          })
+          return json(response)
+        },
+      }),
+
+      nifty_delete_status: tool({
+        description: "Deletes a Nifty task status/task group by ID",
+        args: {
+          status_id: tool.schema.string().describe("Status or task group ID"),
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/taskgroups/${encodeURIComponent(args.status_id)}`, {
+            method: "DELETE",
           })
           return json(response)
         },
@@ -2394,8 +2528,10 @@ export const NiftyPlugin = async () => {
         args: {
           project_id: tool.schema.string().describe("Project ID"),
           task_ids: tool.schema.array(tool.schema.string()).describe("Task IDs to delete"),
+          confirmation: tool.schema.string().optional().describe('Required safety phrase, for example "delete 3 tasks"'),
         },
         async execute(args) {
+          requireBulkTaskConfirmation("delete", args.task_ids, args.confirmation)
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "DELETE",
             body: {

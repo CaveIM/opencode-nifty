@@ -360,6 +360,47 @@ test("nifty_create_subtask sends parent task id", async () => {
   })
 })
 
+test("nifty_delete_status deletes task group by id", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET" })
+    return Response.json({ ok: true })
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_delete_status.execute({ status_id: "status-1" }, context())
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/taskgroups/status-1", method: "DELETE" }])
+})
+
+test("nifty_delete_tasks requires explicit bulk confirmation", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+    return Response.json({ ok: true })
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_delete_tasks.execute(
+      { project_id: "p1", task_ids: ["t1", "t2"] },
+      context(),
+    ),
+    /confirmation.*delete 2 tasks/,
+  )
+  assert.deepEqual(calls, [])
+
+  await plugin.tool.nifty_delete_tasks.execute(
+    { project_id: "p1", task_ids: ["t1", "t2"], confirmation: "delete 2 tasks" },
+    context(),
+  )
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [["DELETE", "/api/v1.0/tasks"]])
+  assert.deepEqual(JSON.parse(calls[0].body), { project_id: "p1", task_ids: ["t1", "t2"] })
+})
+
 test("task lifecycle tools call expected endpoints and bodies", async () => {
   const calls = []
   globalThis.fetch = async (url, options = {}) => {
