@@ -11,7 +11,6 @@ const API_BASE_URL = "https://openapi.niftypm.com"
 const TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join(homedir(), ".config", "opencode", "nifty-auth.json")
 const AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join(homedir(), ".config", "opencode", "nifty-auth-server.log")
 const AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node"
-const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000
 const BOT_COMMENT_PREFIX = "🤖"
 const NIFTY_SHELL_COMMAND_HINT = [
@@ -575,22 +574,19 @@ function normalize(value) {
 }
 
 function configPath(context = {}) {
-  const configuredPath = env("NIFTY_WORKFLOW_CONFIG")
-  if (configuredPath) return configuredPath
-
-  const candidates = [context.directory, context.worktree, process.cwd()]
-    .filter(Boolean)
-    .map((directory) => join(directory, "nifty-workflows.json"))
-  const uniqueCandidates = [...new Set(candidates)]
-  const projectConfigPath = uniqueCandidates.find((candidate) => existsSync(candidate))
-
-  return projectConfigPath || WORKFLOW_CONFIG_PATH
+  if (context.config_path) return context.config_path
+  const directory = context.directory || context.worktree || process.cwd()
+  return join(directory, "nifty-workflows.json")
 }
 
 function projectWorkflowConfigPath(context = {}, explicitPath) {
   if (explicitPath) return explicitPath
   const directory = context.directory || context.worktree || process.cwd()
   return join(directory, "nifty-workflows.json")
+}
+
+function workflowContext(context = {}, explicitPath) {
+  return explicitPath ? { ...context, config_path: explicitPath } : context
 }
 
 async function readWorkflowConfig(context = {}) {
@@ -812,9 +808,10 @@ function projectMatches(project, selector) {
 }
 
 async function resolveProjectSelector(input = {}, context = {}) {
-  const config = await readWorkflowConfig(context)
+  const contextWithConfig = workflowContext(context, input.config_path)
+  const config = await readWorkflowConfig(contextWithConfig)
   const workflows = getWorkflowAliasMap(config)
-  const workflowAlias = input.workflow_alias || defaultWorkflowAlias()
+  const workflowAlias = input.workflow_alias || defaultWorkflowAlias(contextWithConfig)
   const workflow = workflowAlias ? workflows[workflowAlias] : undefined
 
   if (input.project_id) {
@@ -1018,7 +1015,7 @@ async function listTasksWithStatusNames(query, projectID) {
 function ensureWorkflow(workflow, alias, context = {}) {
   if (!workflow) {
     throw new Error(
-      `Workflow alias '${alias}' is not configured. Set NIFTY_WORKFLOW_CONFIG or create ${configPath(context)}.`,
+      `Workflow alias '${alias}' is not configured. Create ${configPath(context)} or provide project_id, project_name, or project_nice_id.`,
     )
   }
 }
@@ -1027,7 +1024,7 @@ async function validateWorkflows(options = {}) {
   const config = await readWorkflowConfig(options)
   const workflows = getWorkflowAliasMap(config)
   const projects = await fetchAllProjects({ includeArchived: options.includeArchived })
-  const defaultAlias = defaultWorkflowAlias()
+  const defaultAlias = defaultWorkflowAlias(options)
   const aliases = Object.keys(workflows)
   const results = []
 
@@ -1531,6 +1528,7 @@ export const NiftyPlugin = async () => {
         description: "Lists Nifty documents for a project, task, folder, or workflow alias",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Project ID"),
           project_name: tool.schema.string().optional().describe("Project name"),
           project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
@@ -1548,6 +1546,7 @@ export const NiftyPlugin = async () => {
           const resolved = await resolveProjectSelector(
             {
               workflow_alias: args.workflow_alias,
+              config_path: args.config_path,
               project_id: args.project_id,
               project_name: args.project_name,
               project_nice_id: args.project_nice_id,
@@ -1596,6 +1595,7 @@ export const NiftyPlugin = async () => {
         args: {
           name: tool.schema.string().describe("Document name"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Project ID"),
           project_name: tool.schema.string().optional().describe("Project name"),
           project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
@@ -1615,6 +1615,7 @@ export const NiftyPlugin = async () => {
           const resolved = await resolveProjectSelector(
             {
               workflow_alias: args.workflow_alias,
+              config_path: args.config_path,
               project_id: args.project_id,
               project_name: args.project_name,
               project_nice_id: args.project_nice_id,
@@ -1705,6 +1706,7 @@ export const NiftyPlugin = async () => {
         args: {
           document_id: tool.schema.string().describe("Document ID"),
           workflow_alias: tool.schema.string().optional().describe("Target workflow alias, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Target project ID"),
           project_name: tool.schema.string().optional().describe("Target project name"),
           project_nice_id: tool.schema.string().optional().describe("Target project nice ID"),
@@ -1715,6 +1717,7 @@ export const NiftyPlugin = async () => {
           const resolved = await resolveProjectSelector(
             {
               workflow_alias: args.workflow_alias,
+              config_path: args.config_path,
               project_id: args.project_id,
               project_name: args.project_name,
               project_nice_id: args.project_nice_id,
@@ -1754,9 +1757,12 @@ export const NiftyPlugin = async () => {
 
       nifty_list_workflows: tool({
         description: "Lists configured Nifty workflow aliases and resolved projects",
-        args: {},
-        async execute(_args, context) {
-          const config = await readWorkflowConfig(context)
+        args: {
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+        },
+        async execute(args, context) {
+          const contextWithConfig = workflowContext(context, args.config_path)
+          const config = await readWorkflowConfig(contextWithConfig)
           const workflows = getWorkflowAliasMap(config)
           const projects = await fetchAllProjects()
 
@@ -1780,7 +1786,7 @@ export const NiftyPlugin = async () => {
           })
 
           return json({
-            config_path: configPath(context),
+            config_path: configPath(contextWithConfig),
             workflows: items,
           })
         },
@@ -1789,10 +1795,12 @@ export const NiftyPlugin = async () => {
       nifty_validate_workflows: tool({
         description: "Validates workflow aliases against real Nifty projects and statuses",
         args: {
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           include_archived: tool.schema.boolean().optional().describe("Include archived projects when resolving aliases"),
         },
         async execute(args, context) {
           const result = await validateWorkflows({
+            config_path: args.config_path,
             includeArchived: args.include_archived,
             directory: context.directory,
             worktree: context.worktree,
@@ -1840,7 +1848,7 @@ export const NiftyPlugin = async () => {
             ok: checks.api.ok && checks.workflows?.ok !== false,
             token_cache: TOKEN_PATH,
             workflow_config: configPath(context),
-            default_workflow: defaultWorkflowAlias() || null,
+            default_workflow: defaultWorkflowAlias(context) || null,
             checks,
           })
         },
@@ -1854,13 +1862,13 @@ export const NiftyPlugin = async () => {
           project_name: tool.schema.string().optional().describe("Project name for the config snippet"),
           project_nice_id: tool.schema.string().optional().describe("Project nice ID for the config snippet"),
         },
-        async execute(args) {
+        async execute(args, context) {
           const project = cleanObject({
             id: args.project_id,
             name: args.project_name,
             nice_id: args.project_nice_id,
           })
-          const alias = workflowAlias(args.workflow_alias, project)
+          const alias = workflowAlias(args.workflow_alias, project, context)
 
           return json({
             ...recommendedWorkflowSummary(),
@@ -1881,20 +1889,22 @@ export const NiftyPlugin = async () => {
           create_statuses: tool.schema.boolean().optional().describe("Create missing statuses; defaults to true"),
           create_lists: tool.schema.boolean().optional().describe("Create missing Nifty lists; defaults to true"),
           write_config: tool.schema.boolean().optional().describe("Write or merge the workflow alias into a project-local nifty-workflows.json"),
-          config_path: tool.schema.string().optional().describe("Explicit workflow config path to write; defaults to the active project directory"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           overwrite_config: tool.schema.boolean().optional().describe("Overwrite an existing alias in the config file; defaults to false"),
         },
         async execute(args, context) {
+          const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = await resolveProjectSelector(
             {
               workflow_alias: args.workflow_alias,
+              config_path: args.config_path,
               project_id: args.project_id,
               project_name: args.project_name,
               project_nice_id: args.project_nice_id,
             },
-            context,
+            contextWithConfig,
           )
-          const alias = workflowAlias(resolved.workflowAlias || args.workflow_alias, resolved.project)
+          const alias = workflowAlias(resolved.workflowAlias || args.workflow_alias, resolved.project, contextWithConfig)
           const plan = await recommendedWorkflowSetupPlan(resolved.project.id, {
             dryRun: args.dry_run !== false,
             createStatuses: args.create_statuses !== false,
@@ -1903,7 +1913,7 @@ export const NiftyPlugin = async () => {
           const configSnippet = recommendedWorkflowConfig(alias, projectConfigSelector(resolved.project))
           const configWrite = args.write_config
             ? await writeWorkflowAliasConfig(
-                projectWorkflowConfigPath(context, args.config_path),
+                projectWorkflowConfigPath(contextWithConfig, args.config_path),
                 alias,
                 configSnippet.workflows[alias],
                 { overwrite: args.overwrite_config === true },
@@ -1928,6 +1938,7 @@ export const NiftyPlugin = async () => {
         description: "Lists tasks for a configured workflow alias and optional state name",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           state_key: tool.schema.string().optional().describe("Configured state key such as backlog or ready"),
           status_name: tool.schema.string().optional().describe("Raw status name override, for example Backlog or Ready"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
@@ -1939,11 +1950,12 @@ export const NiftyPlugin = async () => {
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
         },
         async execute(args, context) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          const contextWithConfig = workflowContext(context, args.config_path)
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
           ensureWorkflow(
             resolved.workflow,
-            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
-            context,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig),
+            contextWithConfig,
           )
 
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -1975,7 +1987,7 @@ export const NiftyPlugin = async () => {
           )
 
           return json({
-            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig) || null,
             project: {
               id: resolved.project.id,
               name: resolved.project.name,
@@ -1995,6 +2007,7 @@ export const NiftyPlugin = async () => {
         description: "Creates a new workflow task, defaulting to the backlog state",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           name: tool.schema.string().describe("Task name"),
           summary: tool.schema.string().optional().describe("Short summary of the idea"),
           problem: tool.schema.string().optional().describe("Problem the idea addresses"),
@@ -2015,11 +2028,12 @@ export const NiftyPlugin = async () => {
           story_points: tool.schema.number().optional().describe("Story points"),
         },
         async execute(args, context) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          const contextWithConfig = workflowContext(context, args.config_path)
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
           ensureWorkflow(
             resolved.workflow,
-            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
-            context,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig),
+            contextWithConfig,
           )
 
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -2051,7 +2065,7 @@ export const NiftyPlugin = async () => {
           })
 
           return json({
-            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig) || null,
             project: {
               id: resolved.project.id,
               name: resolved.project.name,
@@ -2067,6 +2081,7 @@ export const NiftyPlugin = async () => {
         description: "Creates multiple standardized workflow backlog items, with dry-run support",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file, defaults to NIFTY_DEFAULT_WORKFLOW"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           state_key: tool.schema.string().optional().describe("Workflow state key, defaults to backlog"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
@@ -2090,11 +2105,12 @@ export const NiftyPlugin = async () => {
           })).describe("Items to create"),
         },
         async execute(args, context) {
-          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+          const contextWithConfig = workflowContext(context, args.config_path)
+          const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
           ensureWorkflow(
             resolved.workflow,
-            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(),
-            context,
+            resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig),
+            contextWithConfig,
           )
 
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -2124,7 +2140,7 @@ export const NiftyPlugin = async () => {
           if (args.dry_run) {
             return json({
               dry_run: true,
-              workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+              workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig) || null,
               project: { id: resolved.project.id, name: resolved.project.name },
               status: { id: status.id, name: status.name },
               milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
@@ -2139,7 +2155,7 @@ export const NiftyPlugin = async () => {
 
           return json({
             dry_run: false,
-            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias() || null,
+            workflow_alias: resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig) || null,
             project: { id: resolved.project.id, name: resolved.project.name },
             status: { id: status.id, name: status.name },
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
@@ -2475,6 +2491,7 @@ export const NiftyPlugin = async () => {
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Project ID when not using a workflow alias"),
           state_key: tool.schema.string().optional().describe("Configured state key such as backlog or ready"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
@@ -2482,8 +2499,9 @@ export const NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+          const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = args.workflow_alias
-            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
             : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined }
 
           if (!resolved.project?.id) {
@@ -2491,7 +2509,7 @@ export const NiftyPlugin = async () => {
           }
 
           if (args.workflow_alias) {
-            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, context)
+            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, contextWithConfig)
           }
 
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -2536,6 +2554,7 @@ export const NiftyPlugin = async () => {
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Project ID when not using a workflow alias"),
           name: tool.schema.string().optional().describe("Optional updated task title"),
           summary: tool.schema.string().optional().describe("Short summary"),
@@ -2560,8 +2579,9 @@ export const NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+          const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = args.workflow_alias
-            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias }, context)
+            ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
             : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined }
 
           if (!resolved.project?.id) {
@@ -2569,7 +2589,7 @@ export const NiftyPlugin = async () => {
           }
 
           if (args.workflow_alias) {
-            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, context)
+            ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias, contextWithConfig)
           }
 
           const description = buildTaskDescription(args)

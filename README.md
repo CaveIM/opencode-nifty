@@ -88,7 +88,6 @@ The template includes the shared Nifty app client ID, authorize URL, and localho
 Optional but recommended:
 
 - `NIFTY_DEFAULT_WORKFLOW`
-- `NIFTY_WORKFLOW_CONFIG`
 
 Load that env file before starting OpenCode in the container.
 
@@ -103,18 +102,21 @@ opencode
 
 ## Configure Workflows
 
-Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, and list names. Prefer a project-local `nifty-workflows.json` in the repo where OpenCode is launched, because it travels with that project/container without editing the plugin kit.
+Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, and list names. The plugin only reads `nifty-workflows.json` from the repo/directory where OpenCode is launched.
 
 The installer does not create this file. From the project root, ask OpenCode to run `nifty_setup_recommended_workflow` with `write_config true` when you are ready to create or merge `./nifty-workflows.json` for that project.
 
 Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json`. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
 
-Workflow config lookup order:
+Workflow config location:
 
-1. `NIFTY_WORKFLOW_CONFIG`
-2. `nifty-workflows.json` in the active OpenCode project directory/worktree
-3. `nifty-workflows.json` in the shell working directory
-4. `~/.config/opencode/nifty-workflows.json`
+```text
+./nifty-workflows.json
+```
+
+The plugin does not read workflow config from `.nifty.env`, `NIFTY_WORKFLOW_CONFIG`, or `~/.config/opencode`.
+
+If you need a non-default file for a specific operation, pass `config_path` explicitly to the workflow tool. The plugin never uses a custom path unless you provide it on that tool call.
 
 Example config:
 

@@ -30,7 +30,7 @@ function context(overrides = {}) {
   }
 }
 
-test("workflow config uses explicit env path before project-local config", async () => {
+test("workflow config ignores env path and uses project-local config", async () => {
   const envDir = await mkdtemp(join(tmpdir(), "nifty-env-config-"))
   const projectDir = await mkdtemp(join(tmpdir(), "nifty-project-config-"))
   const envConfig = join(envDir, "env-workflows.json")
@@ -57,8 +57,35 @@ test("workflow config uses explicit env path before project-local config", async
   const output = await plugin.tool.nifty_list_workflows.execute({}, context({ directory: projectDir }))
   const parsed = JSON.parse(output)
 
-  assert.equal(parsed.config_path, envConfig)
-  assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["envAlias"])
+  assert.equal(parsed.config_path, projectConfig)
+  assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["projectAlias"])
+})
+
+test("workflow config can use an explicit tool config path", async () => {
+  const explicitDir = await mkdtemp(join(tmpdir(), "nifty-explicit-config-"))
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-default-config-"))
+  const explicitConfig = join(explicitDir, "custom-workflows.json")
+  await writeFile(
+    explicitConfig,
+    JSON.stringify({ workflows: { customAlias: { project: { name: "Custom Project" }, states: {} } } }),
+    "utf8",
+  )
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/projects") return Response.json({ projects: [] })
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_list_workflows.execute(
+    { config_path: explicitConfig },
+    context({ directory: projectDir }),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.config_path, explicitConfig)
+  assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["customAlias"])
 })
 
 test("workflow config falls back to project-local file from tool context", async () => {
@@ -87,7 +114,7 @@ test("workflow config falls back to project-local file from tool context", async
 
 test("nifty_list_workflow_tasks filters returned tasks to the requested status", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-workflow-"))
-  const configPath = join(dir, "workflows.json")
+  const configPath = join(dir, "nifty-workflows.json")
   await writeFile(
     configPath,
     JSON.stringify({
@@ -100,7 +127,6 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
     }),
     "utf8",
   )
-  process.env.NIFTY_WORKFLOW_CONFIG = configPath
 
   globalThis.fetch = async (url) => {
     const requestURL = new URL(String(url))
@@ -139,7 +165,7 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
   const plugin = await NiftyPlugin()
   const output = await plugin.tool.nifty_list_workflow_tasks.execute(
     { workflow_alias: "addons", state_key: "backlog", include_subtasks: false },
-    context(),
+    context({ directory: dir }),
   )
   const parsed = JSON.parse(output)
 
@@ -148,7 +174,7 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
 
 test("nifty_batch_capture_backlog_items dry-run plans standardized creates", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-batch-"))
-  const configPath = join(dir, "workflows.json")
+  const configPath = join(dir, "nifty-workflows.json")
   await writeFile(
     configPath,
     JSON.stringify({
@@ -162,7 +188,6 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
     }),
     "utf8",
   )
-  process.env.NIFTY_WORKFLOW_CONFIG = configPath
 
   globalThis.fetch = async (url) => {
     const requestURL = new URL(String(url))
@@ -188,7 +213,7 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
       dry_run: true,
       items: [{ name: "Add batch capture", summary: "Capture multiple ideas" }],
     },
-    context(),
+    context({ directory: dir }),
   )
   const parsed = JSON.parse(output)
 
@@ -200,7 +225,7 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
 
 test("nifty_create_document resolves project from workflow alias", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-doc-"))
-  const configPath = join(dir, "workflows.json")
+  const configPath = join(dir, "nifty-workflows.json")
   await writeFile(
     configPath,
     JSON.stringify({
@@ -213,7 +238,6 @@ test("nifty_create_document resolves project from workflow alias", async () => {
     }),
     "utf8",
   )
-  process.env.NIFTY_WORKFLOW_CONFIG = configPath
 
   let capturedBody
   globalThis.fetch = async (url, options = {}) => {
@@ -237,7 +261,7 @@ test("nifty_create_document resolves project from workflow alias", async () => {
       name: "Launch Notes",
       content_text: "Ship it",
     },
-    context(),
+    context({ directory: dir }),
   )
   const parsed = JSON.parse(output)
 
