@@ -1051,6 +1051,22 @@ function renderListSection(title, items, checkbox = false) {
   ]
 }
 
+function nonEmptyItems(items = []) {
+  return Array.isArray(items) ? items.map((item) => String(item).trim()).filter(Boolean) : []
+}
+
+function assertNoOpenQuestions(input, label = "task") {
+  const questions = nonEmptyItems(input.open_questions)
+  if (!questions.length) return
+  throw new Error(
+    [
+      `Cannot create or update ${label} with unresolved open questions.`,
+      "Ask the user to answer these first, then use the answers to update the task summary, acceptance criteria, implementation notes, or checklist:",
+      ...questions.map((question) => `- ${question}`),
+    ].join("\n"),
+  )
+}
+
 function buildTaskDescription(input) {
   const lines = [
     ...renderSection("Summary", input.summary),
@@ -1058,7 +1074,6 @@ function buildTaskDescription(input) {
     ...renderSection("Desired Outcome", input.desired_outcome),
     ...renderListSection("Acceptance Criteria", input.acceptance_criteria),
     ...renderListSection("Implementation Notes", input.implementation_notes),
-    ...renderListSection("Open Questions", input.open_questions),
     ...renderListSection("Checklist", input.checklist, true),
   ]
 
@@ -1238,6 +1253,7 @@ const __test = {
   projectMatches,
   projectConfigSelector,
   projectWorkflowConfigPath,
+  assertNoOpenQuestions,
   requireBulkTaskConfirmation,
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
@@ -2163,7 +2179,7 @@ export const NiftyPlugin = async () => {
           desired_outcome: tool.schema.string().optional().describe("Desired outcome"),
           acceptance_criteria: tool.schema.array(tool.schema.string()).optional().describe("Acceptance criteria items"),
           implementation_notes: tool.schema.array(tool.schema.string()).optional().describe("Implementation notes"),
-          open_questions: tool.schema.array(tool.schema.string()).optional().describe("Open questions"),
+          open_questions: tool.schema.array(tool.schema.string()).optional().describe("Questions that must be answered by the user before creating the task"),
           checklist: tool.schema.array(tool.schema.string()).optional().describe("Execution checklist"),
           state_key: tool.schema.string().optional().describe("Workflow state key, defaults to ideas"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
@@ -2177,6 +2193,7 @@ export const NiftyPlugin = async () => {
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
         },
         async execute(args, context) {
+          assertNoOpenQuestions(args, "task")
           const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
           ensureWorkflow(
@@ -2254,6 +2271,9 @@ export const NiftyPlugin = async () => {
           })).describe("Items to create"),
         },
         async execute(args, context) {
+          for (const item of args.items) {
+            assertNoOpenQuestions(item, `task '${item.name}'`)
+          }
           const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
           ensureWorkflow(
@@ -2747,7 +2767,7 @@ export const NiftyPlugin = async () => {
           desired_outcome: tool.schema.string().optional().describe("Desired outcome"),
           acceptance_criteria: tool.schema.array(tool.schema.string()).optional().describe("Acceptance criteria items"),
           implementation_notes: tool.schema.array(tool.schema.string()).optional().describe("Implementation notes"),
-          open_questions: tool.schema.array(tool.schema.string()).optional().describe("Open questions"),
+          open_questions: tool.schema.array(tool.schema.string()).optional().describe("Questions that must be answered by the user before updating the task"),
           checklist: tool.schema.array(tool.schema.string()).optional().describe("Implementation checklist"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
@@ -2763,6 +2783,7 @@ export const NiftyPlugin = async () => {
           comment: tool.schema.string().optional().describe("Optional note to append as a task comment"),
         },
         async execute(args, context) {
+          assertNoOpenQuestions(args, "task")
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
           const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = args.workflow_alias

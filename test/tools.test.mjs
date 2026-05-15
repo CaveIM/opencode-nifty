@@ -223,6 +223,29 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
   assert.match(parsed.planned[0].description, /Capture multiple ideas/)
 })
 
+test("workflow capture blocks open questions before API calls", async () => {
+  const calls = []
+  globalThis.fetch = async (url) => {
+    calls.push(String(url))
+    return Response.json({ ok: true })
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_capture_backlog_item.execute(
+      {
+        workflow_alias: "addons",
+        name: "Shape task",
+        open_questions: ["Which user role needs this?"],
+      },
+      context(),
+    ),
+    /Which user role needs this\?/,
+  )
+
+  assert.deepEqual(calls, [])
+})
+
 test("nifty_create_document resolves project from workflow alias", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-doc-"))
   const configPath = join(dir, "nifty-workflows.json")

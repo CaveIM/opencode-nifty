@@ -42,12 +42,22 @@ test("renders structured task descriptions", () => {
   const description = __test.buildTaskDescription({
     summary: "Add retries",
     acceptance_criteria: ["Retries transient failures", "Stops after max attempts"],
+    open_questions: ["Which retry budget?"],
     checklist: ["Add tests"],
   })
 
   assert.match(description, /## Summary\nAdd retries/)
   assert.match(description, /- Retries transient failures/)
+  assert.doesNotMatch(description, /Open Questions/)
   assert.match(description, /- \[ \] Add tests/)
+})
+
+test("blocks unresolved open questions before writing shaped tasks", () => {
+  assert.doesNotThrow(() => __test.assertNoOpenQuestions({ open_questions: [" "] }))
+  assert.throws(
+    () => __test.assertNoOpenQuestions({ open_questions: ["Which API should this use?"] }, "task"),
+    /Which API should this use\?/,
+  )
 })
 
 test("parses JSON string arguments", () => {

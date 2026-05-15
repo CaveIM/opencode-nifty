@@ -246,6 +246,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 
 Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
 
+Before creating or preparing shaped tasks, answer open questions with the user. The plugin blocks unresolved `open_questions` instead of writing them into Nifty task descriptions.
+
 Bulk task deletion requires an explicit confirmation phrase such as `delete 3 tasks`. Ask the user before providing that phrase.
 
 Use `nifty_update_plugin` to update the installed plugin from GitHub. If it reports `updated: false`, there is no newer plugin available. If it reports `updated: true`, restart OpenCode so the new plugin version is loaded.
