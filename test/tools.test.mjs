@@ -526,9 +526,6 @@ test("recommended workflow setup creates missing statuses and lists when dry_run
   assert.deepEqual(JSON.parse(statusCreates[0].body), {
     project_id: "p1",
     name: "Ideas",
-    order: 100,
-    color: "#9E9E9E",
-    isCompletionGroup: false,
   })
   assert.deepEqual(JSON.parse(listCreates[0].body), {
     project_id: "p1",

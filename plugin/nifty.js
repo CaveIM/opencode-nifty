@@ -694,12 +694,9 @@ async function fetchAllStatuses(projectID) {
 async function createStatus(projectID, status) {
   return niftyRequest("/api/v1.0/taskgroups", {
     method: "POST",
-    body: cleanObject({
+    body: cleanWriteObject({
       project_id: projectID,
       name: status.name,
-      order: status.order,
-      color: status.color,
-      isCompletionGroup: status.key === "done",
     }),
   })
 }
