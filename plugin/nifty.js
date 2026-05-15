@@ -565,6 +565,17 @@ function cleanObject(input) {
   )
 }
 
+function cleanWriteObject(input) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => {
+      if (value === undefined || value === null) return false
+      if (typeof value === "string" && value.trim() === "") return false
+      if (Array.isArray(value) && value.length === 0) return false
+      return true
+    }),
+  )
+}
+
 function normalize(value) {
   return String(value || "")
     .trim()
@@ -2025,7 +2036,7 @@ export const NiftyPlugin = async () => {
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
           due_date: tool.schema.string().optional().describe("Due date, ISO format"),
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
-          story_points: tool.schema.number().optional().describe("Story points"),
+          story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
         },
         async execute(args, context) {
           const contextWithConfig = workflowContext(context, args.config_path)
@@ -2051,7 +2062,7 @@ export const NiftyPlugin = async () => {
           const description = buildTaskDescription(args)
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
-            body: cleanObject({
+            body: cleanWriteObject({
               name: args.name,
               task_group_id: status.id,
               milestone_id: milestone?.id,
@@ -2101,7 +2112,7 @@ export const NiftyPlugin = async () => {
             label_ids: tool.schema.array(tool.schema.string()).optional(),
             due_date: tool.schema.string().optional(),
             start_date: tool.schema.string().optional(),
-            story_points: tool.schema.number().optional(),
+            story_points: tool.schema.number().int().min(1).optional(),
           })).describe("Items to create"),
         },
         async execute(args, context) {
@@ -2135,7 +2146,7 @@ export const NiftyPlugin = async () => {
             assignees: item.assignee_ids,
             labels: item.label_ids,
             story_points: item.story_points,
-          })).map(cleanObject)
+          })).map(cleanWriteObject)
 
           if (args.dry_run) {
             return json({
@@ -2243,12 +2254,12 @@ export const NiftyPlugin = async () => {
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
-          story_points: tool.schema.number().optional().describe("Story points"),
+          story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
         },
         async execute(args) {
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
-            body: cleanObject({
+            body: cleanWriteObject({
               name: args.name,
               task_group_id: args.task_group_id,
               description: args.description,
@@ -2281,12 +2292,12 @@ export const NiftyPlugin = async () => {
           dependency: tool.schema.string().optional().describe("Dependency task ID"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task assignees"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task labels"),
-          story_points: tool.schema.number().optional().describe("Story points"),
+          story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
         },
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
-            body: cleanObject({
+            body: cleanWriteObject({
               name: args.name,
               description: args.description,
               task_group_id: args.task_group_id,
@@ -2566,7 +2577,7 @@ export const NiftyPlugin = async () => {
           checklist: tool.schema.array(tool.schema.string()).optional().describe("Implementation checklist"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
-          story_points: tool.schema.number().optional().describe("Story points"),
+          story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
           due_date: tool.schema.string().optional().describe("Due date, ISO format"),
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
           reminder: tool.schema.string().optional().describe("Reminder value"),
@@ -2607,7 +2618,7 @@ export const NiftyPlugin = async () => {
 
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
-            body: cleanObject({
+            body: cleanWriteObject({
               name: args.name,
               description,
               task_group_id: targetStatus?.id,
