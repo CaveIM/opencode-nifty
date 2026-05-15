@@ -8,8 +8,8 @@ import { randomBytes } from "node:crypto"
 import { tool } from "@opencode-ai/plugin"
 
 const API_BASE_URL = "https://openapi.niftypm.com"
-const TOKEN_PATH = join(homedir(), ".config", "opencode", "nifty-auth.json")
-const AUTH_LOG_PATH = join(homedir(), ".config", "opencode", "nifty-auth-server.log")
+const TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join(homedir(), ".config", "opencode", "nifty-auth.json")
+const AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join(homedir(), ".config", "opencode", "nifty-auth-server.log")
 const AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node"
 const WORKFLOW_CONFIG_PATH = join(homedir(), ".config", "opencode", "nifty-workflows.json")
 const TOKEN_SKEW_MS = 60 * 1000

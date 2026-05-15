@@ -116,4 +116,5 @@ printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
 printf 'Nifty env template: %s\n' "$TARGET_ENV_FILE"
 printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"
 printf 'OpenCode Nifty commands: %s/nifty-auth.md, %s/nifty-health.md, and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
+printf 'Restart OpenCode before running /nifty-auth so it loads the installed plugin update.\n'
 printf 'No workflow config was created. Ask OpenCode to run nifty_setup_recommended_workflow with write_config true when you want a project-local nifty-workflows.json.\n'
