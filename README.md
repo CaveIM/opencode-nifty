@@ -160,6 +160,7 @@ Example project-local config using the recommended lifecycle:
         "ideas": "Ideas",
         "shaping": "Shaping",
         "shaped": "Shaped",
+        "planned": "Planned",
         "not_now": "Not Now",
         "todo": "To Do",
         "in_progress": "In Progress",

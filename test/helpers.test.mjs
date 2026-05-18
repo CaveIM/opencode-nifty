@@ -145,6 +145,7 @@ test("builds recommended workflow config snippets", () => {
   assert.equal(config.workflows.gov.project.nice_id, "GOV")
   assert.equal(config.workflows.gov.states.todo, "To Do")
   assert.equal(config.workflows.gov.states.shaped, "Shaped")
+  assert.equal(config.workflows.gov.states.planned, "Planned")
   assert.equal(config.workflows.gov.states.not_now, "Not Now")
   assert.equal(config.workflows.gov.states.ready_for_prod, "Ready for Prod")
   assert.equal(config.workflows.gov.lists.data, "Data/Migrations")

@@ -654,7 +654,7 @@ test("recommended workflow setup creates missing statuses and lists when dry_run
   const listCreates = calls.filter((call) => call.path === "/api/v1.0/milestones" && call.method === "POST")
 
   assert.equal(parsed.dry_run, false)
-  assert.equal(statusCreates.length, 13)
+  assert.equal(statusCreates.length, 14)
   assert.equal(listCreates.length, 9)
   assert.deepEqual(JSON.parse(statusCreates[0].body), {
     project_id: "p1",
