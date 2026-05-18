@@ -60,6 +60,50 @@ test("blocks unresolved open questions before writing shaped tasks", () => {
   )
 })
 
+test("asks shaping questions one field at a time", () => {
+  assert.deepEqual(__test.nextShapingQuestion({}), {
+    field: "summary",
+    question: "What is the concise one- or two-sentence summary of this feature?",
+  })
+  assert.equal(__test.nextShapingQuestion({
+    summary: "Add account exports",
+    problem: "Users need their data",
+    desired_outcome: "Users can download an export",
+    user_experience: "Button in settings",
+    acceptance_criteria: ["Export includes profile data"],
+    security_privacy: "Only the account owner can export",
+    performance: "Exports should complete in under 30 seconds",
+    data_integrations: "Reads account tables",
+    edge_cases: "No data returns an empty export",
+    implementation_notes: "Use existing job queue",
+    test_plan: "Unit test export serializer",
+    rollout: "No flag needed",
+    non_goals: "No admin bulk export",
+  }), null)
+})
+
+test("builds shaped task descriptions without checklist duplication", () => {
+  const description = __test.buildShapedTaskDescription({
+    summary: "Add account exports",
+    problem: "Users need their data",
+    desired_outcome: "Users can download an export",
+    user_experience: "Button in settings",
+    acceptance_criteria: ["Export includes profile data"],
+    security_privacy: "Only the account owner can export",
+    performance: "Exports should complete in under 30 seconds",
+    data_integrations: "Reads account tables",
+    edge_cases: "No data returns an empty export",
+    implementation_notes: "Use existing job queue",
+    test_plan: "Unit test export serializer",
+    rollout: "No flag needed",
+    non_goals: "No admin bulk export",
+  })
+
+  assert.match(description, /## Security \/ Privacy/)
+  assert.match(description, /## Acceptance Criteria/)
+  assert.doesNotMatch(description, /Checklist/)
+})
+
 test("parses JSON string arguments", () => {
   assert.deepEqual(__test.parseJSONArg('{"text":"hello"}', "content_json"), { text: "hello" })
   assert.equal(__test.parseJSONArg(undefined, "content_json"), undefined)
@@ -100,7 +144,7 @@ test("builds recommended workflow config snippets", () => {
 
   assert.equal(config.workflows.gov.project.nice_id, "GOV")
   assert.equal(config.workflows.gov.states.todo, "To Do")
-  assert.equal(config.workflows.gov.states.planned, "Planned")
+  assert.equal(config.workflows.gov.states.shaped, "Shaped")
   assert.equal(config.workflows.gov.states.not_now, "Not Now")
   assert.equal(config.workflows.gov.states.ready_for_prod, "Ready for Prod")
   assert.equal(config.workflows.gov.lists.data, "Data/Migrations")

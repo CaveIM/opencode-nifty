@@ -25,7 +25,7 @@ const RECOMMENDED_WORKFLOW = {
   statuses: [
     { key: "ideas", name: "Ideas", order: 100, color: "#9E9E9E" },
     { key: "shaping", name: "Shaping", order: 200, color: "#7E57C2" },
-    { key: "planned", name: "Planned", order: 300, color: "#42A5F5" },
+    { key: "shaped", name: "Shaped", order: 300, color: "#42A5F5" },
     { key: "not_now", name: "Not Now", order: 350, color: "#78909C" },
     { key: "todo", name: "To Do", order: 400, color: "#26A69A" },
     { key: "in_progress", name: "In Progress", order: 500, color: "#FFA726" },
@@ -1080,6 +1080,119 @@ function buildTaskDescription(input) {
   return lines.join("\n").trim() || undefined
 }
 
+const SHAPING_FIELDS = [
+  {
+    key: "summary",
+    title: "Summary",
+    question: "What is the concise one- or two-sentence summary of this feature?",
+  },
+  {
+    key: "problem",
+    title: "Problem",
+    question: "What user or business problem does this solve, and who experiences it?",
+  },
+  {
+    key: "desired_outcome",
+    title: "Desired Outcome",
+    question: "What should be true after this ships? Include the success outcome, not just the implementation.",
+  },
+  {
+    key: "user_experience",
+    title: "User Experience",
+    question: "What should the user experience look like, including key screens, states, copy, and failure paths?",
+  },
+  {
+    key: "acceptance_criteria",
+    title: "Acceptance Criteria",
+    list: true,
+    question: "What specific acceptance criteria must be met before this is considered complete?",
+  },
+  {
+    key: "security_privacy",
+    title: "Security / Privacy",
+    question: "What security, privacy, permission, auth, abuse, or data exposure concerns need to be handled? If none, say why none apply.",
+  },
+  {
+    key: "performance",
+    title: "Performance",
+    question: "What performance, latency, scale, or resource-usage expectations or risks should be considered? If none, say why none apply.",
+  },
+  {
+    key: "data_integrations",
+    title: "Data / API / Integrations",
+    question: "What data, API, database, migration, webhook, or third-party integration changes are needed? If none, say none.",
+  },
+  {
+    key: "edge_cases",
+    title: "Edge Cases",
+    question: "What edge cases, empty states, error states, permissions cases, or rollback cases should be handled?",
+  },
+  {
+    key: "implementation_notes",
+    title: "Implementation Notes",
+    question: "What implementation notes, constraints, likely files/components, or technical approach should the developer AI know?",
+  },
+  {
+    key: "test_plan",
+    title: "Test Plan",
+    question: "How should this be tested? Include automated tests, manual QA, and important regression checks.",
+  },
+  {
+    key: "rollout",
+    title: "Rollout / Release Notes",
+    question: "How should this roll out? Include flags, migrations, release notes, monitoring, or deployment sequencing if relevant.",
+  },
+  {
+    key: "non_goals",
+    title: "Non-Goals",
+    question: "What is explicitly out of scope for this task so the developer AI does not overbuild it?",
+  },
+]
+
+function fieldHasAnswer(input, field) {
+  const value = input[field.key]
+  if (field.list) return nonEmptyItems(value).length > 0
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function missingShapingFields(input = {}) {
+  return SHAPING_FIELDS.filter((field) => !fieldHasAnswer(input, field))
+}
+
+function nextShapingQuestion(input = {}) {
+  const field = missingShapingFields(input)[0]
+  return field ? { field: field.key, question: field.question } : null
+}
+
+function buildShapedTaskDescription(input = {}) {
+  const lines = []
+  for (const field of SHAPING_FIELDS) {
+    const value = input[field.key]
+    if (field.list) lines.push(...renderListSection(field.title, value))
+    else lines.push(...renderSection(field.title, value))
+  }
+  return lines.join("\n").trim() || undefined
+}
+
+function summarizeShapingInput(input = {}) {
+  return Object.fromEntries(
+    SHAPING_FIELDS.map((field) => [
+      field.key,
+      field.list ? nonEmptyItems(input[field.key]) : (input[field.key] || null),
+    ]),
+  )
+}
+
+function requireSubtaskConfirmation(subtasks = [], confirmation) {
+  const count = Array.isArray(subtasks) ? subtasks.length : 0
+  const expected = `create ${count} ${count === 1 ? "subtask" : "subtasks"}`
+  if (confirmation !== expected) {
+    throw new Error(
+      `Creating shaped subtasks requires explicit confirmation. Re-run with subtask_confirmation: ${JSON.stringify(expected)}.`,
+    )
+  }
+}
+
 function parseJSONArg(value, label) {
   if (!value) return undefined
   try {
@@ -1238,6 +1351,7 @@ const __test = {
   appendQueryParams,
   botCommentText,
   buildTaskDescription,
+  buildShapedTaskDescription,
   configPath,
   defaultCaptureStateKey,
   filterTasksByStatus,
@@ -1250,11 +1364,14 @@ const __test = {
   normalize,
   parseEnvFile,
   parseJSONArg,
+  missingShapingFields,
+  nextShapingQuestion,
   projectMatches,
   projectConfigSelector,
   projectWorkflowConfigPath,
   assertNoOpenQuestions,
   requireBulkTaskConfirmation,
+  requireSubtaskConfirmation,
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
   samePluginSource,
@@ -2095,6 +2212,153 @@ export const NiftyPlugin = async () => {
             ...plan,
             config_snippet: configSnippet,
             config_write: configWrite,
+          })
+        },
+      }),
+
+      nifty_shape_task: tool({
+        description: "Guides feature shaping one question at a time, then updates or creates a fully shaped Nifty task",
+        args: {
+          task_id: tool.schema.string().optional().describe("Existing Nifty task ID to shape/update"),
+          title: tool.schema.string().optional().describe("Proposed final task title"),
+          idea: tool.schema.string().optional().describe("Short initial idea or existing rough description"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias for resolving project and target Shaped status"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          project_id: tool.schema.string().optional().describe("Project ID when creating a new task or resolving target status"),
+          project_name: tool.schema.string().optional().describe("Project name when creating a new task"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID when creating a new task"),
+          target_task_group_id: tool.schema.string().optional().describe("Explicit target status/task group ID; defaults to target_state_key when resolvable"),
+          target_state_key: tool.schema.string().default("shaped").describe("Workflow state key to move/create into when finalizing"),
+          target_status_name: tool.schema.string().optional().describe("Raw target status name override"),
+          summary: tool.schema.string().optional().describe("Concise feature summary"),
+          problem: tool.schema.string().optional().describe("Problem statement and affected users"),
+          desired_outcome: tool.schema.string().optional().describe("Desired outcome after shipping"),
+          user_experience: tool.schema.string().optional().describe("UX, screens, states, copy, and failure paths"),
+          acceptance_criteria: tool.schema.array(tool.schema.string()).optional().describe("Acceptance criteria"),
+          security_privacy: tool.schema.string().optional().describe("Security, privacy, permissions, auth, abuse, or data exposure notes"),
+          performance: tool.schema.string().optional().describe("Performance, latency, scale, or resource considerations"),
+          data_integrations: tool.schema.string().optional().describe("Data, API, database, migration, webhook, or third-party integration notes"),
+          edge_cases: tool.schema.string().optional().describe("Edge cases, empty states, errors, permissions, or rollback cases"),
+          implementation_notes: tool.schema.string().optional().describe("Implementation approach and technical constraints"),
+          test_plan: tool.schema.string().optional().describe("Automated, manual, and regression test plan"),
+          rollout: tool.schema.string().optional().describe("Rollout, flags, migrations, release notes, monitoring, or sequencing"),
+          non_goals: tool.schema.string().optional().describe("Explicitly out-of-scope work"),
+          proposed_subtasks: tool.schema.array(tool.schema.object({
+            name: tool.schema.string(),
+            description: tool.schema.string().optional(),
+          })).optional().describe("Optional subtasks to create after user approval"),
+          create_subtasks: tool.schema.boolean().default(false).describe("Create proposed subtasks while finalizing"),
+          subtask_confirmation: tool.schema.string().optional().describe('Required when create_subtasks is true, for example "create 3 subtasks"'),
+          finalize: tool.schema.boolean().default(false).describe("Update/create the Nifty task once all shaping fields are answered"),
+        },
+        async execute(args, context) {
+          const existingTask = args.task_id
+            ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+            : null
+          const title = args.title || existingTask?.name || existingTask?.title
+          const idea = args.idea || existingTask?.description || existingTask?.text || null
+          const shapeInput = { ...args, title, idea }
+          const missing = []
+          if (!title) missing.push({ field: "title", question: "What should the final task title be?" })
+          missing.push(...missingShapingFields(shapeInput).map((field) => ({ field: field.key, question: field.question })))
+
+          const blueprint = {
+            title: title || null,
+            source_idea: idea || null,
+            sections: summarizeShapingInput(shapeInput),
+            proposed_subtasks: args.proposed_subtasks || [],
+          }
+
+          if (missing.length) {
+            return json({
+              ok: true,
+              ready: false,
+              next_question: missing[0],
+              missing_fields: missing.map((item) => item.field),
+              blueprint,
+            })
+          }
+
+          const description = buildShapedTaskDescription(shapeInput)
+          blueprint.description = description
+
+          if (!args.finalize) {
+            return json({
+              ok: true,
+              ready: true,
+              next_question: null,
+              message: "Shaping is complete. Review the blueprint, ask whether to create proposed subtasks, then re-run with finalize true when approved.",
+              blueprint,
+              subtask_confirmation_required: args.proposed_subtasks?.length
+                ? `create ${args.proposed_subtasks.length} ${args.proposed_subtasks.length === 1 ? "subtask" : "subtasks"}`
+                : null,
+            })
+          }
+
+          const contextWithConfig = workflowContext(context, args.config_path)
+          let resolved = null
+          let projectID = args.project_id || (existingTask ? getTaskProjectID(existingTask) : undefined)
+          if (args.workflow_alias || args.project_name || args.project_nice_id || (!projectID && !args.task_id)) {
+            resolved = await resolveProjectSelector({
+              workflow_alias: args.workflow_alias,
+              config_path: args.config_path,
+              project_id: args.project_id,
+              project_name: args.project_name,
+              project_nice_id: args.project_nice_id,
+            }, contextWithConfig)
+            projectID = resolved.project.id
+          }
+
+          let targetStatusID = args.target_task_group_id || undefined
+          if (!targetStatusID && projectID && (args.target_state_key || args.target_status_name || resolved?.workflow)) {
+            const targetStatus = await resolveStatusSelector(projectID, {
+              workflow: resolved?.workflow,
+              state_key: args.target_state_key || "shaped",
+              status_name: args.target_status_name,
+            })
+            targetStatusID = targetStatus?.id
+          }
+          if (!targetStatusID && !args.task_id) {
+            throw new Error("Target status missing. Provide target_task_group_id, workflow_alias with target_state_key, or project status_name.")
+          }
+
+          const taskResponse = args.task_id
+            ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
+                method: "PUT",
+                body: cleanWriteObject({ name: title, description, task_group_id: targetStatusID }),
+              })
+            : await niftyRequest("/api/v1.0/tasks", {
+                method: "POST",
+                body: cleanWriteObject({ name: title, task_group_id: targetStatusID, description }),
+              })
+          const parentTaskID = args.task_id || taskResponse.id || taskResponse.task_id
+          const createdSubtasks = []
+
+          if (args.create_subtasks && args.proposed_subtasks?.length) {
+            requireSubtaskConfirmation(args.proposed_subtasks, args.subtask_confirmation)
+            if (!parentTaskID) throw new Error("Unable to determine parent task ID for subtask creation.")
+            const subtaskStatusID = targetStatusID || getTaskStatusID(existingTask)
+            if (!subtaskStatusID) throw new Error("Unable to determine subtask status ID.")
+            for (const subtask of args.proposed_subtasks) {
+              createdSubtasks.push(await niftyRequest("/api/v1.0/tasks", {
+                method: "POST",
+                body: cleanWriteObject({
+                  name: subtask.name,
+                  description: subtask.description,
+                  task_group_id: subtaskStatusID,
+                  task_id: parentTaskID,
+                }),
+              }))
+            }
+          }
+
+          return json({
+            ok: true,
+            ready: true,
+            finalized: true,
+            task: taskResponse,
+            created_subtasks: createdSubtasks,
+            proposed_subtasks_not_created: args.create_subtasks ? [] : (args.proposed_subtasks || []),
           })
         },
       }),

@@ -159,7 +159,7 @@ Example project-local config using the recommended lifecycle:
       "states": {
         "ideas": "Ideas",
         "shaping": "Shaping",
-        "planned": "Planned",
+        "shaped": "Shaped",
         "not_now": "Not Now",
         "todo": "To Do",
         "in_progress": "In Progress",
@@ -221,6 +221,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_validate_workflows`
 - `nifty_recommended_workflow`
 - `nifty_setup_recommended_workflow`
+- `nifty_shape_task`
 - `nifty_find_project`
 - `nifty_delete_status`
 - `nifty_list_milestones`
@@ -245,6 +246,8 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_link_tasks`
 
 Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
+
+Use `nifty_shape_task` to turn a short feature idea or existing rough task into a dev-ready task. Call it with the current answers, ask exactly the returned `next_question`, and repeat one question at a time until `ready: true`. Finalizing can update an existing task or create a new one. Proposed subtasks are only created when `create_subtasks` is true and the exact `subtask_confirmation` phrase is provided.
 
 Before creating or preparing shaped tasks, answer open questions with the user. The plugin blocks unresolved `open_questions` instead of writing them into Nifty task descriptions.
 

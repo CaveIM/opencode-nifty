@@ -246,6 +246,75 @@ test("workflow capture blocks open questions before API calls", async () => {
   assert.deepEqual(calls, [])
 })
 
+test("nifty_shape_task returns one next shaping question", async () => {
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_shape_task.execute(
+    { title: "Export account data", idea: "Users need a way to export their data" },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.ready, false)
+  assert.equal(parsed.next_question.field, "summary")
+  assert.deepEqual(parsed.missing_fields.slice(0, 3), ["summary", "problem", "desired_outcome"])
+})
+
+test("nifty_shape_task finalizes an existing task and confirmed subtasks", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t-parent" && !options.method) {
+      return Response.json({ id: "t-parent", name: "Rough export idea", task_group: "s-shaping", project_id: "p1" })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/t-parent" && options.method === "PUT") {
+      return Response.json({ id: "t-parent", name: JSON.parse(options.body).name })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks" && options.method === "POST") {
+      return Response.json({ id: "st1", name: JSON.parse(options.body).name })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_shape_task.execute(
+    {
+      task_id: "t-parent",
+      title: "Export account data",
+      target_task_group_id: "s-shaped",
+      summary: "Let users export account data.",
+      problem: "Users need portable access to their data.",
+      desired_outcome: "Users can download a complete export from settings.",
+      user_experience: "A settings button starts export and shows completion state.",
+      acceptance_criteria: ["Only account owners can export", "Export includes profile data"],
+      security_privacy: "Require account-owner permissions and avoid cross-account data exposure.",
+      performance: "Run export in a background job for large accounts.",
+      data_integrations: "Read profile and account tables, no third-party integrations.",
+      edge_cases: "Empty accounts get a valid empty export.",
+      implementation_notes: "Use the existing job queue and storage abstraction.",
+      test_plan: "Unit test serializer and permission checks.",
+      rollout: "No feature flag required.",
+      non_goals: "No admin bulk export.",
+      proposed_subtasks: [{ name: "Add export permission checks" }],
+      create_subtasks: true,
+      subtask_confirmation: "create 1 subtask",
+      finalize: true,
+    },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+  const updateBody = JSON.parse(calls.find((call) => call.method === "PUT").body)
+  const subtaskBody = JSON.parse(calls.find((call) => call.method === "POST").body)
+
+  assert.equal(parsed.finalized, true)
+  assert.equal(updateBody.task_group_id, "s-shaped")
+  assert.match(updateBody.description, /## Security \/ Privacy/)
+  assert.equal(subtaskBody.task_id, "t-parent")
+  assert.equal(subtaskBody.task_group_id, "s-shaped")
+})
+
 test("nifty_create_document resolves project from workflow alias", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-doc-"))
   const configPath = join(dir, "nifty-workflows.json")
