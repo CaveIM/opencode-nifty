@@ -87,6 +87,7 @@ The template includes the shared Nifty app client ID, authorize URL, and localho
 
 Optional but recommended:
 
+- `NIFTY_AUTH_PORT` if the localhost callback should use a port other than `8787`
 - `NIFTY_DEFAULT_WORKFLOW`
 
 Load that env file before starting OpenCode in the container.
@@ -211,7 +212,7 @@ run nifty_auth_localhost_start
 
 It starts the callback server in the background and immediately returns the browser URL.
 
-If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the container to the host.
+If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the container to the host. If `.nifty.env` sets `NIFTY_AUTH_PORT`, forward that port instead.
 
 ## Tools You’ll Use Most
 

@@ -214,6 +214,17 @@ function getLocalRedirectURI(host, port) {
   return `http://${host}:${port}/callback`
 }
 
+function getAuthPort(context = {}, explicitPort) {
+  if (explicitPort !== undefined && explicitPort !== null) return explicitPort
+  const configuredPort = env("NIFTY_AUTH_PORT", context)
+  if (!configuredPort) return 8787
+  const port = Number(configuredPort)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("NIFTY_AUTH_PORT must be an integer between 1 and 65535.")
+  }
+  return port
+}
+
 function getAuthorizeURL(host, port, state, context = {}) {
   const config = getClientConfig(context)
   if (!config.authorizeURL) {
@@ -1359,6 +1370,7 @@ const __test = {
   findMatchingProjects,
   getTaskProjectID,
   getTaskStatusID,
+  getAuthPort,
   isTokenUsable,
   milestoneMatches,
   niftyShellCommandHint,
@@ -1488,13 +1500,14 @@ export const NiftyPlugin = async () => {
         description: "Starts a localhost callback server and completes Nifty auth",
         args: {
           host: tool.schema.string().default("127.0.0.1").describe("Local host to listen on"),
-          port: tool.schema.number().int().min(1).max(65535).default(8787).describe("Local port to listen on"),
+          port: tool.schema.number().int().min(1).max(65535).optional().describe("Local port to listen on; defaults to NIFTY_AUTH_PORT or 8787"),
         },
         async execute(args, context) {
-          await assertPortAvailable(args.host, args.port)
+          const port = getAuthPort(context, args.port)
+          await assertPortAvailable(args.host, port)
           const state = createOAuthState()
-          const authorizeURL = getAuthorizeURL(args.host, args.port, state, context)
-          const redirectURI = getLocalRedirectURI(args.host, args.port)
+          const authorizeURL = getAuthorizeURL(args.host, port, state, context)
+          const redirectURI = getLocalRedirectURI(args.host, port)
 
           context.metadata({
             title: "Authorize Nifty in browser",
@@ -1504,7 +1517,7 @@ export const NiftyPlugin = async () => {
             },
           })
 
-          const code = await waitForAuthorizationCode(args.host, args.port, context.abort, state)
+          const code = await waitForAuthorizationCode(args.host, port, context.abort, state)
           const token = await requestToken({
             grant_type: "authorization_code",
             code,
@@ -1530,13 +1543,14 @@ export const NiftyPlugin = async () => {
         description: "Starts localhost Nifty auth in the background and immediately returns the browser URL",
         args: {
           host: tool.schema.string().default("127.0.0.1").describe("Local host to listen on"),
-          port: tool.schema.number().int().min(1).max(65535).default(8787).describe("Local port to listen on"),
+          port: tool.schema.number().int().min(1).max(65535).optional().describe("Local port to listen on; defaults to NIFTY_AUTH_PORT or 8787"),
         },
         async execute(args, context) {
-          await assertPortAvailable(args.host, args.port)
+          const port = getAuthPort(context, args.port)
+          await assertPortAvailable(args.host, port)
           const state = createOAuthState()
-          const authorizeURL = getAuthorizeURL(args.host, args.port, state, context)
-          const redirectURI = await startBackgroundAuthorizationServer(args.host, args.port, state, context)
+          const authorizeURL = getAuthorizeURL(args.host, port, state, context)
+          const redirectURI = await startBackgroundAuthorizationServer(args.host, port, state, context)
 
           return [
             "Open this URL in your browser to finish connecting Nifty:",
