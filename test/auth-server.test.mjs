@@ -71,13 +71,23 @@ test("nifty_auth_localhost_start uses NIFTY_AUTH_PORT from project env file", as
   const port = await getFreePort()
   const logPath = join(dir, "auth-server.log")
 
-  await writeFile(join(dir, ".nifty.env"), `NIFTY_AUTH_PORT=${port}\n`, "utf8")
+  await writeFile(
+    join(dir, ".nifty.env"),
+    [
+      `NIFTY_AUTH_PORT=${port}`,
+      "NIFTY_AUTHORIZE_URL=https://nifty.pm/authorize?response_type=code&client_id=file-client",
+      "NIFTY_CLIENT_ID=file-client",
+      "NIFTY_CLIENT_SECRET=file-secret",
+      "",
+    ].join("\n"),
+    "utf8",
+  )
   process.env.NIFTY_AUTH_LOG_PATH = logPath
   process.env.NIFTY_TOKEN_PATH = join(dir, "auth-token.json")
   process.env.NIFTY_NODE_BINARY = process.execPath
-  process.env.NIFTY_AUTHORIZE_URL = "https://nifty.pm/authorize?response_type=code&client_id=test-client"
-  process.env.NIFTY_CLIENT_ID = "test-client"
-  process.env.NIFTY_CLIENT_SECRET = "test-secret"
+  process.env.NIFTY_AUTHORIZE_URL = "https://nifty.pm/authorize?response_type=code&client_id=old-client"
+  process.env.NIFTY_CLIENT_ID = "old-client"
+  process.env.NIFTY_CLIENT_SECRET = "old-secret"
 
   const { NiftyPlugin } = await import(`../plugin/nifty.js?auth-env-port-test=${port}`)
   const plugin = await NiftyPlugin()
@@ -87,6 +97,8 @@ test("nifty_auth_localhost_start uses NIFTY_AUTH_PORT from project env file", as
   )
 
   assert.match(output, new RegExp(`Redirect URI: http://127\\.0\\.0\\.1:${port}/callback`))
+  assert.match(output, /client_id=file-client/)
+  assert.doesNotMatch(output, /client_id=old-client/)
 
   const shutdownResponse = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied`)
   assert.equal(shutdownResponse.status, 400)

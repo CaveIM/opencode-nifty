@@ -126,10 +126,10 @@ function envFileValues(context = {}) {
 }
 
 function env(name, context = {}) {
-  const value = process.env[name]
-  if (typeof value === "string" && value.trim()) return value.trim()
   const fileValue = envFileValues(context)[name]
-  return typeof fileValue === "string" && fileValue.trim() ? fileValue.trim() : undefined
+  if (typeof fileValue === "string" && fileValue.trim()) return fileValue.trim()
+  const value = process.env[name]
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
 function getClientConfig(context = {}) {
