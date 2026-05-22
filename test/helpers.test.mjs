@@ -204,3 +204,66 @@ test("filters tasks by exact status id", () => {
 
   assert.deepEqual(__test.filterTasksByStatus(tasks, "backlog").map((task) => task.id), ["1"])
 })
+
+test("maps configured custom fields on task output", () => {
+  const workflow = {
+    custom_fields: {
+      area_of_concern: {
+        id: "field-1",
+        name: "Area of concern",
+        type: "select",
+        values: { deployment: "Deployment" },
+      },
+    },
+  }
+  const task = { id: "t1", fields: [{ id: "field-1", value: "Deployment" }] }
+
+  assert.deepEqual(__test.enrichTaskCustomFields(task, workflow).custom_fields, {
+    area_of_concern: {
+      id: "field-1",
+      name: "Area of concern",
+      type: "select",
+      value: "Deployment",
+      value_key: "deployment",
+    },
+  })
+})
+
+test("builds custom field write payloads from workflow keys", () => {
+  const workflow = {
+    custom_fields: {
+      area_of_concern: {
+        id: "field-1",
+        values: { deployment: "Deployment" },
+      },
+    },
+  }
+
+  assert.deepEqual(
+    __test.customFieldPayload(workflow, [{ key: "area_of_concern", value_key: "deployment" }]),
+    [{ id: "field-1", value: "Deployment" }],
+  )
+})
+
+test("filters tasks by configured custom field value", () => {
+  const workflow = {
+    custom_fields: {
+      area_of_concern: {
+        id: "field-1",
+        values: { deployment: "Deployment" },
+      },
+    },
+  }
+  const tasks = [
+    { id: "1", fields: [{ id: "field-1", value: "Deployment" }] },
+    { id: "2", fields: [{ id: "field-1", value: "Editor" }] },
+  ]
+
+  assert.deepEqual(
+    __test.filterTasksByCustomField(tasks, workflow, {
+      custom_field_key: "area_of_concern",
+      custom_field_value: "deployment",
+    }).map((task) => task.id),
+    ["1"],
+  )
+})

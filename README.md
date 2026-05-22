@@ -103,7 +103,7 @@ opencode
 
 ## Configure Workflows
 
-Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, and list names. The plugin only reads `nifty-workflows.json` from the repo/directory where OpenCode is launched.
+Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, list names, and custom field mappings. The plugin only reads `nifty-workflows.json` from the repo/directory where OpenCode is launched.
 
 The installer does not create this file. From the project root, ask OpenCode to run `nifty_setup_recommended_workflow` with `write_config true` when you are ready to create or merge `./nifty-workflows.json` for that project.
 
@@ -134,6 +134,17 @@ Example config:
       },
       "lists": {
         "current": "Current"
+      },
+      "custom_fields": {
+        "area_of_concern": {
+          "id": "VYobLAtiyl",
+          "name": "SBM area of concern",
+          "type": "select",
+          "values": {
+            "tenant_auth": "Tenant / Auth",
+            "deployment": "Deployment"
+          }
+        }
       }
     }
   }
@@ -141,6 +152,8 @@ Example config:
 ```
 
 Nifty lists are represented by the API as milestones with `is_list=true`. Add optional `lists` aliases when a project needs another planning level beyond status.
+
+Custom fields are mapped from stable workflow keys to Nifty field IDs. Task output is enriched with a `custom_fields` object when mapped fields are present. Task create/update tools accept `custom_fields` entries such as `{ "key": "area_of_concern", "value_key": "deployment" }`, and task list tools can filter with `custom_field_key` plus `custom_field_value`.
 
 ## Activate In A Project
 

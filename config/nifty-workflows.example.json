@@ -12,6 +12,27 @@
       },
       "lists": {
         "current": "Current"
+      },
+      "custom_fields": {
+        "area_of_concern": {
+          "id": "VYobLAtiyl",
+          "name": "SBM area of concern",
+          "type": "select",
+          "values": {
+            "tenant_auth": "Tenant / Auth",
+            "public_site": "Public Site",
+            "editor": "Editor",
+            "modules": "Modules",
+            "media": "Media",
+            "themes": "Themes",
+            "publishing": "Publishing",
+            "deployment": "Deployment",
+            "content_types": "Content Types",
+            "accessibility": "Accessibility",
+            "qa_testing": "QA / Testing",
+            "docs_ops": "Docs / Ops"
+          }
+        }
       }
     },
     "development": {

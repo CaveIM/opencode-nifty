@@ -112,6 +112,51 @@ test("workflow config falls back to project-local file from tool context", async
   assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["localAlias"])
 })
 
+test("workflow validation reports configured custom fields", async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-custom-validate-"))
+  await writeFile(
+    join(projectDir, "nifty-workflows.json"),
+    JSON.stringify({
+      workflows: {
+        addons: {
+          project: { name: "Addons" },
+          states: { backlog: "Backlog", todo: "To Do" },
+          custom_fields: {
+            area_of_concern: {
+              id: "field-1",
+              name: "Area of concern",
+              type: "select",
+              values: { deployment: "Deployment" },
+            },
+          },
+        },
+      },
+    }),
+    "utf8",
+  )
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Addons", nice_id: "ADD" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "Backlog" }, { id: "s2", name: "To Do" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") return Response.json({ items: [] })
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      return Response.json({ tasks: [{ id: "t1", fields: [{ id: "field-1", value: "Deployment" }] }] })
+    }
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_validate_workflows.execute({}, context({ directory: projectDir }))
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.workflows[0].custom_fields.area_of_concern.observed_on_sampled_tasks, true)
+})
+
 test("nifty_list_workflow_tasks filters returned tasks to the requested status", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-workflow-"))
   const configPath = join(dir, "nifty-workflows.json")
@@ -122,6 +167,14 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
         addons: {
           project: { name: "Addons" },
           states: { backlog: "Backlog", review: "DEV Review" },
+          custom_fields: {
+            area_of_concern: {
+              id: "field-1",
+              name: "Area of concern",
+              type: "select",
+              values: { deployment: "Deployment", editor: "Editor" },
+            },
+          },
         },
       },
     }),
@@ -151,8 +204,8 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
     if (requestURL.pathname === "/api/v1.0/tasks") {
       return Response.json({
         tasks: [
-          { id: "1", name: "Backlog task", task_group: "s1", completed: false },
-          { id: "2", name: "Review task", task_group: "s2", completed: false },
+          { id: "1", name: "Backlog task", task_group: "s1", completed: false, fields: [{ id: "field-1", value: "Deployment" }] },
+          { id: "2", name: "Review task", task_group: "s2", completed: false, fields: [{ id: "field-1", value: "Editor" }] },
           { id: "3", name: "Leaky subtask", task_group: null, completed: false },
         ],
         hasMore: false,
@@ -170,6 +223,20 @@ test("nifty_list_workflow_tasks filters returned tasks to the requested status",
   const parsed = JSON.parse(output)
 
   assert.deepEqual(parsed.tasks.map((task) => task.id), ["1"])
+  assert.equal(parsed.tasks[0].custom_fields.area_of_concern.value_key, "deployment")
+
+  const filteredOutput = await plugin.tool.nifty_list_workflow_tasks.execute(
+    {
+      workflow_alias: "addons",
+      custom_field_key: "area_of_concern",
+      custom_field_value: "editor",
+      include_subtasks: false,
+    },
+    context({ directory: dir }),
+  )
+  const filtered = JSON.parse(filteredOutput)
+
+  assert.deepEqual(filtered.tasks.map((task) => task.id), ["2"])
 })
 
 test("nifty_batch_capture_backlog_items dry-run plans standardized creates", async () => {
@@ -450,6 +517,50 @@ test("nifty_create_subtask sends parent task id", async () => {
     task_group_id: "status-1",
     task_id: "parent-1",
   })
+})
+
+test("nifty_update_task writes configured custom fields", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-custom-fields-"))
+  await writeFile(
+    join(dir, "nifty-workflows.json"),
+    JSON.stringify({
+      workflows: {
+        addons: {
+          project: { name: "Addons" },
+          custom_fields: {
+            area_of_concern: {
+              id: "field-1",
+              values: { deployment: "Deployment" },
+            },
+          },
+        },
+      },
+    }),
+    "utf8",
+  )
+  let capturedBody
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && options.method === "PUT") {
+      capturedBody = JSON.parse(options.body)
+      return Response.json({ id: "t1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_update_task.execute(
+    {
+      workflow_alias: "addons",
+      task_id: "t1",
+      custom_fields: [{ key: "area_of_concern", value_key: "deployment" }],
+    },
+    context({ directory: dir }),
+  )
+
+  assert.deepEqual(capturedBody, { fields: [{ id: "field-1", value: "Deployment" }] })
 })
 
 test("nifty_delete_status deletes task group by id", async () => {

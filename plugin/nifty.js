@@ -707,6 +707,14 @@ function getWorkflowAliasMap(config) {
     : {}
 }
 
+async function workflowForArgs(input = {}, context = {}) {
+  const contextWithConfig = workflowContext(context, input.config_path)
+  const alias = input.workflow_alias || defaultWorkflowAlias(contextWithConfig)
+  if (!alias) return {}
+  const config = await readWorkflowConfig(contextWithConfig)
+  return getWorkflowAliasMap(config)[alias] || {}
+}
+
 function defaultCaptureStateKey(workflow = {}) {
   const states = workflow.states || workflow.statuses || {}
   return states.ideas ? "ideas" : "backlog"
@@ -1014,13 +1022,115 @@ function getTaskStatusID(task) {
   return task?.task_group_id || task?.task_group?.id || task?.task_group || task?.group_id
 }
 
+function getWorkflowCustomFields(workflow = {}) {
+  return workflow?.custom_fields && typeof workflow.custom_fields === "object"
+    ? workflow.custom_fields
+    : {}
+}
+
+function resolveCustomField(workflow = {}, input = {}) {
+  const customFields = getWorkflowCustomFields(workflow)
+  const selector = input.key || input.custom_field_key || input.id || input.custom_field_id
+  if (!selector) return undefined
+  const wanted = normalize(selector)
+  const entry = Object.entries(customFields).find(([key, field]) =>
+    [key, field?.id, field?.name]
+      .filter(Boolean)
+      .some((value) => normalize(value) === wanted),
+  )
+  if (entry) return { key: entry[0], ...entry[1] }
+  if (input.id || input.custom_field_id) return { key: selector, id: selector }
+  throw new Error(`Workflow custom field '${selector}' is not configured.`)
+}
+
+function customFieldWriteValue(field = {}, input = {}) {
+  const valueKey = input.value_key || input.custom_field_value_key
+  const value = input.value ?? input.custom_field_value
+  if (valueKey) {
+    const mapped = field.values?.[valueKey]
+    if (mapped === undefined) {
+      throw new Error(`Workflow custom field '${field.key}' value '${valueKey}' is not configured.`)
+    }
+    return mapped
+  }
+  if (value !== undefined && field.values?.[value] !== undefined) return field.values[value]
+  return value
+}
+
+function taskFieldValue(task, fieldID) {
+  const field = (task?.fields || []).find((item) => item?.id === fieldID)
+  return field ? field.value : undefined
+}
+
+function customFieldValueKey(field = {}, value) {
+  const entry = Object.entries(field.values || {}).find(([, label]) => normalize(label) === normalize(value))
+  return entry?.[0] || null
+}
+
+function taskCustomFields(task, workflow = {}) {
+  const entries = Object.entries(getWorkflowCustomFields(workflow))
+  if (!entries.length) return {}
+  return Object.fromEntries(
+    entries
+      .map(([key, field]) => {
+        if (!field?.id) return null
+        const value = taskFieldValue(task, field.id)
+        if (value === undefined) return null
+        return [
+          key,
+          cleanWriteObject({
+            id: field.id,
+            name: field.name,
+            type: field.type,
+            value,
+            value_key: customFieldValueKey(field, value),
+          }),
+        ]
+      })
+      .filter(Boolean),
+  )
+}
+
+function enrichTaskCustomFields(task, workflow = {}) {
+  const customFields = taskCustomFields(task, workflow)
+  if (!Object.keys(customFields).length) return task
+  return { ...task, custom_fields: customFields }
+}
+
+function customFieldPayload(workflow = {}, customFields = []) {
+  if (!customFields?.length) return undefined
+  return customFields.map((item) => {
+    const field = resolveCustomField(workflow, item)
+    if (!field?.id) {
+      throw new Error(`Custom field '${item.key || item.id || item.custom_field_key || item.custom_field_id}' is missing an id.`)
+    }
+    const value = customFieldWriteValue(field, item)
+    if (value === undefined || value === null || value === "") {
+      throw new Error(`Custom field '${field.key}' is missing a value.`)
+    }
+    return { id: field.id, value }
+  })
+}
+
+function filterTasksByCustomField(tasks, workflow = {}, input = {}) {
+  if (!input.custom_field_key && !input.custom_field_id) return tasks
+  const field = resolveCustomField(workflow, input)
+  if (!field?.id) return tasks
+  const expected = customFieldWriteValue(field, input)
+  return tasks.filter((task) => {
+    const value = taskFieldValue(task, field.id)
+    if (expected === undefined || expected === null || expected === "") return value !== undefined
+    return normalize(value) === normalize(expected)
+  })
+}
+
 function statusMap(statuses) {
   return new Map(statuses.map((status) => [status.id, status.name]))
 }
 
-function summarizeTask(task, statusesByID = new Map()) {
+function summarizeTask(task, statusesByID = new Map(), workflow = {}) {
   const rawStatus = getTaskStatusID(task)
-  return {
+  const summary = {
     id: task.id,
     name: task.name,
     completed: task.completed,
@@ -1032,6 +1142,9 @@ function summarizeTask(task, statusesByID = new Map()) {
     story_points: task.story_points ?? null,
     assignees: task.assignees || [],
   }
+  const customFields = taskCustomFields(task, workflow)
+  if (Object.keys(customFields).length) summary.custom_fields = customFields
+  return summary
 }
 
 function filterTasksByStatus(tasks, statusID) {
@@ -1267,8 +1380,10 @@ async function validateWorkflows(options = {}) {
     const warnings = []
     const states = workflow?.states || workflow?.statuses || {}
     const lists = workflow?.lists || workflow?.milestones || {}
+    const customFields = getWorkflowCustomFields(workflow)
     let statuses = []
     let milestones = []
+    let sampledTasks = []
 
     if (!selector) {
       errors.push("project selector is missing")
@@ -1280,6 +1395,12 @@ async function validateWorkflows(options = {}) {
       try {
         statuses = await fetchAllStatuses(project.id)
         milestones = await fetchAllMilestones(project.id)
+        if (Object.keys(customFields).length) {
+          const taskResponse = await niftyRequest("/api/v1.0/tasks", {
+            query: { project_id: project.id, limit: 100, offset: 0 },
+          })
+          sampledTasks = taskResponse.tasks || []
+        }
       } catch (error) {
         errors.push(`project metadata lookup failed: ${error.message}`)
       }
@@ -1300,6 +1421,22 @@ async function validateWorkflows(options = {}) {
     if (!states.ideas && !states.backlog) warnings.push("state 'ideas' or 'backlog' is not configured")
     if (!states.todo && !states.ready) warnings.push("state 'todo' or 'ready' is not configured")
 
+    const observedFieldIDs = new Set(
+      sampledTasks.flatMap((task) => (task.fields || []).map((field) => field?.id).filter(Boolean)),
+    )
+    const customFieldResults = Object.fromEntries(
+      Object.entries(customFields).map(([key, field]) => [
+        key,
+        cleanWriteObject({
+          id: field?.id,
+          name: field?.name,
+          type: field?.type,
+          values: field?.values,
+          observed_on_sampled_tasks: field?.id ? observedFieldIDs.has(field.id) : false,
+        }),
+      ]),
+    )
+
     results.push({
       alias,
       default: alias === defaultAlias,
@@ -1310,6 +1447,7 @@ async function validateWorkflows(options = {}) {
         : null,
       states,
       lists,
+      custom_fields: customFieldResults,
       statuses: statuses.map((status) => ({ id: status.id, name: status.name })),
       milestones: milestones.map((milestone) => ({
         id: milestone.id,
@@ -1366,10 +1504,13 @@ const __test = {
   buildShapedTaskDescription,
   configPath,
   defaultCaptureStateKey,
+  enrichTaskCustomFields,
   filterTasksByStatus,
+  filterTasksByCustomField,
   findMatchingProjects,
   getTaskProjectID,
   getTaskStatusID,
+  customFieldPayload,
   getAuthPort,
   isTokenUsable,
   milestoneMatches,
@@ -1395,6 +1536,13 @@ const __test = {
 }
 
 export const NiftyPlugin = async () => {
+  const customFieldArg = tool.schema.object({
+    key: tool.schema.string().optional().describe("Configured workflow custom field key"),
+    id: tool.schema.string().optional().describe("Raw Nifty custom field ID"),
+    value: tool.schema.string().optional().describe("Raw custom field value or configured value key"),
+    value_key: tool.schema.string().optional().describe("Configured value key for select fields"),
+  })
+
   return {
     "tool.execute.before": async (input, output) => {
       if (input.tool !== "bash") return
@@ -2079,6 +2227,7 @@ export const NiftyPlugin = async () => {
               project_nice_id: project?.nice_id || null,
               states: workflow?.states || workflow?.statuses || {},
               lists: workflow?.lists || workflow?.milestones || {},
+              custom_fields: getWorkflowCustomFields(workflow),
             }
           })
 
@@ -2388,6 +2537,9 @@ export const NiftyPlugin = async () => {
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
           milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
+          custom_field_key: tool.schema.string().optional().describe("Configured workflow custom field key to filter by"),
+          custom_field_id: tool.schema.string().optional().describe("Raw Nifty custom field ID to filter by"),
+          custom_field_value: tool.schema.string().optional().describe("Custom field value or configured value key to filter by"),
           include_completed: tool.schema.boolean().optional().describe("Include completed tasks"),
           include_subtasks: tool.schema.boolean().optional().describe("Include subtasks in the response"),
           limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
@@ -2439,9 +2591,11 @@ export const NiftyPlugin = async () => {
             },
             status: status ? { id: status.id, name: status.name } : null,
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
-            tasks: filterTasksByStatus(result.tasks, status?.id).map((task) =>
-              summarizeTask(task, result.statusesByID),
-            ),
+            tasks: filterTasksByCustomField(
+              filterTasksByStatus(result.tasks, status?.id),
+              resolved.workflow,
+              args,
+            ).map((task) => summarizeTask(task, result.statusesByID, resolved.workflow)),
             has_more: result.hasMore,
           })
         },
@@ -2470,6 +2624,7 @@ export const NiftyPlugin = async () => {
           due_date: tool.schema.string().optional().describe("Due date, ISO format"),
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
+          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
         },
         async execute(args, context) {
           assertNoOpenQuestions(args, "task")
@@ -2506,6 +2661,7 @@ export const NiftyPlugin = async () => {
               assignees: args.assignee_ids,
               labels: args.label_ids,
               story_points: args.story_points,
+              fields: customFieldPayload(resolved.workflow, args.custom_fields),
             }),
           })
 
@@ -2547,6 +2703,7 @@ export const NiftyPlugin = async () => {
             due_date: tool.schema.string().optional(),
             start_date: tool.schema.string().optional(),
             story_points: tool.schema.number().int().min(1).optional(),
+            custom_fields: tool.schema.array(customFieldArg).optional(),
           })).describe("Items to create"),
         },
         async execute(args, context) {
@@ -2583,6 +2740,7 @@ export const NiftyPlugin = async () => {
             assignees: item.assignee_ids,
             labels: item.label_ids,
             story_points: item.story_points,
+            fields: customFieldPayload(resolved.workflow, item.custom_fields),
           })).map(cleanWriteObject)
 
           if (args.dry_run) {
@@ -2615,6 +2773,8 @@ export const NiftyPlugin = async () => {
       nifty_list_tasks: tool({
         description: "Lists Nifty tasks with filters",
         args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich/filter configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           project_id: tool.schema.string().optional().describe("Filter by project ID"),
           project_ids: tool.schema.array(tool.schema.string()).optional().describe("Filter by multiple project IDs"),
           task_group_id: tool.schema.string().optional().describe("Filter by status or task group ID"),
@@ -2626,6 +2786,9 @@ export const NiftyPlugin = async () => {
           include_archived: tool.schema.boolean().optional().describe("Include archived tasks together with active tasks"),
           include_subtasks: tool.schema.boolean().optional().describe("Include subtasks in the response"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Filter by assignee IDs"),
+          custom_field_key: tool.schema.string().optional().describe("Configured workflow custom field key to filter by"),
+          custom_field_id: tool.schema.string().optional().describe("Raw Nifty custom field ID to filter by"),
+          custom_field_value: tool.schema.string().optional().describe("Custom field value or configured value key to filter by"),
           limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
           order: tool.schema.enum([
@@ -2640,7 +2803,8 @@ export const NiftyPlugin = async () => {
           from: tool.schema.string().optional().describe("Due date from, ISO format"),
           to: tool.schema.string().optional().describe("Due date to, ISO format"),
         },
-        async execute(args) {
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest("/api/v1.0/tasks", {
             query: cleanObject({
               project_id: args.project_id,
@@ -2664,7 +2828,9 @@ export const NiftyPlugin = async () => {
               assignee_ids: args.assignee_ids,
             }),
           })
-          return json(response)
+          const tasks = filterTasksByCustomField(response.tasks || [], workflow, args)
+            .map((task) => enrichTaskCustomFields(task, workflow))
+          return json({ ...response, tasks })
         },
       }),
 
@@ -2672,16 +2838,21 @@ export const NiftyPlugin = async () => {
         description: "Gets a Nifty task by ID",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
         },
-        async execute(args) {
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
-          return json(response)
+          return json(enrichTaskCustomFields(response, workflow))
         },
       }),
 
       nifty_create_task: tool({
         description: "Creates a Nifty task",
         args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           name: tool.schema.string().describe("Task name"),
           task_group_id: tool.schema.string().describe("Status or task group ID"),
           description: tool.schema.string().optional().describe("Task description"),
@@ -2692,8 +2863,10 @@ export const NiftyPlugin = async () => {
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
+          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
         },
-        async execute(args) {
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
             body: cleanWriteObject({
@@ -2707,6 +2880,7 @@ export const NiftyPlugin = async () => {
               assignees: args.assignee_ids,
               labels: args.label_ids,
               story_points: args.story_points,
+              fields: customFieldPayload(workflow, args.custom_fields),
             }),
           })
           return json(response)
@@ -2716,6 +2890,8 @@ export const NiftyPlugin = async () => {
       nifty_create_subtask: tool({
         description: "Creates a Nifty subtask under an existing parent task",
         args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           parent_task_id: tool.schema.string().describe("Parent task ID"),
           name: tool.schema.string().describe("Subtask name"),
           task_group_id: tool.schema.string().describe("Status or task group ID"),
@@ -2726,8 +2902,10 @@ export const NiftyPlugin = async () => {
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Assignee member IDs"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Label IDs"),
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
+          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
         },
-        async execute(args) {
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
             body: cleanWriteObject({
@@ -2741,6 +2919,7 @@ export const NiftyPlugin = async () => {
               assignees: args.assignee_ids,
               labels: args.label_ids,
               story_points: args.story_points,
+              fields: customFieldPayload(workflow, args.custom_fields),
             }),
           })
           return json(response)
@@ -2750,6 +2929,8 @@ export const NiftyPlugin = async () => {
       nifty_update_task: tool({
         description: "Updates a Nifty task",
         args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           task_id: tool.schema.string().describe("Task ID"),
           name: tool.schema.string().optional().describe("Task name"),
           description: tool.schema.string().optional().describe("Task description"),
@@ -2764,8 +2945,10 @@ export const NiftyPlugin = async () => {
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task assignees"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task labels"),
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
+          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
         },
-        async execute(args) {
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
             body: cleanWriteObject({
@@ -2782,6 +2965,7 @@ export const NiftyPlugin = async () => {
               assignees: args.assignee_ids,
               labels: args.label_ids,
               story_points: args.story_points,
+              fields: customFieldPayload(workflow, args.custom_fields),
             }),
           })
           return json(response)
