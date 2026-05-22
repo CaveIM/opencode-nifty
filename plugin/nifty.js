@@ -2949,26 +2949,42 @@ export const NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const workflow = await workflowForArgs(args, context)
-          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
-            method: "PUT",
-            body: cleanWriteObject({
-              name: args.name,
-              description: args.description,
-              task_group_id: args.task_group_id,
-              due_date: args.due_date,
-              start_date: args.start_date,
-              reminder: args.reminder,
-              archived: args.archived,
-              completed: args.completed,
-              milestone_id: args.milestone_id,
-              dependency: args.dependency,
-              assignees: args.assignee_ids,
-              labels: args.label_ids,
-              story_points: args.story_points,
-              fields: customFieldPayload(workflow, args.custom_fields),
-            }),
+          const taskBody = cleanWriteObject({
+            name: args.name,
+            description: args.description,
+            task_group_id: args.task_group_id,
+            due_date: args.due_date,
+            start_date: args.start_date,
+            reminder: args.reminder,
+            archived: args.archived,
+            completed: args.completed,
+            milestone_id: args.milestone_id,
+            dependency: args.dependency,
+            assignees: args.assignee_ids,
+            labels: args.label_ids,
+            story_points: args.story_points,
           })
-          return json(response)
+          const taskResponse = Object.keys(taskBody).length
+            ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
+                method: "PUT",
+                body: taskBody,
+              })
+            : null
+          const fieldResponses = []
+          for (const field of customFieldPayload(workflow, args.custom_fields) || []) {
+            fieldResponses.push(await niftyRequest(
+              `/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/fields/${encodeURIComponent(field.id)}`,
+              {
+                method: "PUT",
+                body: { value: field.value },
+              },
+            ))
+          }
+
+          return json({
+            task: taskResponse,
+            custom_fields: fieldResponses,
+          })
         },
       }),
 

@@ -538,13 +538,13 @@ test("nifty_update_task writes configured custom fields", async () => {
     }),
     "utf8",
   )
-  let capturedBody
+  const calls = []
   globalThis.fetch = async (url, options = {}) => {
     const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
-    if (requestURL.pathname === "/api/v1.0/tasks/t1" && options.method === "PUT") {
-      capturedBody = JSON.parse(options.body)
-      return Response.json({ id: "t1" })
+    if (requestURL.pathname === "/api/v1.0/tasks/t1/fields/field-1" && options.method === "PUT") {
+      return Response.json({ id: "field-1", value: JSON.parse(options.body).value })
     }
 
     throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
@@ -560,7 +560,63 @@ test("nifty_update_task writes configured custom fields", async () => {
     context({ directory: dir }),
   )
 
-  assert.deepEqual(capturedBody, { fields: [{ id: "field-1", value: "Deployment" }] })
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["PUT", "/api/v1.0/tasks/t1/fields/field-1"],
+  ])
+  assert.deepEqual(JSON.parse(calls[0].body), { value: "Deployment" })
+})
+
+test("nifty_update_task separates normal fields from custom fields", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-custom-and-normal-fields-"))
+  await writeFile(
+    join(dir, "nifty-workflows.json"),
+    JSON.stringify({
+      workflows: {
+        addons: {
+          project: { name: "Addons" },
+          custom_fields: {
+            area_of_concern: {
+              id: "field-1",
+              values: { deployment: "Deployment" },
+            },
+          },
+        },
+      },
+    }),
+    "utf8",
+  )
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && options.method === "PUT") {
+      return Response.json({ id: "t1", name: JSON.parse(options.body).name })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/t1/fields/field-1" && options.method === "PUT") {
+      return Response.json({ id: "field-1", value: JSON.parse(options.body).value })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_update_task.execute(
+    {
+      workflow_alias: "addons",
+      task_id: "t1",
+      name: "Updated task",
+      custom_fields: [{ key: "area_of_concern", value_key: "deployment" }],
+    },
+    context({ directory: dir }),
+  )
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["PUT", "/api/v1.0/tasks/t1"],
+    ["PUT", "/api/v1.0/tasks/t1/fields/field-1"],
+  ])
+  assert.deepEqual(JSON.parse(calls[0].body), { name: "Updated task" })
+  assert.deepEqual(JSON.parse(calls[1].body), { value: "Deployment" })
 })
 
 test("nifty_delete_status deletes task group by id", async () => {
