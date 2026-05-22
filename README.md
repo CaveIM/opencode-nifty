@@ -153,7 +153,7 @@ Example config:
 
 Nifty lists are represented by the API as milestones with `is_list=true`. Add optional `lists` aliases when a project needs another planning level beyond status.
 
-Custom fields are mapped from stable workflow keys to Nifty field IDs. Task output is enriched with a `custom_fields` object when mapped fields are present. Task create/update tools accept `custom_fields` entries such as `{ "key": "area_of_concern", "value_key": "deployment" }`, and task list tools can filter with `custom_field_key` plus `custom_field_value`.
+Custom fields are mapped from stable workflow keys to Nifty field IDs. Task output is enriched with a `custom_fields` object when mapped fields are present. Use `nifty_update_task_custom_fields` for custom-field-only updates with entries such as `{ "key": "area_of_concern", "value_key": "deployment" }`; it writes each field through Nifty's per-field task endpoint. Task list tools can filter with `custom_field_key` plus `custom_field_value`.
 
 ## Activate In A Project
 

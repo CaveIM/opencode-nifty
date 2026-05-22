@@ -1124,6 +1124,20 @@ function filterTasksByCustomField(tasks, workflow = {}, input = {}) {
   })
 }
 
+async function updateTaskCustomFields(taskID, workflow = {}, customFields = []) {
+  const responses = []
+  for (const field of customFieldPayload(workflow, customFields) || []) {
+    responses.push(await niftyRequest(
+      `/api/v1.0/tasks/${encodeURIComponent(taskID)}/fields/${encodeURIComponent(field.id)}`,
+      {
+        method: "PUT",
+        body: { value: field.value },
+      },
+    ))
+  }
+  return responses
+}
+
 function statusMap(statuses) {
   return new Map(statuses.map((status) => [status.id, status.name]))
 }
@@ -2970,20 +2984,30 @@ export const NiftyPlugin = async () => {
                 body: taskBody,
               })
             : null
-          const fieldResponses = []
-          for (const field of customFieldPayload(workflow, args.custom_fields) || []) {
-            fieldResponses.push(await niftyRequest(
-              `/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/fields/${encodeURIComponent(field.id)}`,
-              {
-                method: "PUT",
-                body: { value: field.value },
-              },
-            ))
-          }
+          const fieldResponses = await updateTaskCustomFields(args.task_id, workflow, args.custom_fields)
 
           return json({
             task: taskResponse,
             custom_fields: fieldResponses,
+          })
+        },
+      }),
+
+      nifty_update_task_custom_fields: tool({
+        description: "Updates Nifty task custom fields without sending a generic task update",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          task_id: tool.schema.string().describe("Task ID"),
+          custom_fields: tool.schema.array(customFieldArg).describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
+        },
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context)
+          const responses = await updateTaskCustomFields(args.task_id, workflow, args.custom_fields)
+
+          return json({
+            task_id: args.task_id,
+            custom_fields: responses,
           })
         },
       }),
