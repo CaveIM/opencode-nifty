@@ -2066,6 +2066,34 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   })
 }
 
+/**
+ * Inject RAG context into the tool call context metadata.
+ * Best-effort: never throws, never blocks tool execution.
+ * NIFTY_RAG_ENABLED must be true (default false) or this is a no-op.
+ *
+ * @param {string} toolName
+ * @param {object} args
+ * @param {object} context - tool call context
+ * @param {object} policyState
+ * @param {Function} [_ragFn] - injectable for tests (bypasses dynamic import)
+ */
+async function maybeInjectRagContext(toolName, args, context, policyState, _ragFn) {
+  if (!envBoolean("NIFTY_RAG_ENABLED", false, context)) return
+  try {
+    const ragFn = _ragFn ?? (await import("./rag.mjs")).ragContextForTool
+    const rag = await ragFn(toolName, args)
+    if (rag.historical_context.length || rag.policy_citations.length) {
+      safeContextMetadata(context, {
+        title: "Nifty RAG context",
+        rag_context: rag,
+        tool: toolName,
+      })
+    }
+  } catch {
+    // RAG is best-effort. Failure never blocks tool execution.
+  }
+}
+
 function withLifecyclePolicy(tools = {}, initContext = {}) {
   const policyState = {
     startedTasks: new Set(),
@@ -2115,6 +2143,13 @@ function withLifecyclePolicy(tools = {}, initContext = {}) {
               await maybeAutoStartLifecycle(name, args, context, policyState)
             } catch {
               // Auto lifecycle start is best-effort; delivery gate remains hard-fail.
+            }
+
+            // 5. RAG context injection — best-effort, never blocks tool execution
+            try {
+              await maybeInjectRagContext(name, args, context, policyState)
+            } catch {
+              // RAG is best-effort.
             }
 
             const result = await definition.execute(args, context)
@@ -2342,6 +2377,7 @@ const __test = {
   assertContextBootstrapped,
   BOOTSTRAP_MUTATING_TASK_TOOLS,
   BOOTSTRAP_MUTATING_PROJECT_TOOLS,
+  maybeInjectRagContext,
 }
 
 export const NiftyPlugin = async () => {

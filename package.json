@@ -13,5 +13,8 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opencode-ai/plugin": "^1.14.50",
     "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "@lancedb/lancedb": "^0.16.0"
   }
 }
