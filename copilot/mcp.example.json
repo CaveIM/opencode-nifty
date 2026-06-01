@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "nifty": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/opencode-plugin/copilot/mcp-server.mjs"
+      ],
+      "env": {
+        "NIFTY_WORKTREE": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}

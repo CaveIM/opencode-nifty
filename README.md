@@ -18,10 +18,14 @@ It gives you:
 ## Repo Layout
 
 - `plugin/nifty.js`: plugin source
+- `copilot/mcp-server.mjs`: full MCP bridge for GitHub Copilot tool calling
+- `copilot/FULL_SPEC.md`: implementation and architecture specification for Copilot integration
+- `copilot/mcp.example.json`: sample MCP server config
 - `config/nifty-workflows.example.json`: example multi-project workflow config
 - `env/nifty.env.example`: environment variable template
 - `scripts/install.sh`: install or update into an OpenCode instance
 - `scripts/update.sh`: wrapper around install
+- `scripts/install-copilot.sh`: writes/updates `.vscode/mcp.json` for Copilot MCP usage
 
 ## Install Into A Container Or Machine
 
@@ -71,6 +75,46 @@ By default the one-line installer downloads from `main`. To install another bran
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | NIFTY_INSTALL_REF=v1.0.0 bash
+```
+
+## GitHub Copilot Integration
+
+This repo includes a full MCP server implementation that exposes all `nifty_*` tools to GitHub Copilot.
+
+Install Copilot MCP config in this workspace:
+
+```bash
+./scripts/install-copilot.sh
+```
+
+This writes or updates:
+
+```text
+./.vscode/mcp.json
+```
+
+The generated MCP server entry points to:
+
+```text
+./copilot/mcp-server.mjs
+```
+
+After installing:
+
+1. Ensure Nifty credentials are available from `./.nifty.env` or exported as `NIFTY_*` environment variables.
+2. Restart VS Code (or reload the window) so Copilot reloads MCP servers.
+3. Use Copilot chat and call the `nifty_*` tools directly.
+
+Manual MCP start (for debugging):
+
+```bash
+npm run copilot:mcp
+```
+
+Reference specification:
+
+```text
+copilot/FULL_SPEC.md
 ```
 
 ## Configure Credentials

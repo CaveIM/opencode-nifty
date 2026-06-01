@@ -2,7 +2,7 @@ import { readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
 
-const roots = ["plugin", "scripts", "test"]
+const roots = ["copilot", "plugin", "scripts", "test"]
 const files = []
 
 function collect(directory) {

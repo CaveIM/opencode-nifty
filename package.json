@@ -3,11 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "copilot:install": "bash scripts/install-copilot.sh",
+    "copilot:mcp": "node copilot/mcp-server.mjs",
     "test": "node --test",
     "lint": "node scripts/lint.mjs",
     "format:check": "node scripts/format-check.mjs"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.14.50"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@opencode-ai/plugin": "^1.14.50",
+    "zod": "^4.4.3"
   }
 }

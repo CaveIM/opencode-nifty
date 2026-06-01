@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 
-const roots = ["config", "env", "plugin", "scripts", "test", ".github"]
+const roots = ["config", "copilot", "env", "plugin", "scripts", "test", ".github"]
 const files = ["README.md", "package.json"]
 let failed = false
 
