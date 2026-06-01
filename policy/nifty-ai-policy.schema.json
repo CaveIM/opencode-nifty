@@ -35,6 +35,29 @@
       "type": "array",
       "items": { "$ref": "#/definitions/Rule" },
       "description": "Ordered list of rules. First matching deny wins."
+    },
+    "reporting": {
+      "type": "object",
+      "description": "Global standards for AI-generated task comments and delivery reports.",
+      "additionalProperties": false,
+      "properties": {
+        "suppress_routine_status_comments": {
+          "type": "boolean",
+          "description": "When true, the routine 'Status set to In Progress' auto-lifecycle comment is suppressed. Default true."
+        },
+        "require_structured_report": {
+          "type": "boolean",
+          "description": "When true, all human-facing AI comments on tasks MUST use the global structured report template."
+        },
+        "require_playwright_proof_for_visual_changes": {
+          "type": "boolean",
+          "description": "MANDATORY: AI must attach Playwright screenshot proof for any change that affects UI, CSS, or front-end components."
+        },
+        "comment_template": {
+          "type": "string",
+          "description": "The standard template for AI-generated task comments. Sections: What was done, Completed, Evidence/Tests, How to verify, Visual proof."
+        }
+      }
     }
   },
   "definitions": {

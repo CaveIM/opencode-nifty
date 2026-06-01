@@ -1653,6 +1653,16 @@ function lifecycleDeliveryGateEnabled(context = {}) {
   return envBoolean("NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE", true, context)
 }
 
+/**
+ * When false (default), the routine "Status set to In Progress / Assignee
+ * unchanged" auto-lifecycle comment is suppressed. The delivery gate comment
+ * (which carries real evidence) is never suppressed by this flag.
+ * Enable with NIFTY_LIFECYCLE_STATUS_COMMENTS=true for verbose audit trails.
+ */
+function lifecycleStatusCommentsEnabled(context = {}) {
+  return envBoolean("NIFTY_LIFECYCLE_STATUS_COMMENTS", false, context)
+}
+
 function lifecycleInProgressStateKey(context = {}) {
   return env("NIFTY_AUTOPOLICY_IN_PROGRESS_STATE", context) || LIFECYCLE_DEFAULT_IN_PROGRESS_KEY
 }
@@ -1770,6 +1780,88 @@ async function resolveLifecycleStatus(projectID, workflow = {}, stateKey, fallba
   if (!selectors.length) return undefined
   return statuses.find((status) => selectors.some((selector) => statusMatches(status, selector)))
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global report standard
+
+/**
+ * Returns the effective reporting configuration from the loaded policy,
+ * with safe defaults when no reporting section is present.
+ *
+ * @param {object|null} policy - the loaded policy document (or null)
+ * @returns {{ suppress_routine_status_comments: boolean, require_structured_report: boolean, require_playwright_proof_for_visual_changes: boolean, comment_template: string }}
+ */
+function reportingConfig(policy) {
+  const defaults = {
+    suppress_routine_status_comments: true,
+    require_structured_report: true,
+    require_playwright_proof_for_visual_changes: true,
+    comment_template:
+      "## What was done\n{summary}\n\n## Completed\n{completed_items}\n\n## Evidence / Tests\n{evidence}\n\n## How to verify\n{verification_steps}\n\n## Visual proof (Playwright screenshots)\n{visual_proof}",
+  }
+  if (!policy || typeof policy !== "object") return defaults
+  return { ...defaults, ...(policy.reporting ?? {}) }
+}
+
+/**
+ * Renders the global structured report template for AI-generated task comments.
+ *
+ * Rules (all sections are optional — omitted when blank):
+ *  - summary           : one-line description of what happened
+ *  - completed         : string[] — each item becomes a bullet
+ *  - evidence          : free-form test/command output or reference
+ *  - verification      : how to validate the change manually
+ *  - visual_proof      : string[] of screenshot/video URLs
+ *  - visual_required   : boolean — when true and visual_proof is empty,
+ *                        shows a mandatory-proof warning
+ *
+ * Mandatory Playwright screenshot rule (from policy):
+ *   When visual_required=true, the visual_proof section is ALWAYS included
+ *   and warns loudly if no screenshots are attached.
+ *
+ * @param {{ summary?: string, completed?: string[], evidence?: string, verification?: string, visual_proof?: string[], visual_required?: boolean }} fields
+ * @returns {string}
+ */
+function structuredReport({
+  summary = "",
+  completed = [],
+  evidence = "",
+  verification = "",
+  visual_proof = [],
+  visual_required = false,
+} = {}) {
+  const sections = []
+
+  if (summary) {
+    sections.push(`## What was done\n${summary}`)
+  }
+
+  if (completed.length) {
+    const bullets = completed
+      .map((item) => `- ${String(item).replace(/^[-•*]\s*/, "")}`)
+      .join("\n")
+    sections.push(`## Completed\n${bullets}`)
+  }
+
+  if (evidence) {
+    sections.push(`## Evidence / Tests\n${evidence}`)
+  }
+
+  if (verification) {
+    sections.push(`## How to verify\n${verification}`)
+  }
+
+  if (visual_required) {
+    const proofText = visual_proof.length
+      ? visual_proof.join("\n")
+      : "⚠️ MANDATORY: Playwright screenshot proof required for this visual change — attach before marking Done."
+    sections.push(`## Visual proof (Playwright screenshots)\n${proofText}`)
+  }
+
+  return sections.join("\n\n")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function postLifecycleComment(taskID, text, options = {}) {
   await niftyRequest("/api/v1.0/messages", {
@@ -2029,14 +2121,16 @@ async function maybeAutoStartLifecycle(toolName, args = {}, context = {}, policy
   }
 
   const assigned = await maybeAutoAssignTask(args.task_id, task, policyState, context)
-  await postLifecycleComment(
-    args.task_id,
-    [
-      "Lifecycle policy auto-update:",
-      `- Status set to ${inProgress.name}.`,
-      assigned ? "- Assignee set automatically." : "- Assignee unchanged.",
-    ].join("\n"),
-  )
+  if (lifecycleStatusCommentsEnabled(context)) {
+    await postLifecycleComment(
+      args.task_id,
+      [
+        "Lifecycle policy auto-update:",
+        `- Status set to ${inProgress.name}.`,
+        assigned ? "- Assignee set automatically." : "- Assignee unchanged.",
+      ].join("\n"),
+    )
+  }
 
   policyState.startedTasks?.add(args.task_id)
 }
@@ -2051,17 +2145,23 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   const visualRequired = requiresVisualProof(changedFiles)
   const validated = validateDeliveryEvidence(deliveryEvidence || {}, { visualRequired })
 
-  const summary = [
-    "Lifecycle delivery gate passed:",
-    `- RED proof: ${validated.red_proof}`,
-    `- GREEN proof: ${validated.green_proof}`,
-    `- Sad path proof: ${validated.sad_path_proof}`,
-    `- Visual proof required: ${visualRequired ? "yes" : "no"}`,
-    changedFiles.length ? `- Changed files: ${changedFiles.join(", ")}` : "- Changed files: none detected",
+  const completedItems = [
+    `RED proof: ${validated.red_proof}`,
+    `GREEN proof: ${validated.green_proof}`,
+    `Sad path proof: ${validated.sad_path_proof}`,
+    changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected",
   ]
-  if (validated.notes) summary.push(`- Notes: ${validated.notes}`)
+  if (validated.notes) completedItems.push(`Notes: ${validated.notes}`)
 
-  await postLifecycleComment(taskID, summary.join("\n"), {
+  const report = structuredReport({
+    summary: "Delivery gate passed — change is ready for Dev Review.",
+    completed: completedItems,
+    evidence: `Visual proof required: ${visualRequired ? "yes" : "no"}`,
+    visual_proof: visualRequired ? (validated.visual_proof ?? []) : [],
+    visual_required: visualRequired,
+  })
+
+  await postLifecycleComment(taskID, report, {
     externalFiles: visualRequired ? validated.visual_proof : undefined,
   })
 }
@@ -2378,6 +2478,9 @@ const __test = {
   BOOTSTRAP_MUTATING_TASK_TOOLS,
   BOOTSTRAP_MUTATING_PROJECT_TOOLS,
   maybeInjectRagContext,
+  lifecycleStatusCommentsEnabled,
+  reportingConfig,
+  structuredReport,
 }
 
 export const NiftyPlugin = async () => {

@@ -82,6 +82,36 @@ function policyJsonChunks(policyPath) {
       .join(". "),
   })
 
+  // One chunk for the reporting standards (global comment template, Playwright mandate)
+  if (policy.reporting && typeof policy.reporting === "object") {
+    const r = policy.reporting
+    const reportingLines = [
+      `Reporting standards for policy: ${policyId}`,
+      r.suppress_routine_status_comments !== undefined
+        ? `Suppress routine status comments: ${r.suppress_routine_status_comments}`
+        : null,
+      r.require_structured_report
+        ? "REQUIRED: All AI-generated task comments must use the global structured report template."
+        : null,
+      r.require_playwright_proof_for_visual_changes
+        ? "MANDATORY: AI must attach Playwright screenshot proof for any change affecting UI, CSS, or front-end components before marking a task Done."
+        : null,
+      r.comment_template
+        ? `Standard comment template:\n${r.comment_template}`
+        : null,
+    ]
+    chunks.push({
+      doc_id: `${policyId}:reporting`,
+      doc_type: "policy_reporting",
+      project_id: null,
+      chunk_index: 0,
+      chunk_total: 1,
+      created_at: `${effectiveDate}T00:00:00Z`,
+      updated_at: nowIso(),
+      text: reportingLines.filter(Boolean).join("\n"),
+    })
+  }
+
   // One chunk per rule
   for (const [i, rule] of (policy.rules ?? []).entries()) {
     const ruleId = rule.id ?? `rule-${i}`

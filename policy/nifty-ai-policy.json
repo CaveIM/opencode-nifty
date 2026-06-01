@@ -5,6 +5,12 @@
   "description": "Central AI governance policy for all Nifty agent tools. Enforced deterministically at the tool-call boundary in both OpenCode plugin and Copilot MCP server.",
   "effective_date": "2026-06-01",
   "default_effect": "allow",
+  "reporting": {
+    "suppress_routine_status_comments": true,
+    "require_structured_report": true,
+    "require_playwright_proof_for_visual_changes": true,
+    "comment_template": "## What was done\n{summary}\n\n## Completed\n{completed_items}\n\n## Evidence / Tests\n{evidence}\n\n## How to verify\n{verification_steps}\n\n## Visual proof (Playwright screenshots)\n{visual_proof}"
+  },
   "rules": [
     {
       "id": "no-bulk-delete",

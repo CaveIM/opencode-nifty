@@ -1,8 +1,12 @@
 import assert from "node:assert/strict"
-import { test } from "node:test"
+import { test, beforeEach, afterEach } from "node:test"
 import { NiftyPlugin } from "../plugin/nifty.js"
 
 const { __test } = NiftyPlugin
+
+const originalEnv = { ...process.env }
+beforeEach(() => { process.env = { ...originalEnv } })
+afterEach(() => { process.env = { ...originalEnv } })
 
 test("detects visual proof requirement from changed files", () => {
   assert.equal(__test.requiresVisualProof(["frontend/src/app/page.tsx"]), true)
@@ -44,3 +48,73 @@ test("delivery evidence enforces visual artifacts only when visual changes are p
     sad_path_proof: "checked failure mode",
   }, { visualRequired: false }))
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global report standard
+
+test("lifecycleStatusCommentsEnabled defaults to false — routine noise is suppressed", () => {
+  delete process.env.NIFTY_LIFECYCLE_STATUS_COMMENTS
+  assert.equal(__test.lifecycleStatusCommentsEnabled({}), false)
+
+  process.env.NIFTY_LIFECYCLE_STATUS_COMMENTS = "true"
+  assert.equal(__test.lifecycleStatusCommentsEnabled({}), true)
+
+  process.env.NIFTY_LIFECYCLE_STATUS_COMMENTS = "false"
+  assert.equal(__test.lifecycleStatusCommentsEnabled({}), false)
+})
+
+test("reportingConfig returns correct defaults when no policy is loaded", () => {
+  const cfg = __test.reportingConfig(null)
+  assert.equal(cfg.suppress_routine_status_comments, true)
+  assert.equal(cfg.require_structured_report, true)
+  assert.equal(cfg.require_playwright_proof_for_visual_changes, true)
+  assert.ok(typeof cfg.comment_template === "string" && cfg.comment_template.includes("{summary}"))
+})
+
+test("reportingConfig merges policy reporting section over defaults", () => {
+  const policy = { reporting: { require_structured_report: false, custom_field: "x" } }
+  const cfg = __test.reportingConfig(policy)
+  assert.equal(cfg.require_structured_report, false)
+  // Other defaults preserved
+  assert.equal(cfg.require_playwright_proof_for_visual_changes, true)
+})
+
+test("structuredReport — includes all non-empty sections", () => {
+  const report = __test.structuredReport({
+    summary: "Fixed the login redirect",
+    completed: ["Updated redirect logic", "Wrote regression test"],
+    evidence: "npm test — 45/45 passing",
+    verification: "Log in and confirm you land on /dashboard",
+    visual_proof: ["https://cdn.example.com/screenshot.png"],
+    visual_required: true,
+  })
+  assert.ok(report.includes("## What was done"), "missing summary section")
+  assert.ok(report.includes("Fixed the login redirect"), "missing summary text")
+  assert.ok(report.includes("## Completed"), "missing completed section")
+  assert.ok(report.includes("- Updated redirect logic"), "missing completed bullet")
+  assert.ok(report.includes("## Evidence / Tests"), "missing evidence section")
+  assert.ok(report.includes("45/45 passing"), "missing evidence text")
+  assert.ok(report.includes("## How to verify"), "missing verification section")
+  assert.ok(report.includes("## Visual proof"), "missing visual proof section")
+  assert.ok(report.includes("https://cdn.example.com/screenshot.png"), "missing screenshot url")
+})
+
+test("structuredReport — omits blank sections", () => {
+  const report = __test.structuredReport({ summary: "Minor refactor", visual_required: false })
+  assert.ok(report.includes("## What was done"))
+  assert.ok(!report.includes("## Completed"))
+  assert.ok(!report.includes("## Evidence"))
+  assert.ok(!report.includes("## How to verify"))
+  assert.ok(!report.includes("## Visual proof"))
+})
+
+test("structuredReport — visual_required=true with no proof shows mandatory warning", () => {
+  const report = __test.structuredReport({
+    summary: "Updated button styles",
+    visual_required: true,
+    visual_proof: [],
+  })
+  assert.ok(report.includes("## Visual proof"))
+  assert.ok(report.includes("MANDATORY"), "missing mandatory warning for absent screenshots")
+})
+
