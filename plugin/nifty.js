@@ -4000,7 +4000,7 @@ export const NiftyPlugin = async () => {
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/documents`, {
             method: "PUT",
-            body: args.document_id,
+            body: { document_id: args.document_id },
           })
           return json(response)
         },

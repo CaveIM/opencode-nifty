@@ -961,7 +961,7 @@ test("clone and attach document tools send Nifty string bodies", async () => {
     ["PUT", "/api/v1.0/tasks/t1/documents"],
   ])
   assert.equal(calls[0].body, JSON.stringify(""))
-  assert.equal(calls[1].body, JSON.stringify("d1"))
+  assert.equal(calls[1].body, JSON.stringify({ document_id: "d1" }))
 })
 
 test("recommended workflow tool returns lifecycle and config snippet", async () => {
