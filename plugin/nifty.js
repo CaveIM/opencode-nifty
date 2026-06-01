@@ -1487,6 +1487,18 @@ function looksLikeDevReviewStatus(status = {}, workflow = {}, context = {}) {
   return normalize(status?.name) === "dev review"
 }
 
+function looksLikeDoneStatus(status = {}, workflow = {}) {
+  const doneNames = [
+    workflow?.states?.done,
+    workflow?.statuses?.done,
+    workflow?.states?.released,
+    workflow?.statuses?.released,
+    "Done",
+    "Released in Prod",
+  ].filter(Boolean)
+  return doneNames.some((name) => statusMatches(status, name))
+}
+
 async function resolveLifecycleStatus(projectID, workflow = {}, stateKey, fallbackStatusNames = []) {
   const statuses = await fetchAllStatuses(projectID)
   const configured = stateKey
@@ -1544,6 +1556,12 @@ async function maybeAutoStartLifecycle(toolName, args = {}, context = {}, policy
   if (!projectID) return
 
   const workflow = await workflowForArgs(args, context)
+  const currentStatus = { id: getTaskStatusID(task), name: task?.task_group?.name }
+  if (looksLikeDevReviewStatus(currentStatus, workflow, context) || looksLikeDoneStatus(currentStatus, workflow)) {
+    policyState.startedTasks?.add(args.task_id)
+    return
+  }
+
   const inProgress = await resolveLifecycleStatus(
     projectID,
     workflow,
