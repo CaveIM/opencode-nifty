@@ -1,0 +1,39 @@
+{
+  "$schema": "./nifty-ai-policy.schema.json",
+  "version": 1,
+  "policy_id": "cave-nifty-ai-policy",
+  "description": "Central AI governance policy for all Nifty agent tools. Enforced deterministically at the tool-call boundary in both OpenCode plugin and Copilot MCP server.",
+  "effective_date": "2026-06-01",
+  "default_effect": "allow",
+  "rules": [
+    {
+      "id": "no-bulk-delete",
+      "action": "nifty_delete_tasks",
+      "effect": "deny",
+      "condition": {
+        "arg": "task_ids",
+        "op": "count_gt",
+        "value": 5
+      },
+      "reason": "Bulk deletion of more than 5 tasks requires manager approval. Use nifty_archive_task for soft-archival instead."
+    },
+    {
+      "id": "no-unilateral-status-delete",
+      "action": "nifty_delete_status",
+      "effect": "deny",
+      "reason": "Deleting a workflow status has irreversible side-effects on all tasks in that state. Raise a Nifty task for manual review before removing statuses."
+    },
+    {
+      "id": "no-unilateral-milestone-delete",
+      "action": "nifty_delete_milestone",
+      "effect": "deny",
+      "reason": "Deleting a milestone detaches all tasks from it. Raise a Nifty task for manual review before removing milestones."
+    },
+    {
+      "id": "require-context-before-mutation",
+      "action": "nifty_update_task",
+      "effect": "allow",
+      "_note": "Bootstrap gate handles this separately; rule retained for audit-log completeness."
+    }
+  ]
+}

@@ -40,6 +40,246 @@ const LIFECYCLE_AUTO_START_EXCLUDED_TOOLS = new Set([
   "nifty_delete_tasks",
 ])
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mandatory context bootstrap: tools that write, move, delete, or archive
+// MUST have had their primary entity (task or project) fully resolved before
+// the call is allowed to proceed. Read-only and discovery tools are exempt.
+// ─────────────────────────────────────────────────────────────────────────────
+const BOOTSTRAP_MUTATING_TASK_TOOLS = new Set([
+  "nifty_update_task",
+  "nifty_update_task_custom_fields",
+  "nifty_update_task_assignees",
+  "nifty_move_task_to_status",
+  "nifty_complete_task",
+  "nifty_archive_task",
+  "nifty_delete_task",
+  "nifty_prepare_task_for_delivery",
+  "nifty_create_comment",
+])
+
+const BOOTSTRAP_MUTATING_PROJECT_TOOLS = new Set([
+  "nifty_create_task",
+  "nifty_delete_tasks",
+  "nifty_create_status",
+  "nifty_update_status",
+  "nifty_delete_status",
+  "nifty_create_milestone",
+  "nifty_update_milestone",
+  "nifty_delete_milestone",
+  "nifty_create_doc",
+  "nifty_update_doc",
+  "nifty_delete_doc",
+])
+
+/** Extract task_id from a tool's args using the canonical arg key. */
+function extractBootstrapTaskID(args) {
+  return args?.task_id || args?.id || null
+}
+
+/** Extract project_id from a tool's args using the canonical arg key. */
+function extractBootstrapProjectID(args) {
+  return args?.project_id || null
+}
+
+/**
+ * Throws a hard-fail BootstrapError if the mutating tool's entity has not been
+ * bootstrapped in policyState. This gate is NOT best-effort — it must propagate.
+ *
+ * @param {string} toolName
+ * @param {object} args
+ * @param {object} policyState - { bootstrappedTasks: Set, bootstrappedProjects: Set }
+ * @param {object} context - execution context used to read env flags
+ */
+function assertContextBootstrapped(toolName, args, policyState, context) {
+  if (!envBoolean("NIFTY_BOOTSTRAP_REQUIRED", true, context)) return
+
+  // An external bootstrapState on context (test or multi-session callers) is used
+  // alongside the session-level policyState. Either one having the ID is sufficient.
+  const externalBootstrap = context?.bootstrapState
+
+  if (BOOTSTRAP_MUTATING_TASK_TOOLS.has(toolName)) {
+    const taskID = extractBootstrapTaskID(args)
+    if (!taskID) {
+      // No task_id means we can't check — fall through and let the API validate
+      return
+    }
+    const isBootstrapped =
+      policyState.bootstrappedTasks?.has(taskID) ||
+      externalBootstrap?.resolvedTasks?.has(taskID) ||
+      externalBootstrap?.bootstrappedTasks?.has(taskID)
+    if (!isBootstrapped) {
+      throw Object.assign(
+        new Error(
+          `[BootstrapGate] bootstrap context required: call nifty_get_task_full_context({ task_id: "${taskID}" }) before attempting mutation with '${toolName}'.`,
+        ),
+        { code: "NIFTY_BOOTSTRAP_REQUIRED", taskID, toolName },
+      )
+    }
+  }
+
+  if (BOOTSTRAP_MUTATING_PROJECT_TOOLS.has(toolName)) {
+    const projectID = extractBootstrapProjectID(args)
+    if (!projectID) return
+    const isBootstrapped =
+      policyState.bootstrappedProjects?.has(projectID) ||
+      externalBootstrap?.resolvedProjects?.has(projectID) ||
+      externalBootstrap?.bootstrappedProjects?.has(projectID)
+    if (!isBootstrapped) {
+      throw Object.assign(
+        new Error(
+          `[BootstrapGate] bootstrap context required: call nifty_get_project_full_context with project_id "${projectID}" before attempting mutation with '${toolName}'.`,
+        ),
+        { code: "NIFTY_BOOTSTRAP_REQUIRED", projectID, toolName },
+      )
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Central Policy-as-Code Engine
+//
+// Policy document schema (JSON):
+//   {
+//     "version": 1,                      // schema version
+//     "effective_date": "2026-06-01",
+//     "description": "...",
+//     "default_effect": "allow" | "deny",
+//     "rules": [
+//       {
+//         "id": "rule-001",              // optional stable identifier
+//         "action": "nifty_delete_*",   // exact name or glob (* and ** supported)
+//         "effect": "allow" | "deny",
+//         "condition": {                 // optional — arg-level guard
+//           "arg": "task_ids",          // args key to inspect
+//           "op": "count_gt",           // operator: count_gt | count_lte | eq | neq | exists | absent
+//           "value": 5
+//         },
+//         "reason": "Human-readable explanation."
+//       }
+//     ]
+//   }
+//
+// Evaluation: deny overrides allow. Specificity does NOT matter — first deny wins.
+// default_effect is used when zero rules match.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Test whether an action name matches a rule action pattern (glob: * = word, ** = any). */
+function matchesActionPattern(pattern, action) {
+  if (pattern === "*" || pattern === "**") return true
+  if (!pattern.includes("*")) return pattern === action
+  // Convert glob to regex: * matches any non-dot chars within a segment
+  const re = new RegExp("^" + pattern.replace(/\*\*/g, ".+").replace(/\*/g, "[^.]+") + "$")
+  return re.test(action)
+}
+
+/** Evaluate a single rule condition against the provided args object. */
+function evaluateCondition(condition, args) {
+  if (!condition) return true
+  const { arg, op, value } = condition
+  const argValue = args?.[arg]
+  switch (op) {
+    case "count_gt": return Array.isArray(argValue) ? argValue.length > value : false
+    case "count_lte": return Array.isArray(argValue) ? argValue.length <= value : true
+    case "eq": return argValue === value
+    case "neq": return argValue !== value
+    case "exists": return argValue !== undefined && argValue !== null
+    case "absent": return argValue === undefined || argValue === null
+    default: return true
+  }
+}
+
+/**
+ * Evaluate a policy document against a tool invocation.
+ *
+ * @param {string} toolName
+ * @param {object} args - tool arguments
+ * @param {object} policy - policy document (JSON-parsed)
+ * @param {{ auditLog?: Array }} [options]
+ * @returns {{ allowed: boolean, matched_rules: Array, reason?: string }}
+ */
+function evaluatePolicy(toolName, args, policy, options = {}) {
+  const { auditLog } = options
+  const defaultEffect = policy?.default_effect ?? "allow"
+  const rules = Array.isArray(policy?.rules) ? policy.rules : []
+
+  const matchedRules = []
+  let denyReason = null
+  let hasExplicitAllow = false
+
+  for (const rule of rules) {
+    if (!matchesActionPattern(rule.action, toolName)) continue
+    if (!evaluateCondition(rule.condition, args)) continue
+
+    matchedRules.push(rule)
+    if (rule.effect === "deny") {
+      denyReason = rule.reason || `Denied by policy rule${rule.id ? ` '${rule.id}'` : ""}.`
+    } else if (rule.effect === "allow") {
+      hasExplicitAllow = true
+    }
+  }
+
+  // Deny overrides allow — any matched deny rule blocks the call
+  const allowed = denyReason !== null ? false : (matchedRules.length === 0 ? defaultEffect === "allow" : hasExplicitAllow || defaultEffect === "allow")
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    tool: toolName,
+    allowed,
+    matched_rules: matchedRules.map((r) => r.id || r.action).filter(Boolean),
+    ...(denyReason ? { reason: denyReason } : {}),
+  }
+
+  if (Array.isArray(auditLog)) auditLog.push(entry)
+
+  return { allowed, matched_rules: matchedRules, ...(denyReason ? { reason: denyReason } : {}) }
+}
+
+/** Load a policy document from env or from a local path. Returns null if disabled. */
+function loadPolicy(context) {
+  // Inline JSON takes precedence (primarily for tests and CI)
+  const inline = process.env.NIFTY_POLICY_INLINE
+  if (inline) {
+    try {
+      return JSON.parse(inline)
+    } catch {
+      throw new Error("[PolicyGate] NIFTY_POLICY_INLINE contains invalid JSON.")
+    }
+  }
+
+  const policyPath = process.env.NIFTY_POLICY_PATH
+  if (policyPath && policyPath !== "/dev/null" && existsSync(policyPath)) {
+    try {
+      return JSON.parse(readFileSync(policyPath, "utf8"))
+    } catch (err) {
+      throw new Error(`[PolicyGate] Failed to parse policy at ${policyPath}: ${err.message}`)
+    }
+  }
+
+  return null // Policy enforcement is optional when neither source is configured
+}
+
+/**
+ * Enforce the central policy at a tool-call boundary.
+ * Throws a hard PolicyViolationError on deny.
+ *
+ * @param {string} toolName
+ * @param {object} args
+ * @param {object} policyState - shared state (includes auditLog array)
+ * @param {object} context
+ */
+function enforcePolicyGate(toolName, args, policyState, context) {
+  const policy = policyState.loadedPolicy
+  if (!policy) return // No policy configured — pass through
+
+  const result = evaluatePolicy(toolName, args, policy, { auditLog: policyState.auditLog })
+  if (!result.allowed) {
+    throw Object.assign(
+      new Error(`[PolicyGate] Tool '${toolName}' denied: ${result.reason}`),
+      { code: "NIFTY_POLICY_VIOLATION", toolName, policy_reason: result.reason },
+    )
+  }
+}
+
 const RECOMMENDED_WORKFLOW = {
   statuses: [
     { key: "ideas", name: "Ideas", order: 100, color: "#9E9E9E" },
@@ -1714,6 +1954,7 @@ async function maybeAutoHydrateContext(toolName, args = {}, context = {}, policy
 
     const taskContext = await fetchTaskFullContext(args.task_id, args, context)
     policyState.contextCache?.set(cacheKey, taskContext)
+    policyState.bootstrappedTasks?.add(args.task_id)
     safeContextMetadata(context, {
       title: "Nifty full task context",
       task_context: taskContext,
@@ -1738,6 +1979,8 @@ async function maybeAutoHydrateContext(toolName, args = {}, context = {}, policy
 
     const projectContext = await fetchProjectFullContext(args, context)
     policyState.contextCache?.set(cacheKey, projectContext)
+    policyState.bootstrappedProjects?.add(selector)
+    if (args.project_id) policyState.bootstrappedProjects?.add(args.project_id)
     safeContextMetadata(context, {
       title: "Nifty full project context",
       project_context: projectContext,
@@ -1823,11 +2066,24 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   })
 }
 
-function withLifecyclePolicy(tools = {}) {
+function withLifecyclePolicy(tools = {}, initContext = {}) {
   const policyState = {
     startedTasks: new Set(),
     currentUserID: null,
     contextCache: new Map(),
+    // Bootstrap gate: records which task/project IDs have had full context resolved
+    bootstrappedTasks: new Set(),
+    bootstrappedProjects: new Set(),
+    // Policy-as-code: loaded once per session, shared across all tool calls
+    loadedPolicy: (() => {
+      try {
+        return loadPolicy(initContext)
+      } catch {
+        return null
+      }
+    })(),
+    // Append-only policy audit log for this session
+    auditLog: [],
   }
 
   return Object.fromEntries(
@@ -1838,17 +2094,49 @@ function withLifecyclePolicy(tools = {}) {
         {
           ...definition,
           async execute(args, context) {
+            // 1. Central policy enforcement — hard-fail on deny (not best-effort)
+            enforcePolicyGate(name, args, policyState, context)
+
+            // 2. Mandatory context bootstrap gate — hard-fail if entity not yet resolved
+            //    Share bootstrapState from context if an external caller provided it,
+            //    otherwise fall back to policyState (standard single-session usage).
+            const effectiveBootstrapState = context?.bootstrapState ?? policyState
+            assertContextBootstrapped(name, args, effectiveBootstrapState, context)
+
+            // 3. Auto context hydration — best-effort; registers bootstrap on success
             try {
               await maybeAutoHydrateContext(name, args, context, policyState)
             } catch {
               // Auto context hydration is best-effort for compatibility.
             }
+
+            // 4. Auto lifecycle start — best-effort
             try {
               await maybeAutoStartLifecycle(name, args, context, policyState)
             } catch {
               // Auto lifecycle start is best-effort; delivery gate remains hard-fail.
             }
-            return definition.execute(args, context)
+
+            const result = await definition.execute(args, context)
+
+            // 5. After a successful explicit full-context call, register bootstrap.
+            //    This covers the case where the caller used the explicit tools
+            //    (nifty_get_task_full_context / nifty_get_project_full_context)
+            //    rather than relying on auto-hydration.
+            if (name === "nifty_get_task_full_context" && args.task_id) {
+              policyState.bootstrappedTasks.add(args.task_id)
+              const effectiveBootstrap = context?.bootstrapState
+              if (effectiveBootstrap) effectiveBootstrap.resolvedTasks?.add(args.task_id)
+            }
+            if (name === "nifty_get_project_full_context") {
+              const pid = args.project_id || args.project_name || args.project_nice_id || args.workflow_alias
+              if (pid) {
+                policyState.bootstrappedProjects.add(pid)
+                if (args.project_id) policyState.bootstrappedProjects.add(args.project_id)
+              }
+            }
+
+            return result
           },
         },
       ]
@@ -2050,6 +2338,10 @@ const __test = {
   summarizeTask,
   writeWorkflowAliasConfig,
   workflowAlias,
+  evaluatePolicy,
+  assertContextBootstrapped,
+  BOOTSTRAP_MUTATING_TASK_TOOLS,
+  BOOTSTRAP_MUTATING_PROJECT_TOOLS,
 }
 
 export const NiftyPlugin = async () => {

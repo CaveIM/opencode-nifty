@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/policy/nifty-ai-policy.schema.json",
+  "title": "Nifty AI Policy Document",
+  "description": "Schema for the central Nifty AI governance policy document. Enforced at the tool-call boundary in OpenCode plugin and Copilot MCP server.",
+  "type": "object",
+  "required": ["version", "default_effect", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version. Increment only on breaking changes."
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Stable identifier for this policy document."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable purpose of this policy."
+    },
+    "effective_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Date from which this policy version is active (YYYY-MM-DD)."
+    },
+    "default_effect": {
+      "type": "string",
+      "enum": ["allow", "deny"],
+      "description": "Effect applied when no rule matches. Use 'deny' for zero-trust posture."
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Rule" },
+      "description": "Ordered list of rules. First matching deny wins."
+    }
+  },
+  "definitions": {
+    "Rule": {
+      "type": "object",
+      "required": ["action", "effect"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier for this rule; used in audit logs and error messages."
+        },
+        "action": {
+          "type": "string",
+          "description": "Exact tool name or glob pattern. '*' matches within a segment, '**' matches any. Examples: 'nifty_delete_*', 'nifty_update_task'."
+        },
+        "effect": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "description": "Whether to allow or deny matching calls. Deny overrides allow."
+        },
+        "condition": {
+          "$ref": "#/definitions/Condition",
+          "description": "Optional argument-level guard. Rule only fires when condition is met."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable explanation surfaced in the policy violation error and audit log."
+        },
+        "_note": {
+          "type": "string",
+          "description": "Internal annotation; not surfaced in errors or audit logs."
+        }
+      }
+    },
+    "Condition": {
+      "type": "object",
+      "required": ["arg", "op"],
+      "additionalProperties": false,
+      "properties": {
+        "arg": {
+          "type": "string",
+          "description": "The args key to inspect."
+        },
+        "op": {
+          "type": "string",
+          "enum": ["count_gt", "count_lte", "eq", "neq", "exists", "absent"],
+          "description": "Comparison operator. count_gt / count_lte operate on array length."
+        },
+        "value": {
+          "description": "Value to compare against. Type must match the arg and op."
+        }
+      }
+    }
+  }
+}

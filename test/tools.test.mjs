@@ -12,6 +12,7 @@ beforeEach(() => {
   process.env.NIFTY_ACCESS_TOKEN = "test-token"
   process.env.NIFTY_AUTOPOLICY_ENABLED = "false"
   process.env.NIFTY_AUTOCONTEXT_ENABLED = "false"
+  process.env.NIFTY_BOOTSTRAP_REQUIRED = "false"
 })
 
 afterEach(() => {
