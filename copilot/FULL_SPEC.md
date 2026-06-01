@@ -4,6 +4,13 @@
 
 Provide full GitHub Copilot compatibility for this repository's Nifty plugin by exposing every `nifty_*` tool through a Model Context Protocol (MCP) stdio server, with no feature reduction and no duplicate business logic.
 
+Additionally enforce automatic task lifecycle policy behavior shared with OpenCode:
+
+- auto move to In Progress when task work begins,
+- auto assignee policy,
+- hard Dev Review delivery gate with TDD + sad-path proof,
+- hard visual-proof requirement only for visual-impacting changes.
+
 ## 2. Scope
 
 Included:
@@ -117,6 +124,8 @@ Result:
 2. Non-executable tool definition: hard error.
 3. Invalid args: explicit field-level validation error.
 4. Startup failure: stderr message and non-zero exit.
+5. Dev Review transition without required delivery evidence: hard error.
+6. Visual-impacting change without screenshot/video proof in `delivery_evidence.visual_proof`: hard error.
 
 ## 10. Backward Compatibility
 

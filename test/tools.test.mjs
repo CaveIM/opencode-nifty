@@ -10,6 +10,7 @@ const originalEnv = { ...process.env }
 
 beforeEach(() => {
   process.env.NIFTY_ACCESS_TOKEN = "test-token"
+  process.env.NIFTY_AUTOPOLICY_ENABLED = "false"
 })
 
 afterEach(() => {
@@ -736,6 +737,88 @@ test("task lifecycle tools call expected endpoints and bodies", async () => {
   assert.deepEqual(JSON.parse(calls[0].body), { completed: true })
   assert.deepEqual(JSON.parse(calls[2].body), { tasks: ["t2"] })
   assert.deepEqual(JSON.parse(calls[3].body), { labels: ["l1"] })
+})
+
+test("move_task_to_status blocks Dev Review transition without delivery evidence", async () => {
+  process.env.NIFTY_AUTOPOLICY_ENABLED = "true"
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1") {
+      if ((options.method || "GET") === "GET") {
+        return Response.json({ id: "t1", project_id: "p1", task_group_id: "s-todo" })
+      }
+      return Response.json({ ok: true })
+    }
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s-todo", name: "To Do" }, { id: "s-dev", name: "Dev Review" }] })
+    }
+
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ ok: true })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_move_task_to_status.execute(
+      { task_id: "t1", project_id: "p1", status_name: "Dev Review" },
+      context(),
+    ),
+    /delivery_evidence\.red_proof/i,
+  )
+
+  assert.equal(calls.some((call) => call.method === "PUT" && call.path === "/api/v1.0/tasks/t1"), false)
+})
+
+test("move_task_to_status writes delivery gate comment and moves to Dev Review with evidence", async () => {
+  process.env.NIFTY_AUTOPOLICY_ENABLED = "true"
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1") {
+      if ((options.method || "GET") === "GET") {
+        return Response.json({ id: "t1", project_id: "p1", task_group_id: "s-todo" })
+      }
+      return Response.json({ id: "t1", task_group_id: "s-dev" })
+    }
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s-todo", name: "To Do" }, { id: "s-dev", name: "Dev Review" }] })
+    }
+
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ id: "m1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_move_task_to_status.execute(
+    {
+      task_id: "t1",
+      project_id: "p1",
+      status_name: "Dev Review",
+      delivery_evidence: {
+        red_proof: "npm test -- test/lifecycle-policy.test.mjs",
+        green_proof: "npm test",
+        sad_path_proof: "verified missing evidence is blocked",
+        changed_files: ["backend/app/Services/Workflow.php"],
+      },
+    },
+    context(),
+  )
+
+  assert.equal(calls.some((call) => call.path === "/api/v1.0/messages" && call.method === "POST"), true)
+  assert.equal(calls.some((call) => call.path === "/api/v1.0/tasks/t1" && call.method === "PUT"), true)
 })
 
 test("clone and attach document tools send Nifty string bodies", async () => {

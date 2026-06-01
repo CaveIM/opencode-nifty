@@ -145,6 +145,39 @@ set +a
 opencode
 ```
 
+## Automatic Lifecycle Policy (Hard Gate)
+
+The plugin now enforces an automatic lifecycle policy for task work in both OpenCode and GitHub Copilot MCP flows.
+
+Default behavior:
+
+1. When task work starts through task-oriented tools (for example `nifty_get_task`, `nifty_update_task`, `nifty_prepare_task_for_delivery`, `nifty_create_comment` with `task_id`), the plugin auto-moves the task to In Progress.
+2. If the task has no assignee, it auto-assigns by policy:
+  - `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` when configured.
+  - otherwise the authenticated Nifty user when `NIFTY_AUTOPOLICY_ASSIGN_SELF=true`.
+3. Moving a task to Dev Review is hard-gated by delivery evidence.
+
+Delivery gate requirements for Dev Review:
+
+- `delivery_evidence.red_proof`
+- `delivery_evidence.green_proof`
+- `delivery_evidence.sad_path_proof`
+
+Visual proof requirement:
+
+- If changed files indicate visual impact (CSS/UI/frontend/view/assets), `delivery_evidence.visual_proof` is required.
+- Visual proof URLs are attached to the task comment as external files.
+- If the change is non-visual, visual proof is not required.
+
+Policy environment variables:
+
+- `NIFTY_AUTOPOLICY_ENABLED` (default `true`)
+- `NIFTY_AUTOPOLICY_ASSIGN_SELF` (default `true`)
+- `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` (comma-separated member IDs)
+- `NIFTY_AUTOPOLICY_IN_PROGRESS_STATE` (default `in_progress`)
+- `NIFTY_AUTOPOLICY_DEV_REVIEW_STATE` (default `dev_review`)
+- `NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE` (default `true`)
+
 ## Configure Workflows
 
 Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, list names, and custom field mappings. The plugin only reads `nifty-workflows.json` from the repo/directory where OpenCode is launched.
@@ -303,6 +336,21 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_delete_task`
 - `nifty_clone_task`
 - `nifty_link_tasks`
+
+`nifty_move_task_to_status` and `nifty_prepare_task_for_delivery` accept `delivery_evidence` for Dev Review transitions. Example shape:
+
+```json
+{
+  "delivery_evidence": {
+    "red_proof": "npm test -- test/lifecycle-policy.test.mjs",
+    "green_proof": "npm test",
+    "sad_path_proof": "verified invalid input returns expected error",
+    "visual_proof": ["https://example.com/screenshot.png"],
+    "changed_files": ["frontend/src/app/page.tsx"],
+    "notes": "All required checks passed"
+  }
+}
+```
 
 Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
 

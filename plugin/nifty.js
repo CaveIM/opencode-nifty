@@ -2,7 +2,7 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { createServer } from "node:http"
 import { randomBytes } from "node:crypto"
 import { fileURLToPath } from "node:url"
@@ -20,6 +20,23 @@ const NIFTY_SHELL_COMMAND_HINT = [
   "Use the OpenCode tool `nifty_health_check` for health checks.",
   "For setup, use `nifty_recommended_workflow` or `nifty_setup_recommended_workflow`.",
 ].join(" ")
+const LIFECYCLE_DEFAULT_IN_PROGRESS_KEY = "in_progress"
+const LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review"
+const LIFECYCLE_AUTO_START_TOOLS = new Set([
+  "nifty_get_task",
+  "nifty_update_task",
+  "nifty_update_task_custom_fields",
+  "nifty_update_task_assignees",
+  "nifty_prepare_task_for_delivery",
+  "nifty_create_comment",
+])
+const LIFECYCLE_AUTO_START_EXCLUDED_TOOLS = new Set([
+  "nifty_move_task_to_status",
+  "nifty_complete_task",
+  "nifty_archive_task",
+  "nifty_delete_task",
+  "nifty_delete_tasks",
+])
 
 const RECOMMENDED_WORKFLOW = {
   statuses: [
@@ -1355,6 +1372,261 @@ function niftyShellCommandHint(command) {
   return undefined
 }
 
+function envBoolean(name, fallback, context = {}) {
+  const value = env(name, context)
+  if (value === undefined) return fallback
+  const normalized = String(value).trim().toLowerCase()
+  return ["1", "true", "yes", "on"].includes(normalized)
+}
+
+function lifecyclePolicyEnabled(context = {}) {
+  return envBoolean("NIFTY_AUTOPOLICY_ENABLED", true, context)
+}
+
+function lifecycleAssignSelfEnabled(context = {}) {
+  return envBoolean("NIFTY_AUTOPOLICY_ASSIGN_SELF", true, context)
+}
+
+function lifecycleDeliveryGateEnabled(context = {}) {
+  return envBoolean("NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE", true, context)
+}
+
+function lifecycleInProgressStateKey(context = {}) {
+  return env("NIFTY_AUTOPOLICY_IN_PROGRESS_STATE", context) || LIFECYCLE_DEFAULT_IN_PROGRESS_KEY
+}
+
+function lifecycleDevReviewStateKey(context = {}) {
+  return env("NIFTY_AUTOPOLICY_DEV_REVIEW_STATE", context) || LIFECYCLE_DEFAULT_DEV_REVIEW_KEY
+}
+
+function lifecycleDefaultAssigneeIDs(context = {}) {
+  const configured = env("NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS", context)
+  if (!configured) return []
+  return configured
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function taskAssigneeIDs(task = {}) {
+  const list = [
+    ...(Array.isArray(task.assignees) ? task.assignees : []),
+    ...(Array.isArray(task.members) ? task.members : []),
+  ]
+  return list
+    .map((member) => (typeof member === "string" ? member : member?.id))
+    .filter(Boolean)
+}
+
+function changedFilesFromGit(context = {}) {
+  const worktree = context.directory || context.worktree || process.cwd()
+  const commands = [
+    ["diff", "--name-only", "HEAD", "--"],
+    ["show", "--name-only", "--pretty=format:", "HEAD"],
+  ]
+
+  for (const args of commands) {
+    const result = spawnSync("git", args, {
+      cwd: worktree,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    if (result.status !== 0) continue
+    const files = String(result.stdout || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (files.length) return [...new Set(files)]
+  }
+
+  return []
+}
+
+function isVisualFile(filePath = "") {
+  const path = String(filePath || "").toLowerCase()
+  if (!path) return false
+  if (/(^|\/)(public|frontend|docs-site|resources\/views|resources\/css|resources\/js)\//.test(path)) {
+    return true
+  }
+  return /\.(css|scss|sass|less|styl|html|htm|jsx|tsx|vue|svelte|astro|png|jpe?g|gif|webp|svg)$/i.test(path)
+}
+
+function requiresVisualProof(changedFiles = []) {
+  return (changedFiles || []).some((filePath) => isVisualFile(filePath))
+}
+
+function validateDeliveryEvidence(evidence = {}, options = {}) {
+  const visualRequired = options.visualRequired === true
+  const redProof = String(evidence.red_proof || "").trim()
+  const greenProof = String(evidence.green_proof || "").trim()
+  const sadPathProof = String(evidence.sad_path_proof || "").trim()
+  const visualProof = Array.isArray(evidence.visual_proof)
+    ? evidence.visual_proof.map((item) => String(item || "").trim()).filter(Boolean)
+    : []
+
+  if (!redProof) throw new Error("delivery_evidence.red_proof is required before moving to Dev Review.")
+  if (!greenProof) throw new Error("delivery_evidence.green_proof is required before moving to Dev Review.")
+  if (!sadPathProof) throw new Error("delivery_evidence.sad_path_proof is required before moving to Dev Review.")
+  if (visualRequired && visualProof.length === 0) {
+    throw new Error("delivery_evidence.visual_proof is required when visual-impacting files changed.")
+  }
+
+  return {
+    ...evidence,
+    red_proof: redProof,
+    green_proof: greenProof,
+    sad_path_proof: sadPathProof,
+    visual_proof: visualProof,
+  }
+}
+
+function looksLikeDevReviewStatus(status = {}, workflow = {}, context = {}) {
+  const wantedStateKey = lifecycleDevReviewStateKey(context)
+  const configuredStatusName = workflow?.states?.[wantedStateKey] || workflow?.statuses?.[wantedStateKey]
+  if (configuredStatusName && statusMatches(status, configuredStatusName)) return true
+  return normalize(status?.name) === "dev review"
+}
+
+async function resolveLifecycleStatus(projectID, workflow = {}, stateKey, fallbackStatusNames = []) {
+  const statuses = await fetchAllStatuses(projectID)
+  const configured = stateKey
+    ? workflow?.states?.[stateKey] || workflow?.statuses?.[stateKey]
+    : undefined
+  const selectors = [configured, ...fallbackStatusNames].filter(Boolean)
+  if (!selectors.length) return undefined
+  return statuses.find((status) => selectors.some((selector) => statusMatches(status, selector)))
+}
+
+async function postLifecycleComment(taskID, text, options = {}) {
+  await niftyRequest("/api/v1.0/messages", {
+    method: "POST",
+    body: cleanObject({
+      type: "text",
+      task_id: taskID,
+      text: botCommentText(text, options.botMarker !== false),
+      external_files: options.externalFiles?.length ? options.externalFiles : undefined,
+    }),
+  })
+}
+
+async function maybeAutoAssignTask(taskID, task, policyState, context = {}) {
+  if (!lifecycleAssignSelfEnabled(context)) return false
+  if (taskAssigneeIDs(task).length) return false
+
+  let assigneeIDs = lifecycleDefaultAssigneeIDs(context)
+  if (!assigneeIDs.length) {
+    if (!policyState.currentUserID) {
+      const me = await niftyRequest("/api/v1.0/users/me")
+      policyState.currentUserID = me?.id
+    }
+    if (policyState.currentUserID) assigneeIDs = [policyState.currentUserID]
+  }
+  if (!assigneeIDs.length) return false
+
+  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`, {
+    method: "PUT",
+    body: { assignees: assigneeIDs },
+  })
+  return true
+}
+
+async function maybeAutoStartLifecycle(toolName, args = {}, context = {}, policyState = {}) {
+  if (!lifecyclePolicyEnabled(context)) return
+  if (LIFECYCLE_AUTO_START_EXCLUDED_TOOLS.has(toolName)) return
+  if (!LIFECYCLE_AUTO_START_TOOLS.has(toolName)) return
+  if (!args.task_id) return
+  if (policyState.startedTasks?.has(args.task_id)) return
+
+  const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+  if (task?.completed || task?.archived) return
+
+  const projectID = getTaskProjectID(task)
+  if (!projectID) return
+
+  const workflow = await workflowForArgs(args, context)
+  const inProgress = await resolveLifecycleStatus(
+    projectID,
+    workflow,
+    lifecycleInProgressStateKey(context),
+    ["In Progress", "In progress", "Doing"],
+  )
+  if (!inProgress) return
+
+  const alreadyInProgress = statusMatches({ id: getTaskStatusID(task), name: task?.task_group?.name }, inProgress.id)
+    || statusMatches({ id: getTaskStatusID(task), name: task?.task_group?.name }, inProgress.name)
+
+  if (!alreadyInProgress) {
+    await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
+      method: "PUT",
+      body: { task_group_id: inProgress.id },
+    })
+  }
+
+  const assigned = await maybeAutoAssignTask(args.task_id, task, policyState, context)
+  await postLifecycleComment(
+    args.task_id,
+    [
+      "Lifecycle policy auto-update:",
+      `- Status set to ${inProgress.name}.`,
+      assigned ? "- Assignee set automatically." : "- Assignee unchanged.",
+    ].join("\n"),
+  )
+
+  policyState.startedTasks?.add(args.task_id)
+}
+
+async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, deliveryEvidence, context = {}) {
+  if (!lifecyclePolicyEnabled(context) || !lifecycleDeliveryGateEnabled(context)) return
+  if (!looksLikeDevReviewStatus(targetStatus, workflow, context)) return
+
+  const changedFiles = Array.isArray(deliveryEvidence?.changed_files) && deliveryEvidence.changed_files.length
+    ? deliveryEvidence.changed_files
+    : changedFilesFromGit(context)
+  const visualRequired = requiresVisualProof(changedFiles)
+  const validated = validateDeliveryEvidence(deliveryEvidence || {}, { visualRequired })
+
+  const summary = [
+    "Lifecycle delivery gate passed:",
+    `- RED proof: ${validated.red_proof}`,
+    `- GREEN proof: ${validated.green_proof}`,
+    `- Sad path proof: ${validated.sad_path_proof}`,
+    `- Visual proof required: ${visualRequired ? "yes" : "no"}`,
+    changedFiles.length ? `- Changed files: ${changedFiles.join(", ")}` : "- Changed files: none detected",
+  ]
+  if (validated.notes) summary.push(`- Notes: ${validated.notes}`)
+
+  await postLifecycleComment(taskID, summary.join("\n"), {
+    externalFiles: visualRequired ? validated.visual_proof : undefined,
+  })
+}
+
+function withLifecyclePolicy(tools = {}) {
+  const policyState = {
+    startedTasks: new Set(),
+    currentUserID: null,
+  }
+
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, definition]) => {
+      if (!definition || typeof definition.execute !== "function") return [name, definition]
+      return [
+        name,
+        {
+          ...definition,
+          async execute(args, context) {
+            try {
+              await maybeAutoStartLifecycle(name, args, context, policyState)
+            } catch {
+              // Auto lifecycle start is best-effort; delivery gate remains hard-fail.
+            }
+            return definition.execute(args, context)
+          },
+        },
+      ]
+    }),
+  )
+}
+
 async function listTasksWithStatusNames(query, projectID) {
   const [statuses, response] = await Promise.all([
     fetchAllStatuses(projectID),
@@ -1543,6 +1815,8 @@ const __test = {
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
   samePluginSource,
+  requiresVisualProof,
+  validateDeliveryEvidence,
   statusMatches,
   summarizeTask,
   writeWorkflowAliasConfig,
@@ -1556,6 +1830,14 @@ export const NiftyPlugin = async () => {
     value: tool.schema.string().optional().describe("Raw custom field value or configured value key"),
     value_key: tool.schema.string().optional().describe("Configured value key for select fields"),
   })
+  const deliveryEvidenceArg = tool.schema.object({
+    red_proof: tool.schema.string().optional().describe("RED proof command/output reference"),
+    green_proof: tool.schema.string().optional().describe("GREEN proof command/output reference"),
+    sad_path_proof: tool.schema.string().optional().describe("Sad-path verification evidence"),
+    visual_proof: tool.schema.array(tool.schema.string()).optional().describe("Screenshot/video URLs required when visual changes are detected"),
+    changed_files: tool.schema.array(tool.schema.string()).optional().describe("Optional changed files list override for lifecycle gate detection"),
+    notes: tool.schema.string().optional().describe("Optional delivery notes appended to lifecycle gate comment"),
+  })
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -1564,7 +1846,7 @@ export const NiftyPlugin = async () => {
       if (hint) throw new Error(hint)
     },
 
-    tool: {
+    tool: withLifecyclePolicy({
       nifty_update_plugin: tool({
         description: "Updates the installed Nifty OpenCode plugin from GitHub when a newer version is available",
         args: {
@@ -3204,6 +3486,7 @@ export const NiftyPlugin = async () => {
           state_key: tool.schema.string().optional().describe("Configured state key such as ideas or todo"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           comment: tool.schema.string().optional().describe("Optional note to add after the move"),
+          delivery_evidence: deliveryEvidenceArg.optional().describe("Delivery gate evidence. Required when moving into Dev Review by lifecycle policy"),
         },
         async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
@@ -3229,6 +3512,14 @@ export const NiftyPlugin = async () => {
           if (!status) {
             throw new Error("Target status missing. Provide state_key or status_name.")
           }
+
+          await enforceDeliveryLifecyclePolicy(
+            args.task_id,
+            status,
+            resolved.workflow,
+            args.delivery_evidence,
+            contextWithConfig,
+          )
 
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
@@ -3280,6 +3571,7 @@ export const NiftyPlugin = async () => {
           reminder: tool.schema.string().optional().describe("Reminder value"),
           state_key: tool.schema.string().optional().describe("Configured state key to move into after update"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
+          delivery_evidence: deliveryEvidenceArg.optional().describe("Delivery gate evidence. Required when moving into Dev Review by lifecycle policy"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
           milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
@@ -3307,6 +3599,15 @@ export const NiftyPlugin = async () => {
             state_key: args.state_key,
             status_name: args.status_name,
           })
+
+          await enforceDeliveryLifecyclePolicy(
+            args.task_id,
+            targetStatus,
+            resolved.workflow,
+            args.delivery_evidence,
+            contextWithConfig,
+          )
+
           const milestone = await resolveMilestoneSelector(resolved.project.id, {
             workflow: resolved.workflow,
             list_key: args.list_key,
@@ -3471,7 +3772,7 @@ export const NiftyPlugin = async () => {
           return json(response)
         },
       }),
-    },
+    }),
   }
 }
 
