@@ -22,6 +22,8 @@ const NIFTY_SHELL_COMMAND_HINT = [
 ].join(" ")
 const LIFECYCLE_DEFAULT_IN_PROGRESS_KEY = "in_progress"
 const LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review"
+const AUTOCONTEXT_DEFAULT_COMMENT_LIMIT = 200
+const AUTOCONTEXT_DEFAULT_TASK_LIMIT = 200
 const LIFECYCLE_AUTO_START_TOOLS = new Set([
   "nifty_get_task",
   "nifty_update_task",
@@ -1383,6 +1385,26 @@ function lifecyclePolicyEnabled(context = {}) {
   return envBoolean("NIFTY_AUTOPOLICY_ENABLED", true, context)
 }
 
+function autoContextEnabled(context = {}) {
+  return envBoolean("NIFTY_AUTOCONTEXT_ENABLED", true, context)
+}
+
+function envInteger(name, fallback, context = {}) {
+  const value = env(name, context)
+  if (value === undefined) return fallback
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback
+  return parsed
+}
+
+function autoContextCommentLimit(context = {}) {
+  return envInteger("NIFTY_AUTOCONTEXT_COMMENT_LIMIT", AUTOCONTEXT_DEFAULT_COMMENT_LIMIT, context)
+}
+
+function autoContextTaskLimit(context = {}) {
+  return envInteger("NIFTY_AUTOCONTEXT_TASK_LIMIT", AUTOCONTEXT_DEFAULT_TASK_LIMIT, context)
+}
+
 function lifecycleAssignSelfEnabled(context = {}) {
   return envBoolean("NIFTY_AUTOPOLICY_ASSIGN_SELF", true, context)
 }
@@ -1542,6 +1564,189 @@ async function maybeAutoAssignTask(taskID, task, policyState, context = {}) {
   return true
 }
 
+function safeContextMetadata(context, payload) {
+  if (!context || typeof context.metadata !== "function") return
+  try {
+    context.metadata("nifty:auto_context", payload)
+  } catch {}
+
+  try {
+    context.metadata({
+      title: payload.title || "Nifty auto context",
+      metadata: payload,
+    })
+  } catch {}
+}
+
+function taskProjectSubtasks(task = {}, tasks = []) {
+  const taskID = task?.id
+  if (!taskID) return []
+  return (tasks || []).filter((item) => {
+    const parent = item?.task_id || item?.parent_task_id || item?.parent?.id
+    return parent && String(parent) === String(taskID)
+  })
+}
+
+function projectStatusSummary(tasks = [], statuses = []) {
+  const namesByID = new Map((statuses || []).map((status) => [status.id, status.name]))
+  const counts = {}
+  for (const task of tasks || []) {
+    const statusID = task?.task_group || task?.task_group_id || task?.task_group?.id
+    const statusName = namesByID.get(statusID) || task?.task_group?.name || "unknown"
+    counts[statusName] = (counts[statusName] || 0) + 1
+  }
+  return counts
+}
+
+async function fetchTaskFullContext(taskID, input = {}, context = {}) {
+  const commentLimit = input.comment_limit || autoContextCommentLimit(context)
+  const taskLimit = input.project_task_limit || autoContextTaskLimit(context)
+  const workflow = await workflowForArgs(input, context)
+
+  const task = enrichTaskCustomFields(
+    await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`),
+    workflow,
+  )
+  const projectID = getTaskProjectID(task)
+  const [commentsResponse, projects, statuses, milestones, projectTasksResponse] = await Promise.all([
+    niftyRequest("/api/v1.0/messages", {
+      query: { task_id: taskID, limit: commentLimit, offset: 0 },
+    }),
+    projectID ? fetchAllProjects({ includeArchived: true }) : Promise.resolve([]),
+    projectID ? fetchAllStatuses(projectID) : Promise.resolve([]),
+    projectID ? fetchAllMilestones(projectID) : Promise.resolve([]),
+    projectID
+      ? niftyRequest("/api/v1.0/tasks", {
+          query: {
+            project_id: projectID,
+            include_subtasks: "true",
+            limit: taskLimit,
+            offset: 0,
+          },
+        })
+      : Promise.resolve({ tasks: [] }),
+  ])
+
+  const comments = commentsResponse?.items || commentsResponse?.messages || []
+  const projectTasks = projectTasksResponse?.tasks || []
+  const subtasks = taskProjectSubtasks(task, projectTasks)
+  const project = projects.find((item) => item.id === projectID) || null
+
+  return {
+    task,
+    project,
+    workflow,
+    project_id: projectID || null,
+    comments,
+    subtasks,
+    statuses,
+    milestones,
+    project_status_counts: projectStatusSummary(projectTasks, statuses),
+    project_task_sample_size: projectTasks.length,
+    fetched_at: new Date().toISOString(),
+  }
+}
+
+async function fetchProjectFullContext(input = {}, context = {}) {
+  const taskLimit = input.task_limit || autoContextTaskLimit(context)
+  const contextWithConfig = workflowContext(context, input.config_path)
+  const resolved = await resolveProjectSelector(input, contextWithConfig)
+  const projectID = resolved.project?.id
+  if (!projectID) throw new Error("Unable to resolve project for full context")
+
+  const [statuses, milestones, tasksResponse, docsResponse, validation] = await Promise.all([
+    fetchAllStatuses(projectID),
+    fetchAllMilestones(projectID),
+    niftyRequest("/api/v1.0/tasks", {
+      query: {
+        project_id: projectID,
+        include_subtasks: "false",
+        limit: taskLimit,
+        offset: 0,
+      },
+    }),
+    niftyRequest("/api/v1.0/docs", {
+      query: {
+        project_id: projectID,
+        limit: 100,
+        offset: 0,
+      },
+    }).catch(() => ({ items: [] })),
+    validateWorkflows(contextWithConfig).catch(() => ({ workflows: [] })),
+  ])
+
+  const tasks = tasksResponse?.tasks || []
+  const docs = docsResponse?.items || docsResponse?.docs || []
+  const workflowValidation = (validation?.workflows || []).find((item) => {
+    if (resolved.workflowAlias && item.alias === resolved.workflowAlias) return true
+    const selector = item?.project?.id || item?.project?.nice_id || item?.project?.name
+    return selector && normalize(selector) === normalize(projectID)
+  }) || null
+
+  return {
+    project: resolved.project,
+    workflow_alias: resolved.workflowAlias || null,
+    workflow: resolved.workflow || {},
+    workflow_validation: workflowValidation,
+    statuses,
+    milestones,
+    tasks,
+    documents: docs,
+    status_counts: projectStatusSummary(tasks, statuses),
+    fetched_at: new Date().toISOString(),
+  }
+}
+
+async function maybeAutoHydrateContext(toolName, args = {}, context = {}, policyState = {}) {
+  if (!autoContextEnabled(context)) return
+
+  if (args.task_id) {
+    const cacheKey = `task:${args.task_id}`
+    if (policyState.contextCache?.has(cacheKey)) {
+      safeContextMetadata(context, {
+        title: "Nifty full task context",
+        task_context: policyState.contextCache.get(cacheKey),
+        source: "cache",
+        tool: toolName,
+      })
+      return
+    }
+
+    const taskContext = await fetchTaskFullContext(args.task_id, args, context)
+    policyState.contextCache?.set(cacheKey, taskContext)
+    safeContextMetadata(context, {
+      title: "Nifty full task context",
+      task_context: taskContext,
+      source: "live",
+      tool: toolName,
+    })
+    return
+  }
+
+  if (args.project_id || args.project_name || args.project_nice_id || args.workflow_alias) {
+    const selector = args.project_id || args.project_name || args.project_nice_id || args.workflow_alias
+    const cacheKey = `project:${selector}`
+    if (policyState.contextCache?.has(cacheKey)) {
+      safeContextMetadata(context, {
+        title: "Nifty full project context",
+        project_context: policyState.contextCache.get(cacheKey),
+        source: "cache",
+        tool: toolName,
+      })
+      return
+    }
+
+    const projectContext = await fetchProjectFullContext(args, context)
+    policyState.contextCache?.set(cacheKey, projectContext)
+    safeContextMetadata(context, {
+      title: "Nifty full project context",
+      project_context: projectContext,
+      source: "live",
+      tool: toolName,
+    })
+  }
+}
+
 async function maybeAutoStartLifecycle(toolName, args = {}, context = {}, policyState = {}) {
   if (!lifecyclePolicyEnabled(context)) return
   if (LIFECYCLE_AUTO_START_EXCLUDED_TOOLS.has(toolName)) return
@@ -1622,6 +1827,7 @@ function withLifecyclePolicy(tools = {}) {
   const policyState = {
     startedTasks: new Set(),
     currentUserID: null,
+    contextCache: new Map(),
   }
 
   return Object.fromEntries(
@@ -1632,6 +1838,11 @@ function withLifecyclePolicy(tools = {}) {
         {
           ...definition,
           async execute(args, context) {
+            try {
+              await maybeAutoHydrateContext(name, args, context, policyState)
+            } catch {
+              // Auto context hydration is best-effort for compatibility.
+            }
             try {
               await maybeAutoStartLifecycle(name, args, context, policyState)
             } catch {
@@ -2080,6 +2291,22 @@ export const NiftyPlugin = async () => {
               subteam: project.subteam,
             })),
           })
+        },
+      }),
+
+      nifty_get_project_full_context: tool({
+        description: "Gets comprehensive project context including statuses, milestones, workflow mapping, tasks, and documents",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve project and mapping"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          project_id: tool.schema.string().optional().describe("Project ID"),
+          project_name: tool.schema.string().optional().describe("Project name"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
+          task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum tasks to include in project snapshot"),
+        },
+        async execute(args, context) {
+          const fullContext = await fetchProjectFullContext(args, context)
+          return json(fullContext)
         },
       }),
 
@@ -3159,6 +3386,21 @@ export const NiftyPlugin = async () => {
           const workflow = await workflowForArgs(args, context)
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
           return json(enrichTaskCustomFields(response, workflow))
+        },
+      }),
+
+      nifty_get_task_full_context: tool({
+        description: "Gets full task context including task details, comments, subtasks, status map, milestones, and project summary",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
+          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context"),
+        },
+        async execute(args, context) {
+          const fullContext = await fetchTaskFullContext(args.task_id, args, context)
+          return json(fullContext)
         },
       }),
 

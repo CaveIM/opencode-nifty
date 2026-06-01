@@ -11,6 +11,8 @@ Additionally enforce automatic task lifecycle policy behavior shared with OpenCo
 - hard Dev Review delivery gate with TDD + sad-path proof,
 - hard visual-proof requirement only for visual-impacting changes.
 
+Additionally provide automatic context hydration so coding agents get full task and project context without manual prompting.
+
 ## 2. Scope
 
 Included:
@@ -21,6 +23,7 @@ Included:
 - Copilot-compatible execution context adapter (`directory`, `worktree`, `metadata`, `abort`).
 - Installation script to register the MCP server in `.vscode/mcp.json`.
 - Documentation and configuration example for repeatable setup.
+- Automatic metadata hydration with full task/project context for task/project-targeted tool calls.
 
 Out of scope:
 

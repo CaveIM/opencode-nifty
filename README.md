@@ -153,9 +153,15 @@ Default behavior:
 
 1. When task work starts through task-oriented tools (for example `nifty_get_task`, `nifty_update_task`, `nifty_prepare_task_for_delivery`, `nifty_create_comment` with `task_id`), the plugin auto-moves the task to In Progress.
 2. If the task has no assignee, it auto-assigns by policy:
-  - `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` when configured.
-  - otherwise the authenticated Nifty user when `NIFTY_AUTOPOLICY_ASSIGN_SELF=true`.
+- `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` when configured.
+- otherwise the authenticated Nifty user when `NIFTY_AUTOPOLICY_ASSIGN_SELF=true`.
 3. Moving a task to Dev Review is hard-gated by delivery evidence.
+
+Automatic full-context behavior:
+
+1. For task/project-targeted tools, the plugin auto-hydrates full context into agent metadata (task details, comments, subtasks, statuses, milestones, and project summaries).
+2. Context hydration works in both OpenCode and GitHub Copilot MCP server flows.
+3. Context hydration is best-effort and non-blocking, while delivery gates remain hard-fail.
 
 Delivery gate requirements for Dev Review:
 
@@ -177,6 +183,9 @@ Policy environment variables:
 - `NIFTY_AUTOPOLICY_IN_PROGRESS_STATE` (default `in_progress`)
 - `NIFTY_AUTOPOLICY_DEV_REVIEW_STATE` (default `dev_review`)
 - `NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE` (default `true`)
+- `NIFTY_AUTOCONTEXT_ENABLED` (default `true`)
+- `NIFTY_AUTOCONTEXT_COMMENT_LIMIT` (default `200`)
+- `NIFTY_AUTOCONTEXT_TASK_LIMIT` (default `200`)
 
 ## Configure Workflows
 
@@ -315,6 +324,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_setup_recommended_workflow`
 - `nifty_shape_task`
 - `nifty_find_project`
+- `nifty_get_project_full_context`
 - `nifty_delete_status`
 - `nifty_list_milestones`
 - `nifty_create_milestone`
@@ -328,6 +338,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
 - `nifty_batch_capture_backlog_items`
+- `nifty_get_task_full_context`
 - `nifty_create_subtask`
 - `nifty_prepare_task_for_delivery`
 - `nifty_move_task_to_status`
@@ -361,6 +372,11 @@ Before creating or preparing shaped tasks, answer open questions with the user. 
 Bulk task deletion requires an explicit confirmation phrase such as `delete 3 tasks`. Ask the user before providing that phrase.
 
 Use `nifty_update_plugin` to update the installed plugin from GitHub. If it reports `updated: false`, there is no newer plugin available. If it reports `updated: true`, restart OpenCode so the new plugin version is loaded.
+
+For deep task/project understanding by coding agents, use:
+
+- `nifty_get_task_full_context` to load full task details, description, comments, subtasks, project status map, and milestone context.
+- `nifty_get_project_full_context` to load full project context, workflow mapping, status distribution, and document/task snapshots.
 
 ## Example Prompts
 

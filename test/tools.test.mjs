@@ -11,6 +11,7 @@ const originalEnv = { ...process.env }
 beforeEach(() => {
   process.env.NIFTY_ACCESS_TOKEN = "test-token"
   process.env.NIFTY_AUTOPOLICY_ENABLED = "false"
+  process.env.NIFTY_AUTOCONTEXT_ENABLED = "false"
 })
 
 afterEach(() => {
@@ -518,6 +519,127 @@ test("nifty_create_subtask sends parent task id", async () => {
     task_group_id: "status-1",
     task_id: "parent-1",
   })
+})
+
+test("nifty_get_task_full_context returns task, comments, subtasks, and project summary", async () => {
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1") {
+      return Response.json({ id: "t1", name: "Parent", project_id: "p1", task_group_id: "s1" })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ items: [{ id: "m1", text: "latest update" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "In Progress" }, { id: "s2", name: "Dev Review" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      return Response.json({ tasks: [
+        { id: "t1", task_group: "s1" },
+        { id: "st1", task_id: "t1", task_group: "s1" },
+        { id: "t2", task_group: "s2" },
+      ] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_get_task_full_context.execute(
+    { task_id: "t1", comment_limit: 5, project_task_limit: 20 },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.task.id, "t1")
+  assert.equal(parsed.comments.length, 1)
+  assert.equal(parsed.subtasks.length, 1)
+  assert.equal(parsed.project.name, "Project One")
+  assert.equal(parsed.project_status_counts["In Progress"], 2)
+})
+
+test("nifty_get_project_full_context returns whole project snapshot", async () => {
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "To Do" }, { id: "s2", name: "In Progress" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [{ id: "m1", name: "Current", is_list: true }], hasMore: false })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      return Response.json({ tasks: [{ id: "t1", task_group: "s1" }, { id: "t2", task_group: "s2" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/docs") {
+      return Response.json({ items: [{ id: "d1", name: "Spec" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_get_project_full_context.execute({ project_id: "p1", task_limit: 20 }, context())
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.project.id, "p1")
+  assert.equal(parsed.statuses.length, 2)
+  assert.equal(parsed.tasks.length, 2)
+  assert.equal(parsed.documents.length, 1)
+  assert.equal(parsed.status_counts["To Do"], 1)
+})
+
+test("auto context hydration injects full task context metadata", async () => {
+  process.env.NIFTY_AUTOCONTEXT_ENABLED = "true"
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1") {
+      return Response.json({ id: "t1", name: "Parent", project_id: "p1", task_group_id: "s1" })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ items: [{ id: "m1", text: "latest update" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "In Progress" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      return Response.json({ tasks: [{ id: "t1", task_group: "s1" }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  let metadataPayload
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_get_task.execute(
+    { task_id: "t1" },
+    context({
+      metadata(payload) {
+        metadataPayload = payload
+      },
+    }),
+  )
+
+  assert.equal(metadataPayload?.metadata?.task_context?.task?.id, "t1")
+  assert.equal(metadataPayload?.metadata?.task_context?.comments?.length, 1)
 })
 
 test("nifty_update_task writes configured custom fields", async () => {
