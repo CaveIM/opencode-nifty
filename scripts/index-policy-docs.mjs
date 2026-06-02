@@ -112,6 +112,43 @@ function policyJsonChunks(policyPath) {
     })
   }
 
+  // One chunk for automation standards (parent/subtask/doc/completion/comment/proof behavior)
+  if (policy.automation && typeof policy.automation === "object") {
+    const a = policy.automation
+    const automationLines = [
+      `Automation standards for policy: ${policyId}`,
+      `Enabled: ${a.enabled === true}`,
+      a.parent_tasks?.auto_complete_when_subtasks_complete
+        ? "Parent tasks are automatically completed when all subtasks are complete."
+        : "Parent tasks are not automatically completed while the task chat may still be active.",
+      a.completion?.require_explicit_close_trigger
+        ? `Completing a task or moving to a Done-like lane requires explicit user close confirmation matching: ${a.completion.close_confirmation_template || "close {task_id}"}.`
+        : null,
+      a.subtasks?.auto_create_from_checklist
+        ? "Checklist items are automatically created as missing subtasks during delivery preparation."
+        : null,
+      a.completion?.sync_done_status_with_complete
+        ? "Moving a task to a Done-like status must also sync the Nifty completion checkbox via the complete endpoint."
+        : null,
+      a.progress_comments?.enabled
+        ? `Progress comments are posted at milestones: ${(a.progress_comments.milestones || []).join(", ")}`
+        : null,
+      a.playwright?.auto_capture_visual_proof
+        ? "Playwright visual proof is captured automatically when visual delivery evidence is required and a capture command is configured."
+        : null,
+    ]
+    chunks.push({
+      doc_id: `${policyId}:automation`,
+      doc_type: "policy_automation",
+      project_id: null,
+      chunk_index: 0,
+      chunk_total: 1,
+      created_at: `${effectiveDate}T00:00:00Z`,
+      updated_at: nowIso(),
+      text: automationLines.filter(Boolean).join("\n"),
+    })
+  }
+
   // One chunk per rule
   for (const [i, rule] of (policy.rules ?? []).entries()) {
     const ruleId = rule.id ?? `rule-${i}`

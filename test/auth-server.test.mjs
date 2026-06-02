@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { createServer } from "node:http"
-import { mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, test } from "node:test"
@@ -129,4 +129,28 @@ test("nifty_auth_localhost_start explicit port overrides project env file", asyn
 
   const shutdownResponse = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied`)
   assert.equal(shutdownResponse.status, 400)
+})
+
+test("writeTokenCache restricts token cache parent directory permissions", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-token-perms-"))
+  const tokenPath = join(dir, "nested", "auth-token.json")
+  process.env.NIFTY_TOKEN_PATH = tokenPath
+
+  const { NiftyPlugin } = await import(`../plugin/nifty.js?token-perms-test=${Date.now()}`)
+  await NiftyPlugin.__test.writeTokenCache({ access_token: "test-token", refresh_token: "refresh" })
+
+  const parentMode = (await stat(join(dir, "nested"))).mode & 0o777
+  const fileMode = (await stat(tokenPath)).mode & 0o777
+  assert.equal(parentMode, 0o700)
+  assert.equal(fileMode, 0o600)
+})
+
+test("resolveAuthNodeBinary rejects unsafe NIFTY_NODE_BINARY overrides by default", async () => {
+  process.env.NIFTY_NODE_BINARY = "/bin/sh"
+
+  const { NiftyPlugin } = await import(`../plugin/nifty.js?node-binary-test=${Date.now()}`)
+  assert.throws(
+    () => NiftyPlugin.__test.resolveAuthNodeBinary({}),
+    /NIFTY_NODE_BINARY.*disabled|unsafe/i,
+  )
 })

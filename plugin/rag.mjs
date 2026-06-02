@@ -29,17 +29,56 @@ function envInt(name, fallback) {
  * Construct a text search query from a tool name and its arguments.
  * Used as the FTS query string sent to LanceDB.
  *
+ * Design:
+ *  - Tool category prefix without underscores (better BM25 tokenization)
+ *  - Primary entity identifiers (task_id, project_id) for exact matching
+ *  - Semantic fields ordered by relevance: title > name > description > content
+ *  - Status/state tokens provide lifecycle context
+ *  - Hard truncation on long prose fields to cap query length
+ *  - Lowercase deduplication prevents repeated tokens from skewing BM25
+ *
  * @param {string} toolName
  * @param {object} args
  * @returns {string}
  */
 export function buildRagQuery(toolName, args = {}) {
-  const parts = [toolName.replace(/_/g, " ")]
-  if (args.name) parts.push(String(args.name))
-  if (args.description) parts.push(String(args.description).slice(0, 300))
-  if (args.query) parts.push(String(args.query))
+  const parts = []
+
+  // Tool category: strip leading "nifty_" prefix and replace underscores for cleaner tokens
+  const toolLabel = toolName.replace(/^nifty_/, "").replace(/_/g, " ")
+  if (toolLabel) parts.push(toolLabel)
+
+  // Primary entity identifiers — include full nifty_ name for recall on exact task/project searches
   if (args.task_id) parts.push(`task ${args.task_id}`)
-  return parts.filter(Boolean).join(". ")
+  if (args.project_id) parts.push(`project ${args.project_id}`)
+  if (args.parent_task_id) parts.push(`task ${args.parent_task_id}`)
+
+  // Semantic content fields — ordered by precision relevance
+  if (args.title) parts.push(String(args.title).slice(0, 200))
+  if (args.name) parts.push(String(args.name).slice(0, 200))
+  if (args.description) parts.push(String(args.description).slice(0, 400))
+  if (args.query) parts.push(String(args.query).slice(0, 400))
+  if (args.message) parts.push(String(args.message).slice(0, 300))
+  if (args.content) parts.push(String(args.content).slice(0, 300))
+  if (args.comment) parts.push(String(args.comment).slice(0, 300))
+  if (args.text) parts.push(String(args.text).slice(0, 300))
+
+  // Status/lifecycle context
+  if (args.status) parts.push(String(args.status))
+  if (args.state) parts.push(String(args.state))
+
+  // Deduplicate: case-insensitive, preserving first occurrence for BM25 precision
+  const seen = new Set()
+  return parts
+    .map((s) => s.trim())
+    .filter((s) => {
+      if (!s) return false
+      const key = s.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .join(". ")
 }
 
 /**
@@ -105,12 +144,13 @@ export async function searchIndex(table, query, { limit = 5 } = {}) {
  * @returns {Promise}
  */
 function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`RAG search timed out after ${ms}ms`)), ms),
-    ),
-  ])
+  let timeoutID
+  const timeout = new Promise((_, reject) => {
+    timeoutID = setTimeout(() => reject(new Error(`RAG search timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutID) clearTimeout(timeoutID)
+  })
 }
 
 /**

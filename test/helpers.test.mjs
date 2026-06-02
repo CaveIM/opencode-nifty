@@ -126,10 +126,12 @@ NIFTY_AUTHORIZE_URL='https://nifty.pm/authorize?x=1'
   )
 })
 
-test("prefixes bot comments with a robot marker", () => {
-  assert.equal(__test.botCommentText("Starting work"), "🤖 Starting work")
-  assert.equal(__test.botCommentText("🤖 Already marked"), "🤖 Already marked")
-  assert.equal(__test.botCommentText("   Trimmed"), "🤖 Trimmed")
+test("prefixes bot comments with the McBotFace automation marker", () => {
+  assert.equal(__test.botCommentText("Starting work"), "🤖 McBotFace Starting work")
+  assert.equal(__test.botCommentText("🤖 McBotFace Already marked"), "🤖 McBotFace Already marked")
+  assert.equal(__test.botCommentText("[MCP Automation] Legacy marker"), "🤖 McBotFace Legacy marker")
+  assert.equal(__test.botCommentText("🤖 Legacy marker"), "🤖 McBotFace Legacy marker")
+  assert.equal(__test.botCommentText("   Trimmed"), "🤖 McBotFace Trimmed")
   assert.equal(__test.botCommentText("Personal note", false), "Personal note")
 })
 

@@ -1,10 +1,21 @@
 {
   "name": "opencode-nifty-kit",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "copilot:install": "bash scripts/install-copilot.sh",
-    "copilot:mcp": "node copilot/mcp-server.mjs",
+    "copilot:mcp": "node mcp/mcp-server.mjs",
+    "mcp:install": "bash scripts/install-copilot.sh",
+    "mcp:start": "node mcp/mcp-server.mjs",
+    "mcp:install:claude": "bash scripts/install-claude.sh",
+    "mcp:install:cursor": "bash scripts/install-cursor.sh",
+    "mcp:install:windsurf": "bash scripts/install-windsurf.sh",
+    "mcp:install:codex": "bash scripts/install-codex.sh",
+    "mcp:install:codex:global": "bash scripts/install-codex.sh --global",
+    "rag:index:policy": "node scripts/index-policy-docs.mjs",
+    "rag:index:tasks": "node scripts/index-nifty-tasks.mjs",
+    "rag:webhook": "node scripts/rag-webhook.mjs",
     "test": "node --test",
     "lint": "node scripts/lint.mjs",
     "format:check": "node scripts/format-check.mjs"

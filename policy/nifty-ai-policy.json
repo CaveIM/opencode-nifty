@@ -11,6 +11,61 @@
     "require_playwright_proof_for_visual_changes": true,
     "comment_template": "## What was done\n{summary}\n\n## Completed\n{completed_items}\n\n## Evidence / Tests\n{evidence}\n\n## How to verify\n{verification_steps}\n\n## Visual proof (Playwright screenshots)\n{visual_proof}"
   },
+  "engineering_quality": {
+    "enabled": true,
+    "require_architectural_integration": true,
+    "require_tdd_red_green": true,
+    "require_regression_proof": true,
+    "require_iterative_validation": true,
+    "forbid_placeholder_delivery": true,
+    "minimum_evidence_chars": 40,
+    "forbidden_claim_patterns": [
+      "fixed it",
+      "works now",
+      "tests pass",
+      "handled",
+      "done",
+      "should work",
+      "looks good",
+      "minor fix"
+    ]
+  },
+  "automation": {
+    "enabled": true,
+    "parent_tasks": {
+      "auto_complete_when_subtasks_complete": false,
+      "comment_on_auto_complete": true
+    },
+    "subtasks": {
+      "auto_create_from_checklist": true
+    },
+    "completion": {
+      "sync_done_status_with_complete": true,
+      "require_explicit_close_trigger": true,
+      "close_confirmation_template": "close {task_id}"
+    },
+    "progress_comments": {
+      "enabled": true,
+      "milestones": ["first_edit", "first_green_test", "push", "done"],
+      "edit_tools": ["apply_patch", "write", "edit", "patch"],
+      "test_command_patterns": ["npm test", "pnpm test", "yarn test", "node --test", "vitest", "jest", "playwright test"],
+      "push_command_patterns": ["git push"],
+      "max_output_chars": 1000
+    },
+    "task_context_gate": {
+      "enabled": true,
+      "prompt_on_context_loss": true,
+      "hard_fail_if_unresolved": true,
+      "prompt": "I lost context of the active task card for autonomous updates. Enter the task card ID you are working on (for example: MBC-462 or an internal task id)."
+    },
+    "playwright": {
+      "auto_capture_visual_proof": true,
+      "command": "",
+      "publish_command": "",
+      "output_dir": "test-results",
+      "timeout_ms": 300000
+    }
+  },
   "rules": [
     {
       "id": "no-bulk-delete",

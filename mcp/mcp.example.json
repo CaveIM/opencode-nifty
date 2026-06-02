@@ -3,7 +3,7 @@
     "nifty": {
       "command": "node",
       "args": [
-        "/absolute/path/to/opencode-plugin/copilot/mcp-server.mjs"
+        "/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"
       ],
       "env": {
         "NIFTY_WORKTREE": "/absolute/path/to/your/project"

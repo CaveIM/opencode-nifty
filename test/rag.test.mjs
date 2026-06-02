@@ -1,7 +1,11 @@
 import assert from "node:assert/strict"
+import { execFile } from "node:child_process"
 import { afterEach, beforeEach, test } from "node:test"
+import { promisify } from "node:util"
 import { ragContextForTool, buildRagQuery, searchIndex } from "../plugin/rag.mjs"
 import { NiftyPlugin } from "../plugin/nifty.js"
+
+const execFileAsync = promisify(execFile)
 
 const originalEnv = { ...process.env }
 
@@ -43,6 +47,24 @@ test("RAG: search timeout returns empty arrays — resolves within deadline", as
   const elapsed = Date.now() - start
   assert.deepEqual(result, { historical_context: [], policy_citations: [] })
   assert.ok(elapsed < 500, `should resolve within 500ms, took ${elapsed}ms`)
+})
+
+test("RAG: fast search clears timeout timer so child process exits immediately", async () => {
+  const script = `
+    import { ragContextForTool } from ${JSON.stringify(new URL("../plugin/rag.mjs", import.meta.url).href)};
+    await ragContextForTool("nifty_get_task", {}, {
+      timeoutMs: 2000,
+      _openFn: async () => ({}),
+      _searchFn: async () => [],
+    });
+    console.log("done");
+  `
+
+  const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
+    timeout: 1500,
+    maxBuffer: 1024 * 1024,
+  })
+  assert.match(stdout, /done/)
 })
 
 // ── Test 3: null table (no index built yet) returns empty arrays ──────────────
@@ -94,9 +116,56 @@ test("RAG: partial failure returns task results and empty policy citations", asy
 
 // ── Test 6: buildRagQuery constructs a useful query string ────────────────────
 
-test("RAG: buildRagQuery includes tool name, task name, and task_id", () => {
+test("RAG: buildRagQuery strips nifty_ prefix and includes task_id and name", () => {
   const q = buildRagQuery("nifty_update_task", { name: "Fix auth bug", task_id: "t42" })
-  assert.ok(q.includes("nifty update task"), `expected tool name in query: ${q}`)
+  // Tool label: prefix stripped, underscores removed
+  assert.ok(q.includes("update task"), `expected stripped tool label in query: ${q}`)
+  assert.ok(!q.startsWith("nifty "), `should not start with 'nifty ': ${q}`)
   assert.ok(q.includes("Fix auth bug"), `expected task name in query: ${q}`)
   assert.ok(q.includes("task t42"), `expected task_id in query: ${q}`)
+})
+
+// ── Test 7: buildRagQuery deduplicates identical tokens ───────────────────────
+
+test("RAG: buildRagQuery deduplicates repeated tokens case-insensitively", () => {
+  // title and name are the same value — should contribute only one part to the query
+  const q = buildRagQuery("nifty_create_task", { name: "auth bug", title: "Auth Bug" })
+  const parts = q.split(". ")
+  const authBugParts = parts.filter((p) => p.toLowerCase() === "auth bug")
+  assert.equal(authBugParts.length, 1, `"auth bug" / "Auth Bug" should appear as exactly one part: ${q}`)
+})
+
+// ── Test 8: buildRagQuery includes all semantic fields ────────────────────────
+
+test("RAG: buildRagQuery includes message, content, status, and project_id", () => {
+  const q = buildRagQuery("nifty_create_comment", {
+    task_id: "MBC-1",
+    project_id: "PROJ-X",
+    message: "Deployed hotfix",
+    status: "done",
+  })
+  assert.ok(q.includes("task MBC-1"), `task_id: ${q}`)
+  assert.ok(q.includes("project PROJ-X"), `project_id: ${q}`)
+  assert.ok(q.includes("Deployed hotfix"), `message: ${q}`)
+  assert.ok(q.includes("done"), `status: ${q}`)
+})
+
+// ── Test 9: buildRagQuery truncates excessively long description fields ────────
+
+test("RAG: buildRagQuery truncates description at 400 chars", () => {
+  const longDesc = "x".repeat(1000)
+  const q = buildRagQuery("nifty_create_task", { name: "short", description: longDesc })
+  // The description portion should not exceed 400 chars
+  const parts = q.split(". ")
+  const descPart = parts.find((p) => p.startsWith("x"))
+  assert.ok(descPart, "description should be present in query")
+  assert.ok(descPart.length <= 400, `description portion should be truncated: ${descPart.length} chars`)
+})
+
+// ── Test 10: buildRagQuery returns non-empty string for minimal args ──────────
+
+test("RAG: buildRagQuery returns non-empty string even with empty args", () => {
+  const q = buildRagQuery("nifty_health_check", {})
+  assert.ok(typeof q === "string" && q.length > 0, `expected non-empty string: ${JSON.stringify(q)}`)
+  assert.ok(q.includes("health check"), `expected tool label: ${q}`)
 })

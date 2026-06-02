@@ -18,14 +18,14 @@ It gives you:
 ## Repo Layout
 
 - `plugin/nifty.js`: plugin source
-- `copilot/mcp-server.mjs`: full MCP bridge for GitHub Copilot tool calling
-- `copilot/FULL_SPEC.md`: implementation and architecture specification for Copilot integration
-- `copilot/mcp.example.json`: sample MCP server config
+- `mcp/mcp-server.mjs`: universal MCP bridge — works with any MCP-capable AI coding client
+- `mcp/FULL_SPEC.md`: implementation and architecture specification for MCP integration
+- `mcp/mcp.example.json`: sample MCP server config
 - `config/nifty-workflows.example.json`: example multi-project workflow config
 - `env/nifty.env.example`: environment variable template
 - `scripts/install.sh`: install or update into an OpenCode instance
 - `scripts/update.sh`: wrapper around install
-- `scripts/install-copilot.sh`: writes/updates `.vscode/mcp.json` for Copilot MCP usage
+- `scripts/install-copilot.sh`: writes/updates `.vscode/mcp.json` for VS Code / GitHub Copilot MCP usage
 
 ## Install Into A Container Or Machine
 
@@ -77,44 +77,187 @@ By default the one-line installer downloads from `main`. To install another bran
 curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | NIFTY_INSTALL_REF=v1.0.0 bash
 ```
 
-## GitHub Copilot Integration
+## MCP Integration (Any AI Coding Client)
 
-This repo includes a full MCP server implementation that exposes all `nifty_*` tools to GitHub Copilot.
+This repo includes a universal MCP server (`mcp/mcp-server.mjs`) that exposes all `nifty_*` tools to **any MCP-capable AI coding client** — GitHub Copilot, Claude Code, Cursor, Windsurf, OpenCode, Gemini CLI, Kimi Code CLI, Codex, and others.
 
-Install Copilot MCP config in this workspace:
+The MCP server speaks standard [MCP stdio protocol](https://modelcontextprotocol.io/). No client-specific code. Point any client at the server with:
+
+```bash
+node /path/to/opencode-plugin/mcp/mcp-server.mjs
+```
+
+### Per-client install scripts
+
+Use the bundled scripts to generate the correct config file for your client. Each script writes `NIFTY_MCP_ROOT` into the config so `nifty_update_plugin` can keep the server binary up to date in place.
+
+| Client | Script | Config file written |
+|--------|--------|--------------------|
+| VS Code / GitHub Copilot | `./scripts/install-copilot.sh` | `.vscode/mcp.json` |
+| Claude Code (project) | `./scripts/install-claude.sh` | `.mcp.json` |
+| Claude Desktop (global) | `./scripts/install-claude.sh --global` | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Cursor (project) | `./scripts/install-cursor.sh` | `.cursor/mcp.json` |
+| Cursor (global) | `./scripts/install-cursor.sh --global` | `~/.cursor/mcp.json` |
+| Windsurf | `./scripts/install-windsurf.sh` | `~/.codeium/windsurf/mcp_config.json` |
+| Codex CLI (project) | `./scripts/install-codex.sh` | `.codex/config.toml` |
+| Codex CLI (global) | `./scripts/install-codex.sh --global` | `~/.codex/config.toml` |
+
+Or use npm scripts:
+
+```bash
+npm run mcp:install:claude          # project-local .mcp.json
+npm run mcp:install:cursor          # project-local .cursor/mcp.json
+npm run mcp:install:windsurf        # global ~/.codeium/windsurf/mcp_config.json
+npm run mcp:install:codex           # project-local .codex/config.toml
+npm run mcp:install:codex:global    # global ~/.codex/config.toml
+```
+
+### VS Code / GitHub Copilot
+
+Install the MCP config into `.vscode/mcp.json`:
 
 ```bash
 ./scripts/install-copilot.sh
 ```
 
-This writes or updates:
-
-```text
-./.vscode/mcp.json
-```
-
-The generated MCP server entry points to:
-
-```text
-./copilot/mcp-server.mjs
-```
-
 After installing:
 
-1. Ensure Nifty credentials are available from `./.nifty.env` or exported as `NIFTY_*` environment variables.
-2. Restart VS Code (or reload the window) so Copilot reloads MCP servers.
+1. Ensure Nifty credentials are in `.nifty.env` or exported as `NIFTY_*` env vars.
+2. Restart VS Code (or reload the window).
 3. Use Copilot chat and call the `nifty_*` tools directly.
 
-Manual MCP start (for debugging):
+Manual start:
 
 ```bash
-npm run copilot:mcp
+npm run mcp:start
 ```
+
+### Claude Code
+
+```bash
+./scripts/install-claude.sh          # project-local .mcp.json
+./scripts/install-claude.sh --global # Claude Desktop global config
+```
+
+Manual JSON if you prefer:
+
+```json
+{
+  "mcpServers": {
+    "nifty": {
+      "command": "node",
+      "args": ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"],
+      "env": {
+        "NIFTY_WORKTREE": "/absolute/path/to/your/project",
+        "NIFTY_MCP_ROOT": "/absolute/path/to/opencode-plugin"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+```bash
+./scripts/install-cursor.sh          # project-local .cursor/mcp.json
+./scripts/install-cursor.sh --global # global ~/.cursor/mcp.json
+```
+
+### Windsurf
+
+```bash
+./scripts/install-windsurf.sh        # always writes to global ~/.codeium/windsurf/mcp_config.json
+```
+
+### Codex CLI
+
+```bash
+./scripts/install-codex.sh          # project-local .codex/config.toml (trusted projects)
+./scripts/install-codex.sh --global # global ~/.codex/config.toml
+```
+
+Or let Codex manage it directly:
+
+```bash
+codex mcp add nifty \
+  --env NIFTY_WORKTREE=/path/to/your/project \
+  --env NIFTY_MCP_ROOT=/path/to/opencode-plugin \
+  -- node /path/to/opencode-plugin/mcp/mcp-server.mjs
+```
+
+Manual TOML if you prefer to edit `~/.codex/config.toml` directly:
+
+```toml
+[mcp_servers.nifty]
+command = "node"
+args = ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"]
+
+[mcp_servers.nifty.env]
+NIFTY_WORKTREE = "/absolute/path/to/your/project"
+NIFTY_MCP_ROOT = "/absolute/path/to/opencode-plugin"
+```
+
+### Gemini CLI
+
+Add to `~/.gemini/settings.json` under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "nifty": {
+      "command": "node",
+      "args": ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"],
+      "env": {
+        "NIFTY_WORKTREE": "/absolute/path/to/your/project",
+        "NIFTY_MCP_ROOT": "/absolute/path/to/opencode-plugin"
+      }
+    }
+  }
+}
+```
+
+### Kimi Code CLI / Codex and others
+
+Any client that supports MCP stdio servers uses the same config shape. Point `command` at `node` and `args` at the server file. Always include `NIFTY_MCP_ROOT` so the self-update tool works.
 
 Reference specification:
 
 ```text
-copilot/FULL_SPEC.md
+mcp/FULL_SPEC.md
+```
+
+### MCP server environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NIFTY_MCP_ROOT` | — | Absolute path to this repo. Required for `nifty_update_plugin` to update the MCP server binary. Set automatically by all install scripts. |
+| `NIFTY_MCP_DEBUG` | unset | Set to any value to emit JSON-structured debug logs on stderr (safe for MCP clients that read stdout only). |
+| `NIFTY_MCP_PLUGIN_CACHE_TTL_MS` | `300000` | How often the plugin and policy are refreshed from disk (milliseconds). Decrease for faster policy iteration; increase for performance. |
+| `NIFTY_MCP_ACTIVE_TASK_ID` | unset | Optional hard override for the task card watched at MCP startup. |
+| `NIFTY_MCP_ACTIVE_TASK_STATE_PATH` | `~/.local/state/nifty/mcp-active-task.json` | Durable active-task store keyed by MCP session and worktree, used so reloads resume the same task card. |
+| `NIFTY_MCP_PROGRESS_POLL_ENABLED` | `true` | Enables autonomous MCP-side git polling after a task id is observed, so Copilot/Codex/Cursor/Windsurf sessions can update task cards even though host edit/test tools are invisible to MCP. |
+| `NIFTY_MCP_PROGRESS_POLL_INTERVAL_MS` | `5000` | Poll interval for worktree change detection. |
+| `NIFTY_MCP_PROGRESS_IDLE_TTL_MS` | `1800000` | Stops the observer after this many milliseconds without Nifty tool activity for the task. |
+| `NIFTY_MCP_PROGRESS_TEST_COMMAND` | unset | Optional verification command to run after changed-worktree batches; successful runs are posted as autonomous progress comments. |
+| `NIFTY_MCP_PROGRESS_TEST_TIMEOUT_MS` | `300000` | Timeout for the optional verification command. |
+
+The MCP observer is fully autonomous once a task id is known from a `nifty_*` call such as `nifty_get_task_full_context`, `nifty_update_task`, or `nifty_create_comment`. It persists that active task per MCP session and worktree, resumes it on MCP server restart, snapshots the git worktree, dedupes repeated signatures, and posts a McBotFace task comment for each new meaningful dirty-worktree batch. It also detects a push when the local branch goes from ahead-of-upstream to no longer ahead. If another task card is opened in the same session/worktree, that newer card becomes active and the previous observer is stopped.
+
+### RAG webhook server (keep index fresh)
+
+The RAG index is kept current by a lightweight webhook server. Start it alongside your development session:
+
+```bash
+npm run rag:webhook
+```
+
+Point your Nifty workspace webhook at `http://<your-host>:7779/webhook`. The server re-indexes on `task.updated` and `comment.created` events (debounced 30 s) and runs a full nightly sync.
+
+Pre-populate the index:
+
+```bash
+npm run rag:index:policy   # indexes policy docs and ADRs
+npm run rag:index:tasks    # indexes Nifty task history
 ```
 
 ## Configure Credentials
@@ -147,7 +290,7 @@ opencode
 
 ## Automatic Lifecycle Policy (Hard Gate)
 
-The plugin now enforces an automatic lifecycle policy for task work in both OpenCode and GitHub Copilot MCP flows.
+The plugin now enforces an automatic lifecycle policy for task work in OpenCode plugin mode and across any MCP-connected AI coding client.
 
 Default behavior:
 
@@ -160,7 +303,7 @@ Default behavior:
 Automatic full-context behavior:
 
 1. For task/project-targeted tools, the plugin auto-hydrates full context into agent metadata (task details, comments, subtasks, statuses, milestones, and project summaries).
-2. Context hydration works in both OpenCode and GitHub Copilot MCP server flows.
+2. Context hydration works in OpenCode plugin mode and any MCP client.
 3. Context hydration is best-effort and non-blocking, while delivery gates remain hard-fail.
 
 Delivery gate requirements for Dev Review:
@@ -404,7 +547,7 @@ For deep task/project understanding by coding agents, use:
 - `run nifty_archive_task with task_id <id>`
 - `run nifty_link_tasks with task_id <id> and task_ids ["<other-id>"]`
 
-Automated comments created by workflow tools are prefixed with `🤖`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
+Automated comments created by workflow tools are prefixed with `🤖 McBotFace`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
 
 If `NIFTY_DEFAULT_WORKFLOW` is not set, provide `workflow_alias` explicitly.
 

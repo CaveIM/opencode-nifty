@@ -1,7 +1,7 @@
 # RAG Architecture Specification — Nifty AI Agent Context System
 
-> Status: **Designed, not yet implemented.** This document specifies Phase 3 of the agent context system.  
-> Phases 1–2 are complete: direct-API precision hydration (Phase 1) and central policy-as-code deterministic gates (Phase 2).
+> Status: **Implemented.** Phase 3 is fully operational.  
+> Phases 1–3 are all complete: direct-API precision hydration (Phase 1), central policy-as-code deterministic gates (Phase 2), and LanceDB-backed RAG context injection (Phase 3).
 
 ---
 
@@ -45,27 +45,27 @@ RAG (Retrieval-Augmented Generation) over the Nifty corpus fills these gaps whil
 
 ## Corpus Sources
 
-### Source A — Nifty Historical Data
+### Implemented Source A — Nifty Task And Comment Corpus
 
 | Dataset | Content | Indexing |
 |---------|---------|----------|
-| Task history | Names, descriptions, comments, status transitions | Per-task chunking |
-| Milestone notes | Title + description | One chunk per milestone |
-| Doc pages | Full Nifty docs (markdown) | Sliding window 512 tokens, 128 overlap |
-| Workflow decisions | Status audit trail + comments tagged as decisions | Decision extraction pass |
+| Task cards | Names, descriptions, project IDs, timestamps | Per-task word chunking |
+| Task comments | Comment text/body, task ID, project ID, timestamps | One chunk per comment, capped to 2,000 chars |
 
-**Freshness**: Re-index on Nifty webhook `task.updated`, `comment.created`, and `doc.updated`. Full re-sync nightly.
+The bulk indexer fetches tasks with `include_subtasks: "true"`, then indexes the returned task records and comments. Direct task-card context remains the source of truth for current subtasks; the historical RAG corpus currently stores task/subtask records as task chunks rather than a separate `subtask` document type.
 
-### Source B — Policy Corpus
+**Freshness**: Run `npm run rag:index:tasks` for a bulk sync. The optional `npm run rag:webhook` server accepts task/comment update events, debounces them, and re-runs the task indexer for the affected project when possible. It can also schedule a nightly full task re-index.
+
+### Implemented Source B — Policy Corpus
 
 | Dataset | Content |
 |---------|---------|
 | `policy/nifty-ai-policy.json` | Machine-readable rules with reasons |
 | `policy/nifty-ai-policy.schema.json` | Schema definitions |
 | `README.md` (policy section) | Human-readable policy overview |
-| ADR documents (future) | Architecture Decision Records |
+| ADR documents | Architecture Decision Records, when present |
 
-**Freshness**: Re-index on every commit that modifies `policy/` or `docs/adr/`.
+Run `npm run rag:index:policy` to populate the `nifty-policy` LanceDB table from local policy files, ADR/decision markdown, and the README. Policy freshness is commit-driven/manual today; the webhook server currently refreshes the task/comment corpus, not the policy corpus.
 
 ---
 
@@ -73,21 +73,18 @@ RAG (Retrieval-Augmented Generation) over the Nifty corpus fills these gaps whil
 
 ```
 nifty-rag/
-  indexes/
-    nifty-tasks/         ← Nifty task + comment corpus
-    nifty-policy/        ← Policy documents corpus
-  scripts/
-    index-nifty-tasks.mjs        ← Bulk indexer using Nifty API pagination
-    index-policy-docs.mjs        ← Policy + ADR document indexer
-    incremental-update.mjs       ← Webhook-driven incremental update
-  config/
-    chunking.json                ← Chunk sizes, overlap, metadata fields
-    embedding-model.json         ← Model selection and config
+  nifty-tasks/           ← Nifty task + comment table created by scripts/index-nifty-tasks.mjs
+  nifty-policy/          ← Policy/ADR/README table created by scripts/index-policy-docs.mjs
+
+scripts/
+  index-nifty-tasks.mjs  ← Bulk task/comment indexer
+  index-policy-docs.mjs  ← Policy JSON + markdown indexer
+  rag-webhook.mjs        ← Optional debounced task/comment re-index server
 ```
 
-**Embedding model**: `text-embedding-3-small` (OpenAI) or `bge-small-en-v1.5` (local).  
+**Search mode**: LanceDB full-text search over the `text` column.  
 **Vector store**: `lancedb` (embedded, file-based, no external service required for local dev).  
-**Distance**: cosine similarity.
+**Optional dependency**: if `@lancedb/lancedb` is unavailable, RAG silently returns empty context.
 
 ---
 
@@ -96,9 +93,10 @@ nifty-rag/
 ```js
 async function ragContextForTool(toolName, args, policy, options = {}) {
   const query = buildRagQuery(toolName, args)
+  const indexPath = options.indexPath ?? resolveIndexPath()
   const [taskResults, policyResults] = await Promise.allSettled([
-    searchIndex("nifty-tasks", query, { limit: 5, timeout: 2000 }),
-    searchIndex("nifty-policy", query, { limit: 3, timeout: 2000 }),
+    withTimeout(openIndex(indexPath, "nifty-tasks").then((table) => searchIndex(table, query, { limit: 5 })), 2000),
+    withTimeout(openIndex(indexPath, "nifty-policy").then((table) => searchIndex(table, query, { limit: 3 })), 2000),
   ])
   return {
     historical_context: taskResults.status === "fulfilled" ? taskResults.value : [],
@@ -117,10 +115,10 @@ async function ragContextForTool(toolName, args, policy, options = {}) {
 
 ```json
 {
-  "source": "nifty-tasks" | "nifty-policy",
   "doc_id": "eves6NhQAe",
-  "doc_type": "task" | "comment" | "milestone" | "doc" | "policy_rule" | "adr",
+  "doc_type": "task" | "comment" | "policy_rule" | "adr",
   "project_id": "eIWcpeW8aBsdI2L",
+  "task_id": "eves6NhQAe",
   "chunk_index": 0,
   "chunk_total": 3,
   "created_at": "2026-06-01T00:00:00Z",
@@ -134,7 +132,7 @@ async function ragContextForTool(toolName, args, policy, options = {}) {
 ## Integration with Plugin
 
 ```js
-// nifty.js — Phase 3 integration (to be implemented)
+// nifty.js — Phase 3 integration
 async function maybeInjectRagContext(toolName, args, context, policyState) {
   if (!envBoolean("NIFTY_RAG_ENABLED", false, context)) return
   try {
@@ -161,23 +159,27 @@ Call site: after Phase 1 (context hydration), before tool execution.
 | `NIFTY_RAG_TASK_LIMIT` | `5` | Max task corpus results per query |
 | `NIFTY_RAG_POLICY_LIMIT` | `3` | Max policy corpus results per query |
 | `NIFTY_RAG_TIMEOUT_MS` | `2000` | Per-search timeout in milliseconds |
-| `NIFTY_RAG_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model identifier |
-| `NIFTY_RAG_REINDEX_WEBHOOK_SECRET` | *(none)* | HMAC secret for webhook-triggered re-index |
+| `NIFTY_RAG_WEBHOOK_PORT` | `7779` | HTTP port for the optional re-index webhook server |
+| `NIFTY_RAG_REINDEX_WEBHOOK_SECRET` | *(none)* | Optional HMAC secret for webhook signature validation |
+| `NIFTY_RAG_DEBOUNCE_MS` | `30000` | Debounce window for webhook-triggered task re-indexes |
+| `NIFTY_RAG_REINDEX_CRON` | `true` | Set to `false` to disable nightly task re-index scheduling |
 
 ---
 
 ## Implementation Checklist (Phase 3)
 
-- [ ] `scripts/index-nifty-tasks.mjs` — bulk indexer via `/api/v1.0/tasks` + `/api/v1.0/messages` pagination
-- [ ] `scripts/index-policy-docs.mjs` — policy JSON + markdown chunker
-- [ ] `scripts/incremental-update.mjs` — webhook receiver for `task.updated`, `comment.created`
-- [ ] `plugin/rag.mjs` — `searchIndex`, `ragContextForTool`, `buildRagQuery` (extracted module)
-- [ ] `maybeInjectRagContext` call in `withLifecyclePolicy` wrapper
-- [ ] Tests: RAG failure never blocks tool execution; results are injected into context metadata
-- [ ] `NIFTY_RAG_ENABLED` env var in `env/nifty.env.example`
+- [x] `scripts/index-nifty-tasks.mjs` — bulk task/comment indexer using Nifty API pagination
+- [x] `scripts/index-policy-docs.mjs` — policy JSON + markdown chunker
+- [x] `scripts/rag-webhook.mjs` — debounced webhook server for task/comment re-indexing
+- [x] `plugin/rag.mjs` — `searchIndex`, `ragContextForTool`, `buildRagQuery` module
+- [x] `maybeInjectRagContext` call in the lifecycle wrapper before tool execution
+- [x] Tests: RAG failure never blocks tool execution; results are injected into context metadata
+- [x] `NIFTY_RAG_ENABLED` feature flag
+- [ ] Dedicated first-class subtask chunks, if historical subtask recall must be independent from task chunks
+- [ ] Policy-corpus webhook refresh, if policy/ADR changes must update LanceDB automatically
 - [ ] README section: RAG context injection
 
-**Prerequisites**: Phase 2 deterministic gates fully stable (done). Nifty webhook endpoint reachable.
+**Prerequisites**: Phase 2 deterministic gates fully stable (done). Webhook reachability is required only when running the optional re-index webhook server.
 
 ---
 
@@ -190,4 +192,4 @@ RAG is probabilistic recall. A failed or empty RAG result does not indicate a po
 Task corpus and policy corpus have different freshness requirements, different chunk strategies, and different relevance ranking. Mixing them degrades recall for policy queries (short, precise) with task noise.
 
 **Why LanceDB?**  
-Zero external service dependency. Embedded, file-based, works in dev and CI without infrastructure. Upgrade path to managed vector store (Pinecone, Weaviate) is a one-line config change.
+Zero external service dependency. Embedded, file-based, works in dev and CI without infrastructure. The current implementation uses LanceDB full-text search; moving to a managed vector store would require a search adapter rather than only a config change.

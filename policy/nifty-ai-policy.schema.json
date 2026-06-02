@@ -58,6 +58,126 @@
           "description": "The standard template for AI-generated task comments. Sections: What was done, Completed, Evidence/Tests, How to verify, Visual proof."
         }
       }
+    },
+    "engineering_quality": {
+      "type": "object",
+      "description": "Strict delivery standards preventing hand-wavy fixes and requiring architecture-integrated, regression-tested, iterative TDD proof.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "require_architectural_integration": {
+          "type": "boolean",
+          "description": "Require delivery evidence explaining how the change integrates with existing architecture and avoids parallel throwaway paths."
+        },
+        "require_tdd_red_green": {
+          "type": "boolean",
+          "description": "Require RED and GREEN proof for behavioral source changes."
+        },
+        "require_regression_proof": {
+          "type": "boolean",
+          "description": "Require regression coverage evidence that locks the fixed behavior."
+        },
+        "require_iterative_validation": {
+          "type": "boolean",
+          "description": "Require evidence of an iterative reproduce/fail, implement, retest loop."
+        },
+        "forbid_placeholder_delivery": {
+          "type": "boolean",
+          "description": "Reject vague delivery claims such as 'fixed it' or 'works now'."
+        },
+        "minimum_evidence_chars": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum length for substantive architecture, regression, and iterative proof fields."
+        },
+        "forbidden_claim_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Exact normalized claim strings rejected as hand-wavy placeholder evidence."
+        }
+      }
+    },
+    "automation": {
+      "type": "object",
+      "description": "Global automation policy for parent tasks, subtasks, docs, completion state, milestone comments, and Playwright proof capture.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "active_task_id": { "type": ["string", "null"] },
+        "parent_tasks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "auto_complete_when_subtasks_complete": { "type": "boolean" },
+            "comment_on_auto_complete": { "type": "boolean" }
+          }
+        },
+        "subtasks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "auto_create_from_checklist": { "type": "boolean" }
+          }
+        },
+        "completion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sync_done_status_with_complete": { "type": "boolean" },
+            "require_explicit_close_trigger": { "type": "boolean" },
+            "close_confirmation_template": { "type": "string" }
+          }
+        },
+        "progress_comments": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "milestones": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["first_edit", "first_green_test", "push", "done"] }
+            },
+            "edit_tools": { "type": "array", "items": { "type": "string" } },
+            "test_command_patterns": { "type": "array", "items": { "type": "string" } },
+            "push_command_patterns": { "type": "array", "items": { "type": "string" } },
+            "max_output_chars": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "task_context_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Hard mechanical gate for autonomous progress updates when active task context is missing.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable task-context gate enforcement before autonomous progress comments are emitted."
+            },
+            "prompt_on_context_loss": {
+              "type": "boolean",
+              "description": "Attempt to prompt the user for the active task card ID when context is missing."
+            },
+            "hard_fail_if_unresolved": {
+              "type": "boolean",
+              "description": "When true, fail the automation path if no task ID is recovered after prompting."
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Prompt text shown to the user when task context is lost."
+            }
+          }
+        },
+        "playwright": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "auto_capture_visual_proof": { "type": "boolean" },
+            "command": { "type": "string" },
+            "publish_command": { "type": "string" },
+            "output_dir": { "type": "string" },
+            "timeout_ms": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
     }
   },
   "definitions": {

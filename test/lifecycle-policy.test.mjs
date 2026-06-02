@@ -19,6 +19,9 @@ test("delivery evidence requires tdd and sad path proofs", () => {
     () => __test.validateDeliveryEvidence({
       red_proof: "npm test -- test/path",
       green_proof: "npm test",
+      architecture_proof: "Integrated through the existing lifecycle gate boundary; no parallel path added.",
+      regression_proof: "Added regression test covering invalid payload and happy path.",
+      iterative_proof: "RED failed first, GREEN passed after implementation, then full regression reran.",
       visual_proof: ["https://example.com/screenshot.png"],
     }, { visualRequired: true }),
     /sad_path_proof/i,
@@ -28,8 +31,34 @@ test("delivery evidence requires tdd and sad path proofs", () => {
     red_proof: "npm test -- test/path",
     green_proof: "npm test",
     sad_path_proof: "verified invalid payload returns 422",
+    architecture_proof: "Integrated through the existing lifecycle gate boundary; no parallel path added.",
+    regression_proof: "Added regression test covering invalid payload and happy path.",
+    iterative_proof: "RED failed first, GREEN passed after implementation, then full regression reran.",
     visual_proof: ["https://example.com/screenshot.png"],
   }, { visualRequired: true }))
+})
+
+test("delivery evidence rejects hand-wavy fixes without architectural integration and regression proof", () => {
+  assert.throws(
+    () => __test.validateDeliveryEvidence({
+      red_proof: "npm test -- test/path",
+      green_proof: "npm test",
+      sad_path_proof: "checked failure mode",
+    }, { visualRequired: false }),
+    /architecture_proof/i,
+  )
+
+  assert.throws(
+    () => __test.validateDeliveryEvidence({
+      red_proof: "npm test -- test/path",
+      green_proof: "npm test",
+      sad_path_proof: "checked failure mode",
+      architecture_proof: "fixed it",
+      regression_proof: "tests pass",
+      iterative_proof: "works now",
+    }, { visualRequired: false }),
+    /hand-wavy|placeholder|not enough evidence/i,
+  )
 })
 
 test("delivery evidence enforces visual artifacts only when visual changes are present", () => {
@@ -38,6 +67,9 @@ test("delivery evidence enforces visual artifacts only when visual changes are p
       red_proof: "npm test -- test/path",
       green_proof: "npm test",
       sad_path_proof: "checked failure mode",
+      architecture_proof: "Integrated through the existing lifecycle gate boundary; no parallel path added.",
+      regression_proof: "Added regression test covering invalid payload and happy path.",
+      iterative_proof: "RED failed first, GREEN passed after implementation, then full regression reran.",
     }, { visualRequired: true }),
     /visual_proof/i,
   )
@@ -46,6 +78,9 @@ test("delivery evidence enforces visual artifacts only when visual changes are p
     red_proof: "npm test -- test/path",
     green_proof: "npm test",
     sad_path_proof: "checked failure mode",
+    architecture_proof: "Integrated through the existing lifecycle gate boundary; no parallel path added.",
+    regression_proof: "Added regression test covering invalid payload and happy path.",
+    iterative_proof: "RED failed first, GREEN passed after implementation, then full regression reran.",
   }, { visualRequired: false }))
 })
 
@@ -106,6 +141,16 @@ test("structuredReport — omits blank sections", () => {
   assert.ok(!report.includes("## Evidence"))
   assert.ok(!report.includes("## How to verify"))
   assert.ok(!report.includes("## Visual proof"))
+})
+
+test("structuredReport — keeps provided visual proof links even when not required", () => {
+  const report = __test.structuredReport({
+    summary: "Attached proof",
+    visual_required: false,
+    visual_proof: ["https://cdn.example.com/proof.png"],
+  })
+  assert.ok(report.includes("## Visual proof"))
+  assert.ok(report.includes("https://cdn.example.com/proof.png"))
 })
 
 test("structuredReport — visual_required=true with no proof shows mandatory warning", () => {

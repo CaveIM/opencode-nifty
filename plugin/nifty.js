@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs"
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawn, spawnSync } from "node:child_process"
 import { createServer } from "node:http"
@@ -12,9 +12,11 @@ const API_BASE_URL = "https://openapi.niftypm.com"
 const NIFTY_REPO_RAW_BASE = "https://raw.githubusercontent.com/CaveIM/opencode-nifty"
 const TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join(homedir(), ".config", "opencode", "nifty-auth.json")
 const AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join(homedir(), ".config", "opencode", "nifty-auth-server.log")
-const AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node"
+const DEFAULT_AUTH_NODE_BINARY = process.execPath
 const TOKEN_SKEW_MS = 60 * 1000
-const BOT_COMMENT_PREFIX = "🤖"
+const LEGACY_BOT_COMMENT_PREFIX = "🤖"
+const LEGACY_MCP_COMMENT_PREFIX = "[MCP Automation]"
+const BOT_COMMENT_PREFIX = "🤖 McBotFace"
 const NIFTY_SHELL_COMMAND_HINT = [
   "Nifty is installed as OpenCode plugin tools, not as a shell command.",
   "Use the OpenCode tool `nifty_health_check` for health checks.",
@@ -24,6 +26,18 @@ const LIFECYCLE_DEFAULT_IN_PROGRESS_KEY = "in_progress"
 const LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review"
 const AUTOCONTEXT_DEFAULT_COMMENT_LIMIT = 200
 const AUTOCONTEXT_DEFAULT_TASK_LIMIT = 200
+const AUTOMATION_DEFAULT_EDIT_TOOLS = ["apply_patch", "write", "edit", "patch"]
+const AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS = [
+  "npm test",
+  "pnpm test",
+  "yarn test",
+  "node --test",
+  "vitest",
+  "jest",
+  "playwright test",
+]
+const AUTOMATION_DEFAULT_PUSH_COMMAND_PATTERNS = ["git push"]
+const AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT = "I lost context of the active task card for autonomous updates. Enter the task card ID you are working on (for example: MBC-462 or an internal task id)."
 const LIFECYCLE_AUTO_START_TOOLS = new Set([
   "nifty_get_task",
   "nifty_update_task",
@@ -391,6 +405,15 @@ function env(name, context = {}) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
+function envList(name, fallback = [], context = {}) {
+  const value = env(name, context)
+  if (!value) return fallback
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 function getClientConfig(context = {}) {
   return {
     clientID: env("NIFTY_CLIENT_ID", context),
@@ -416,12 +439,25 @@ async function readTokenCache() {
 }
 
 async function writeTokenCache(token) {
-  await mkdir(dirname(TOKEN_PATH), { recursive: true })
+  const tokenDir = dirname(TOKEN_PATH)
+  await mkdir(tokenDir, { recursive: true, mode: 0o700 })
+  await chmod(tokenDir, 0o700).catch(() => {})
   await writeFile(TOKEN_PATH, `${JSON.stringify(token, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   })
   await chmod(TOKEN_PATH, 0o600).catch(() => {})
+}
+
+function resolveAuthNodeBinary(context = {}) {
+  const override = env("NIFTY_NODE_BINARY", context)
+  if (!override) return DEFAULT_AUTH_NODE_BINARY
+  if (override === DEFAULT_AUTH_NODE_BINARY || override === process.execPath) return override
+  if (envBoolean("NIFTY_ALLOW_UNSAFE_NODE_BINARY_OVERRIDE", false, context)) return override
+
+  throw new Error(
+    "NIFTY_NODE_BINARY override is disabled by default because the auth subprocess handles credentials. Use the current Node executable or set NIFTY_ALLOW_UNSAFE_NODE_BINARY_OVERRIDE=true only in trusted local test environments.",
+  )
 }
 
 function isTokenUsable(token) {
@@ -702,7 +738,8 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
 
     async function log(message) {
       try {
-        await mkdir(dirname(logPath), { recursive: true });
+        await mkdir(dirname(logPath), { recursive: true, mode: 0o700 });
+        await chmod(dirname(logPath), 0o700).catch(() => {});
         await appendFile(logPath, \`[\${new Date().toISOString()}] \${message}\\n\`, "utf8");
       } catch {}
     }
@@ -777,7 +814,8 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
 
         const token = JSON.parse(text);
         token.expires_at = Date.now() + Number(token.expires_in || 0) * 1000;
-        await mkdir(dirname(tokenPath), { recursive: true });
+        await mkdir(dirname(tokenPath), { recursive: true, mode: 0o700 });
+        await chmod(dirname(tokenPath), 0o700).catch(() => {});
         await writeFile(tokenPath, JSON.stringify(token, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
         await chmod(tokenPath, 0o600).catch(() => {});
 
@@ -786,7 +824,7 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
         await log("token exchange completed successfully");
         server.close(() => process.exit(0));
       } catch (error) {
-        await log(\`request handling failed: \${error?.stack || error}\`);
+        await log(\`request handling failed: \${error?.message || "unexpected error"}\`);
         response.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
         response.end(html("Nifty auth server failed", "Return to OpenCode and retry."));
         server.close(() => process.exit(1));
@@ -806,14 +844,15 @@ async function startBackgroundAuthorizationServer(host, port, state, context = {
     }, 10 * 60 * 1000);
   `
 
-  mkdirSync(dirname(AUTH_LOG_PATH), { recursive: true })
+  const authNodeBinary = resolveAuthNodeBinary(context)
+  mkdirSync(dirname(AUTH_LOG_PATH), { recursive: true, mode: 0o700 })
   appendFileSync(
     AUTH_LOG_PATH,
-    `[${new Date().toISOString()}] starting auth server with ${AUTH_NODE_BINARY} on ${host}:${port}; redirect_uri=${redirectURI}\n`,
+    `[${new Date().toISOString()}] starting auth server with ${authNodeBinary} on ${host}:${port}; redirect_uri=${redirectURI}\n`,
     "utf8",
   )
   const logFd = openSync(AUTH_LOG_PATH, "a")
-  const child = spawn(AUTH_NODE_BINARY, ["--input-type=module", "-e", script], {
+  const child = spawn(authNodeBinary, ["--input-type=module", "-e", script], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
     env: {
@@ -914,6 +953,23 @@ function cleanWriteObject(input) {
       return true
     }),
   )
+}
+
+function documentContentFromText(text) {
+  const value = String(text ?? "").trimEnd()
+  if (!value.trim()) return undefined
+
+  const paragraphs = value.split(/\n{2,}/).map((block) => {
+    const content = []
+    const lines = block.split(/\n/)
+    for (const [index, line] of lines.entries()) {
+      if (line) content.push({ type: "text", text: line })
+      if (index < lines.length - 1) content.push({ type: "hardBreak" })
+    }
+    return content.length ? { type: "paragraph", content } : { type: "paragraph" }
+  })
+
+  return { type: "doc", content: paragraphs }
 }
 
 function requireBulkTaskConfirmation(action, taskIDs, confirmation) {
@@ -1603,7 +1659,13 @@ function parseJSONArg(value, label) {
 function botCommentText(text, enabled = true) {
   const trimmed = String(text || "").trimStart()
   if (!enabled) return trimmed
-  return trimmed.startsWith(BOT_COMMENT_PREFIX) ? trimmed : `${BOT_COMMENT_PREFIX} ${trimmed}`
+  if (trimmed.startsWith(BOT_COMMENT_PREFIX)) return trimmed
+  const withoutLegacyPrefix = trimmed.startsWith(LEGACY_MCP_COMMENT_PREFIX)
+    ? trimmed.slice(LEGACY_MCP_COMMENT_PREFIX.length).trimStart()
+    : trimmed.startsWith(LEGACY_BOT_COMMENT_PREFIX)
+    ? trimmed.slice(LEGACY_BOT_COMMENT_PREFIX.length).trimStart()
+    : trimmed
+  return `${BOT_COMMENT_PREFIX} ${withoutLegacyPrefix}`
 }
 
 function niftyShellCommandHint(command) {
@@ -1727,18 +1789,77 @@ function requiresVisualProof(changedFiles = []) {
   return (changedFiles || []).some((filePath) => isVisualFile(filePath))
 }
 
+function engineeringQualityConfig(policy) {
+  const defaults = {
+    enabled: true,
+    require_architectural_integration: true,
+    require_tdd_red_green: true,
+    require_regression_proof: true,
+    require_iterative_validation: true,
+    forbid_placeholder_delivery: true,
+    minimum_evidence_chars: 40,
+    forbidden_claim_patterns: [
+      "fixed it",
+      "works now",
+      "tests pass",
+      "handled",
+      "done",
+      "should work",
+      "looks good",
+      "minor fix",
+    ],
+  }
+  if (!policy || typeof policy !== "object") return defaults
+  return { ...defaults, ...(policy.engineering_quality ?? {}) }
+}
+
+function assertSubstantiveEvidence(label, value, quality = engineeringQualityConfig(null)) {
+  const text = String(value || "").trim()
+  if (!text) throw new Error(`delivery_evidence.${label} is required before moving to Dev Review.`)
+  if (!quality.forbid_placeholder_delivery) return text
+
+  const normalizedText = normalize(text)
+  const forbidden = quality.forbidden_claim_patterns || []
+  const matchesForbidden = forbidden.some((pattern) => normalizedText === normalize(pattern))
+  const minimumChars = Number.isFinite(quality.minimum_evidence_chars) ? quality.minimum_evidence_chars : 40
+  if (matchesForbidden || text.length < minimumChars) {
+    throw new Error(
+      `delivery_evidence.${label} is hand-wavy placeholder evidence and not enough evidence for delivery. `
+      + "Provide concrete architectural integration, regression/TDD proof, and iterative validation details.",
+    )
+  }
+  return text
+}
+
 function validateDeliveryEvidence(evidence = {}, options = {}) {
+  const quality = options.engineeringQuality || engineeringQualityConfig(options.policy)
   const visualRequired = options.visualRequired === true
   const redProof = String(evidence.red_proof || "").trim()
   const greenProof = String(evidence.green_proof || "").trim()
   const sadPathProof = String(evidence.sad_path_proof || "").trim()
+  const architectureProof = String(evidence.architecture_proof || "").trim()
+  const regressionProof = String(evidence.regression_proof || "").trim()
+  const iterativeProof = String(evidence.iterative_proof || "").trim()
   const visualProof = Array.isArray(evidence.visual_proof)
     ? evidence.visual_proof.map((item) => String(item || "").trim()).filter(Boolean)
     : []
 
-  if (!redProof) throw new Error("delivery_evidence.red_proof is required before moving to Dev Review.")
-  if (!greenProof) throw new Error("delivery_evidence.green_proof is required before moving to Dev Review.")
+  if (quality.require_tdd_red_green !== false && !redProof) {
+    throw new Error("delivery_evidence.red_proof is required before moving to Dev Review.")
+  }
+  if (quality.require_tdd_red_green !== false && !greenProof) {
+    throw new Error("delivery_evidence.green_proof is required before moving to Dev Review.")
+  }
   if (!sadPathProof) throw new Error("delivery_evidence.sad_path_proof is required before moving to Dev Review.")
+  const validatedArchitectureProof = quality.enabled !== false && quality.require_architectural_integration !== false
+    ? assertSubstantiveEvidence("architecture_proof", architectureProof, quality)
+    : architectureProof
+  const validatedRegressionProof = quality.enabled !== false && quality.require_regression_proof !== false
+    ? assertSubstantiveEvidence("regression_proof", regressionProof, quality)
+    : regressionProof
+  const validatedIterativeProof = quality.enabled !== false && quality.require_iterative_validation !== false
+    ? assertSubstantiveEvidence("iterative_proof", iterativeProof, quality)
+    : iterativeProof
   if (visualRequired && visualProof.length === 0) {
     throw new Error("delivery_evidence.visual_proof is required when visual-impacting files changed.")
   }
@@ -1748,6 +1869,9 @@ function validateDeliveryEvidence(evidence = {}, options = {}) {
     red_proof: redProof,
     green_proof: greenProof,
     sad_path_proof: sadPathProof,
+    architecture_proof: validatedArchitectureProof,
+    regression_proof: validatedRegressionProof,
+    iterative_proof: validatedIterativeProof,
     visual_proof: visualProof,
   }
 }
@@ -1851,7 +1975,7 @@ function structuredReport({
     sections.push(`## How to verify\n${verification}`)
   }
 
-  if (visual_required) {
+  if (visual_required || visual_proof.length) {
     const proofText = visual_proof.length
       ? visual_proof.join("\n")
       : "⚠️ MANDATORY: Playwright screenshot proof required for this visual change — attach before marking Done."
@@ -1859,6 +1983,574 @@ function structuredReport({
   }
 
   return sections.join("\n\n")
+}
+
+function automationConfig(policy, context = {}) {
+  const defaults = {
+    enabled: false,
+    active_task_id: env("NIFTY_AUTOMATION_ACTIVE_TASK_ID", context) || null,
+    parent_tasks: {
+      auto_complete_when_subtasks_complete: false,
+      comment_on_auto_complete: true,
+    },
+    subtasks: {
+      auto_create_from_checklist: true,
+    },
+    completion: {
+      sync_done_status_with_complete: true,
+      require_explicit_close_trigger: true,
+      close_confirmation_template: "close {task_id}",
+    },
+    progress_comments: {
+      enabled: true,
+      milestones: ["first_edit", "first_green_test", "push", "done"],
+      edit_tools: AUTOMATION_DEFAULT_EDIT_TOOLS,
+      test_command_patterns: AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS,
+      push_command_patterns: AUTOMATION_DEFAULT_PUSH_COMMAND_PATTERNS,
+      max_output_chars: 1000,
+    },
+    task_context_gate: {
+      enabled: true,
+      prompt_on_context_loss: true,
+      hard_fail_if_unresolved: true,
+      prompt: AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT,
+    },
+    playwright: {
+      auto_capture_visual_proof: true,
+      command: env("NIFTY_AUTOMATION_PLAYWRIGHT_COMMAND", context) || "",
+      publish_command: env("NIFTY_AUTOMATION_PLAYWRIGHT_PUBLISH_COMMAND", context) || "",
+      output_dir: env("NIFTY_AUTOMATION_PLAYWRIGHT_OUTPUT_DIR", context) || "test-results",
+      timeout_ms: envInteger("NIFTY_AUTOMATION_PLAYWRIGHT_TIMEOUT_MS", 300000, context),
+    },
+  }
+  const configured = policy?.automation && typeof policy.automation === "object"
+    ? policy.automation
+    : {}
+  const configuredProgress = configured.progress_comments || {}
+  const configuredTaskContextGate = configured.task_context_gate || {}
+  const configuredPlaywright = configured.playwright || {}
+
+  return {
+    ...defaults,
+    ...configured,
+    active_task_id: env("NIFTY_AUTOMATION_ACTIVE_TASK_ID", context) || configured.active_task_id || defaults.active_task_id,
+    parent_tasks: { ...defaults.parent_tasks, ...(configured.parent_tasks || {}) },
+    subtasks: { ...defaults.subtasks, ...(configured.subtasks || {}) },
+    completion: { ...defaults.completion, ...(configured.completion || {}) },
+    progress_comments: {
+      ...defaults.progress_comments,
+      ...configuredProgress,
+      milestones: Array.isArray(configuredProgress.milestones)
+        ? configuredProgress.milestones
+        : defaults.progress_comments.milestones,
+      edit_tools: envList(
+        "NIFTY_AUTOMATION_EDIT_TOOLS",
+        Array.isArray(configuredProgress.edit_tools) ? configuredProgress.edit_tools : defaults.progress_comments.edit_tools,
+        context,
+      ),
+      test_command_patterns: envList(
+        "NIFTY_AUTOMATION_TEST_COMMAND_PATTERNS",
+        Array.isArray(configuredProgress.test_command_patterns)
+          ? configuredProgress.test_command_patterns
+          : defaults.progress_comments.test_command_patterns,
+        context,
+      ),
+      push_command_patterns: envList(
+        "NIFTY_AUTOMATION_PUSH_COMMAND_PATTERNS",
+        Array.isArray(configuredProgress.push_command_patterns)
+          ? configuredProgress.push_command_patterns
+          : defaults.progress_comments.push_command_patterns,
+        context,
+      ),
+      max_output_chars: envInteger(
+        "NIFTY_AUTOMATION_PROGRESS_MAX_OUTPUT_CHARS",
+        configuredProgress.max_output_chars ?? defaults.progress_comments.max_output_chars,
+        context,
+      ),
+    },
+    task_context_gate: {
+      ...defaults.task_context_gate,
+      ...configuredTaskContextGate,
+    },
+    playwright: {
+      ...defaults.playwright,
+      ...configuredPlaywright,
+      command: env("NIFTY_AUTOMATION_PLAYWRIGHT_COMMAND", context) || configuredPlaywright.command || defaults.playwright.command,
+      publish_command: env("NIFTY_AUTOMATION_PLAYWRIGHT_PUBLISH_COMMAND", context)
+        || configuredPlaywright.publish_command
+        || defaults.playwright.publish_command,
+      output_dir: env("NIFTY_AUTOMATION_PLAYWRIGHT_OUTPUT_DIR", context)
+        || configuredPlaywright.output_dir
+        || defaults.playwright.output_dir,
+      timeout_ms: envInteger(
+        "NIFTY_AUTOMATION_PLAYWRIGHT_TIMEOUT_MS",
+        configuredPlaywright.timeout_ms ?? defaults.playwright.timeout_ms,
+        context,
+      ),
+    },
+  }
+}
+
+function automationProgressTrigger(toolName, args = {}, automation = {}) {
+  if (!automation.enabled || !automation.progress_comments?.enabled) return false
+  const milestones = new Set(automation.progress_comments.milestones || [])
+
+  if (
+    milestones.has("first_edit")
+    && (automation.progress_comments.edit_tools || []).some((pattern) => matchesActionPattern(pattern, toolName))
+  ) {
+    return true
+  }
+
+  if (
+    milestones.has("first_green_test")
+    && toolName === "bash"
+    && commandMatchesAutomationPattern(args.command, automation.progress_comments.test_command_patterns)
+  ) {
+    return true
+  }
+
+  if (
+    milestones.has("push")
+    && toolName === "bash"
+    && commandMatchesAutomationPattern(args.command, automation.progress_comments.push_command_patterns)
+  ) {
+    return true
+  }
+
+  if (
+    milestones.has("done")
+    && ((toolName === "nifty_complete_task" && args.completed !== false)
+      || (toolName === "nifty_update_task" && args.completed === true))
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function extractAutomationTaskIDAnswer(answer) {
+  if (typeof answer === "string") return answer.trim() || null
+  if (!answer || typeof answer !== "object") return null
+
+  const direct = answer.task_id || answer.taskID || answer.value || answer.text || answer.answer || null
+  if (typeof direct === "string" && direct.trim()) return direct.trim()
+
+  if (typeof answer.input === "string" && answer.input.trim()) return answer.input.trim()
+  if (Array.isArray(answer.answers)) {
+    const firstString = answer.answers.find((item) => typeof item === "string" && item.trim())
+    if (firstString) return firstString.trim()
+  }
+
+  return null
+}
+
+async function promptForAutomationTaskID(context = {}, automation = {}) {
+  const ask = context?.ask
+  if (typeof ask !== "function") return null
+
+  const prompt = automation.task_context_gate?.prompt || AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT
+  const promptAttempts = [
+    () => ask({
+      question: prompt,
+      label: "Active Task Card",
+      placeholder: "MBC-462",
+      required: true,
+    }),
+    () => ask(prompt),
+  ]
+
+  for (const invokeAsk of promptAttempts) {
+    try {
+      const answer = await invokeAsk()
+      const taskID = extractAutomationTaskIDAnswer(answer)
+      if (taskID) return taskID
+    } catch {
+      // Try the fallback ask signature; hard-fail decision is handled by caller.
+    }
+  }
+
+  return null
+}
+
+async function enforceAutomationTaskContextGate({ toolName, args = {}, sessionState = {}, automation = {}, context = {} }) {
+  const gate = automation.task_context_gate || {}
+  if (gate.enabled === false) return null
+  if (!automationProgressTrigger(toolName, args, automation)) return null
+
+  const existingTaskID = sessionState.activeTaskID || automation.active_task_id || null
+  if (existingTaskID) return existingTaskID
+
+  let promptedTaskID = null
+  if (gate.prompt_on_context_loss !== false) {
+    promptedTaskID = await promptForAutomationTaskID(context, automation)
+    if (promptedTaskID) {
+      sessionState.activeTaskID = promptedTaskID
+      return promptedTaskID
+    }
+  }
+
+  if (gate.hard_fail_if_unresolved === false) return null
+
+  throw Object.assign(
+    new Error(
+      [
+        "[AutomationGate] Lost task-card context for autonomous progress update.",
+        "Enter the active task card ID and retry.",
+        "You can provide it by running nifty_get_task_full_context with the target task_id.",
+      ].join(" "),
+    ),
+    { code: "NIFTY_AUTOMATION_TASK_CONTEXT_REQUIRED", toolName },
+  )
+}
+
+function closeConfirmationForTask(taskID, automation = {}) {
+  const template = automation.completion?.close_confirmation_template || "close {task_id}"
+  return template.replaceAll("{task_id}", String(taskID || "").trim())
+}
+
+function assertExplicitCloseConfirmation(taskID, args = {}, context = {}) {
+  const automation = automationConfig(loadPolicy(context), context)
+  if (automation.completion?.require_explicit_close_trigger === false) return
+  const expected = closeConfirmationForTask(taskID, automation)
+  const actual = String(args.close_confirmation || "").trim()
+  if (actual === expected) return
+
+  throw new Error(
+    [
+      "Task completion is blocked while the task chat may still be active.",
+      "Ask the user whether the task should be closed or moved to a review/staging lane.",
+      `To close this task, retry with close_confirmation: "${expected}".`,
+    ].join(" "),
+  )
+}
+
+function checklistSubtasks(checklist = [], existingSubtasks = []) {
+  const existing = new Set(
+    (existingSubtasks || [])
+      .map((item) => normalize(typeof item === "string" ? item : item?.name))
+      .filter(Boolean),
+  )
+  const seen = new Set()
+  return (checklist || [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = normalize(item)
+      if (!key || existing.has(key) || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .map((name) => ({ name }))
+}
+
+function commandMatchesAutomationPattern(command, patterns = []) {
+  const normalizedCommand = normalize(command)
+  return (patterns || []).some((pattern) => normalizedCommand.includes(normalize(pattern)))
+}
+
+function extractTaskIDFromToolOutput(outputText) {
+  try {
+    const parsed = JSON.parse(outputText)
+    if (!parsed || typeof parsed !== "object") return null
+    return parsed.task_id || parsed.id || parsed.task?.id || parsed.response?.id || parsed.document?.task_id || null
+  } catch {
+    return null
+  }
+}
+
+function automationSessionState(store, sessionID = "default") {
+  const key = sessionID || "default"
+  if (!store.has(key)) {
+    store.set(key, {
+      activeTaskID: null,
+      postedMilestones: new Set(),
+    })
+  }
+  return store.get(key)
+}
+
+function rememberAutomationTask(sessionState, args = {}, outputText = "", automation = {}) {
+  const taskID = args.parent_task_id
+    || args.task_id
+    || args.id
+    || extractTaskIDFromToolOutput(outputText)
+    || automation.active_task_id
+    || sessionState.activeTaskID
+    || null
+  if (taskID) sessionState.activeTaskID = taskID
+  return sessionState.activeTaskID
+}
+
+function detectAutomationMilestones({ toolName, args = {}, sessionState = {}, automation = {} }) {
+  if (!automation.enabled || !automation.progress_comments?.enabled) return []
+  const taskID = sessionState.activeTaskID || args.parent_task_id || args.task_id || automation.active_task_id
+  if (!taskID) return []
+
+  const milestones = new Set(automation.progress_comments.milestones || [])
+  const posted = sessionState.postedMilestones || new Set()
+  const events = []
+
+  if (
+    milestones.has("first_edit")
+    && (automation.progress_comments.edit_tools || []).some((pattern) => matchesActionPattern(pattern, toolName))
+    && !posted.has(`${taskID}:first_edit`)
+  ) {
+    events.push("first_edit")
+  }
+
+  if (
+    milestones.has("first_green_test")
+    && toolName === "bash"
+    && commandMatchesAutomationPattern(args.command, automation.progress_comments.test_command_patterns)
+    && !posted.has(`${taskID}:first_green_test`)
+  ) {
+    events.push("first_green_test")
+  }
+
+  if (
+    milestones.has("push")
+    && toolName === "bash"
+    && commandMatchesAutomationPattern(args.command, automation.progress_comments.push_command_patterns)
+    && !posted.has(`${taskID}:push`)
+  ) {
+    events.push("push")
+  }
+
+  if (
+    milestones.has("done")
+    && ((toolName === "nifty_complete_task" && args.completed !== false)
+      || (toolName === "nifty_update_task" && args.completed === true))
+    && !posted.has(`${taskID}:done`)
+  ) {
+    events.push("done")
+  }
+
+  return events
+}
+
+function summarizeAutomationOutput(text, maxChars = 1000) {
+  const trimmed = String(text || "").trim()
+  if (!trimmed) return ""
+  return trimmed.length <= maxChars ? trimmed : `${trimmed.slice(0, maxChars)}...`
+}
+
+function buildAutomationMilestoneReport(milestone, input = {}, output = "", automation = {}) {
+  const evidenceParts = []
+  if (input.args?.command) evidenceParts.push(`Command: ${input.args.command}`)
+  const outputSummary = summarizeAutomationOutput(output, automation.progress_comments?.max_output_chars || 1000)
+  if (outputSummary && milestone !== "first_edit") evidenceParts.push(outputSummary)
+
+  switch (milestone) {
+    case "first_edit":
+      return structuredReport({
+        summary: "First edit detected — implementation has started.",
+        completed: [`First edit detected via ${input.toolName || input.tool || "unknown"}.`],
+      })
+    case "first_green_test":
+      return structuredReport({
+        summary: "First GREEN test recorded.",
+        completed: [input.args?.command ? `Successful test command: ${input.args.command}` : "A successful test command completed."],
+        evidence: evidenceParts.join("\n\n"),
+      })
+    case "push":
+      return structuredReport({
+        summary: "Changes pushed to remote.",
+        completed: [input.args?.command ? `Push command: ${input.args.command}` : "A successful push completed."],
+        evidence: evidenceParts.join("\n\n"),
+      })
+    case "done":
+      return structuredReport({
+        summary: "Task marked complete.",
+        completed: ["Automation recorded the task as done."],
+        evidence: evidenceParts.join("\n\n"),
+      })
+    default:
+      return ""
+  }
+}
+
+async function runAutomationCommand(command, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, {
+      shell: true,
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...(options.env || {}) },
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    const stdout = []
+    const stderr = []
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM")
+      reject(new Error(`Automation command timed out: ${command}`))
+    }, options.timeoutMs || 300000)
+
+    child.stdout.on("data", (chunk) => stdout.push(String(chunk)))
+    child.stderr.on("data", (chunk) => stderr.push(String(chunk)))
+    child.once("error", (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.once("close", (code) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        resolve({ stdout: stdout.join(""), stderr: stderr.join(""), code })
+        return
+      }
+      reject(new Error(`Automation command failed with exit code ${code}: ${command}\n${stderr.join("") || stdout.join("")}`))
+    })
+  })
+}
+
+function parseAutomationPublisherOutput(text = "") {
+  const trimmed = String(text || "").trim()
+  if (!trimmed) return { urls: [], nifty_file_ids: [] }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) {
+      return {
+        urls: parsed.map((item) => String(item || "").trim()).filter((item) => /^https?:\/\//i.test(item)),
+        nifty_file_ids: [],
+      }
+    }
+    return {
+      urls: (parsed.urls || []).map((item) => String(item || "").trim()).filter((item) => /^https?:\/\//i.test(item)),
+      nifty_file_ids: (parsed.nifty_file_ids || []).map((item) => String(item || "").trim()).filter(Boolean),
+    }
+  } catch {
+    return {
+      urls: trimmed.split(/\r?\n/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item)),
+      nifty_file_ids: [],
+    }
+  }
+}
+
+function collectArtifactFiles(rootDir, sinceMs = 0) {
+  if (!rootDir || !existsSync(rootDir)) return []
+  const files = []
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        walk(fullPath)
+        continue
+      }
+      if (!/\.(png|jpe?g|webp|gif)$/i.test(entry.name)) continue
+      const stat = statSync(fullPath)
+      if (!sinceMs || stat.mtimeMs >= sinceMs) files.push(fullPath)
+    }
+  }
+  walk(rootDir)
+  return files
+}
+
+async function autoGenerateVisualProof(taskID, changedFiles = [], context = {}, automation = automationConfig(null, context), deps = {}) {
+  if (!automation.enabled || !automation.playwright?.auto_capture_visual_proof) return null
+
+  const captureCommand = deps.captureCommand || automation.playwright.command
+  if (!captureCommand) return null
+
+  const runCommand = deps.runCommand || runAutomationCommand
+  const publishCommand = deps.publishCommand === undefined ? automation.playwright.publish_command : deps.publishCommand
+  const cwd = context.directory || context.worktree || process.cwd()
+  const startedAt = Date.now()
+
+  const captureResult = await runCommand(captureCommand, {
+    cwd,
+    timeoutMs: automation.playwright.timeout_ms,
+    env: {
+      NIFTY_AUTOMATION_TASK_ID: taskID,
+      NIFTY_AUTOMATION_CHANGED_FILES: JSON.stringify(changedFiles || []),
+    },
+  })
+
+  let published = { urls: [], nifty_file_ids: [] }
+  if (publishCommand) {
+    const publishResult = await runCommand(publishCommand, {
+      cwd,
+      timeoutMs: automation.playwright.timeout_ms,
+      env: {
+        NIFTY_AUTOMATION_TASK_ID: taskID,
+        NIFTY_AUTOMATION_CAPTURE_OUTPUT: captureResult.stdout,
+      },
+    })
+    published = parseAutomationPublisherOutput(publishResult.stdout)
+  }
+
+  const artifactFiles = collectArtifactFiles(join(cwd, automation.playwright.output_dir), startedAt)
+
+  return {
+    visual_proof: [...published.urls],
+    nifty_file_ids: published.nifty_file_ids,
+    artifact_files: artifactFiles,
+    capture_command: captureCommand,
+  }
+}
+
+function commentExternalFiles(visualProof = []) {
+  return (visualProof || []).filter((item) => /^https?:\/\//i.test(String(item || "").trim()))
+}
+
+async function maybeAutoCompleteParentTask(taskID, context = {}) {
+  const automation = automationConfig(loadPolicy(context), context)
+  if (!automation.enabled || !automation.parent_tasks?.auto_complete_when_subtasks_complete) return null
+
+  const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`)
+  const parentTaskID = taskParentID(task)
+  if (!parentTaskID) return null
+
+  const parentContext = await fetchTaskFullContext(parentTaskID, { task_id: parentTaskID }, context)
+  const subtasks = parentContext?.subtasks || []
+  if (!subtasks.length || !subtasks.every((item) => item?.completed === true)) {
+    return { parent_task_id: parentTaskID, completed: false }
+  }
+
+  if (automation.completion?.require_explicit_close_trigger) {
+    return {
+      parent_task_id: parentTaskID,
+      completed: false,
+      blocked: true,
+      reason: `Explicit close confirmation required: ${closeConfirmationForTask(parentTaskID, automation)}`,
+    }
+  }
+
+  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(parentTaskID)}/complete`, {
+    method: "POST",
+    body: { completed: true },
+  })
+
+  if (automation.parent_tasks?.comment_on_auto_complete) {
+    await postLifecycleComment(
+      parentTaskID,
+      structuredReport({
+        summary: "Parent task auto-completed because all subtasks are complete.",
+        completed: subtasks.map((item) => `Completed subtask: ${item?.name || item?.id || "unknown"}`),
+      }),
+    )
+  }
+
+  return {
+    parent_task_id: parentTaskID,
+    completed: true,
+    subtask_count: subtasks.length,
+  }
+}
+
+async function maybeSyncCompletionForStatus(taskID, targetStatus, workflow, context = {}, args = {}) {
+  const automation = automationConfig(loadPolicy(context), context)
+  if (!automation.enabled || !automation.completion?.sync_done_status_with_complete) return null
+  if (!looksLikeDoneStatus(targetStatus, workflow)) return null
+
+  assertExplicitCloseConfirmation(taskID, args, context)
+
+  const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}/complete`, {
+    method: "POST",
+    body: { completed: true },
+  })
+
+  return { completed: true, response }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1871,6 +2563,7 @@ async function postLifecycleComment(taskID, text, options = {}) {
       task_id: taskID,
       text: botCommentText(text, options.botMarker !== false),
       external_files: options.externalFiles?.length ? options.externalFiles : undefined,
+          nifty_files: options.niftyFiles?.length ? options.niftyFiles : undefined,
     }),
   })
 }
@@ -1917,6 +2610,10 @@ function taskProjectSubtasks(task = {}, tasks = []) {
     const parent = item?.task_id || item?.parent_task_id || item?.parent?.id
     return parent && String(parent) === String(taskID)
   })
+}
+
+function taskParentID(task = {}) {
+  return task?.task_id || task?.parent_task_id || task?.parent?.id || null
 }
 
 function projectStatusSummary(tasks = [], statuses = []) {
@@ -2139,15 +2836,33 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   if (!lifecyclePolicyEnabled(context) || !lifecycleDeliveryGateEnabled(context)) return
   if (!looksLikeDevReviewStatus(targetStatus, workflow, context)) return
 
+  const policy = loadPolicy(context)
+
   const changedFiles = Array.isArray(deliveryEvidence?.changed_files) && deliveryEvidence.changed_files.length
     ? deliveryEvidence.changed_files
     : changedFilesFromGit(context)
   const visualRequired = requiresVisualProof(changedFiles)
-  const validated = validateDeliveryEvidence(deliveryEvidence || {}, { visualRequired })
+  const evidenceForValidation = { ...(deliveryEvidence || {}) }
+  let generatedVisualProof = null
+  if (visualRequired && (!Array.isArray(evidenceForValidation.visual_proof) || evidenceForValidation.visual_proof.length === 0)) {
+    generatedVisualProof = await autoGenerateVisualProof(
+      taskID,
+      changedFiles,
+      context,
+      automationConfig(policy, context),
+    )
+    if (generatedVisualProof?.visual_proof?.length) {
+      evidenceForValidation.visual_proof = generatedVisualProof.visual_proof
+    }
+  }
+  const validated = validateDeliveryEvidence(evidenceForValidation, { visualRequired, policy })
 
   const completedItems = [
+    `Architecture integration: ${validated.architecture_proof}`,
     `RED proof: ${validated.red_proof}`,
     `GREEN proof: ${validated.green_proof}`,
+    `Regression proof: ${validated.regression_proof}`,
+    `Iterative validation: ${validated.iterative_proof}`,
     `Sad path proof: ${validated.sad_path_proof}`,
     changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected",
   ]
@@ -2162,7 +2877,8 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   })
 
   await postLifecycleComment(taskID, report, {
-    externalFiles: visualRequired ? validated.visual_proof : undefined,
+    externalFiles: visualRequired ? commentExternalFiles(validated.visual_proof) : undefined,
+    niftyFiles: generatedVisualProof?.nifty_file_ids?.length ? generatedVisualProof.nifty_file_ids : undefined,
   })
 }
 
@@ -2481,6 +3197,13 @@ const __test = {
   lifecycleStatusCommentsEnabled,
   reportingConfig,
   structuredReport,
+  automationConfig,
+  detectAutomationMilestones,
+  taskParentID,
+  checklistSubtasks,
+  autoGenerateVisualProof,
+  resolveAuthNodeBinary,
+  writeTokenCache,
 }
 
 export const NiftyPlugin = async () => {
@@ -2494,10 +3217,14 @@ export const NiftyPlugin = async () => {
     red_proof: tool.schema.string().optional().describe("RED proof command/output reference"),
     green_proof: tool.schema.string().optional().describe("GREEN proof command/output reference"),
     sad_path_proof: tool.schema.string().optional().describe("Sad-path verification evidence"),
+    architecture_proof: tool.schema.string().optional().describe("How this change integrates with the existing architecture instead of hand-waving or adding a parallel path"),
+    regression_proof: tool.schema.string().optional().describe("Regression tests or checks added/updated to lock the behavior"),
+    iterative_proof: tool.schema.string().optional().describe("Iterative RED/GREEN/refactor or reproduce/fix/retest loop evidence"),
     visual_proof: tool.schema.array(tool.schema.string()).optional().describe("Screenshot/video URLs required when visual changes are detected"),
     changed_files: tool.schema.array(tool.schema.string()).optional().describe("Optional changed files list override for lifecycle gate detection"),
     notes: tool.schema.string().optional().describe("Optional delivery notes appended to lifecycle gate comment"),
   })
+  const automationSessions = new Map()
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -2506,9 +3233,46 @@ export const NiftyPlugin = async () => {
       if (hint) throw new Error(hint)
     },
 
+    "tool.execute.after": async (input = {}, result = {}) => {
+      const toolName = input.tool || input.toolName || result.tool || ""
+      const context = input.context || result.context || {}
+      const automation = automationConfig(loadPolicy(context), context)
+      if (!automation.enabled || !automation.progress_comments?.enabled) return
+
+      const state = automationSessionState(automationSessions, input.sessionID || input.sessionId || "default")
+      rememberAutomationTask(state, input.args || {}, result.output || result.text || "", automation)
+      await enforceAutomationTaskContextGate({
+        toolName,
+        args: input.args || {},
+        sessionState: state,
+        automation,
+        context,
+      })
+      const milestones = detectAutomationMilestones({
+        toolName,
+        args: input.args || {},
+        sessionState: state,
+        automation,
+      })
+
+      for (const milestone of milestones) {
+        const taskID = state.activeTaskID || automation.active_task_id
+        if (!taskID) continue
+        const text = buildAutomationMilestoneReport(
+          milestone,
+          { ...input, toolName },
+          result.output || result.text || "",
+          automation,
+        )
+        if (!text) continue
+        await postLifecycleComment(taskID, text)
+        state.postedMilestones.add(`${taskID}:${milestone}`)
+      }
+    },
+
     tool: withLifecyclePolicy({
       nifty_update_plugin: tool({
-        description: "Updates the installed Nifty OpenCode plugin from GitHub when a newer version is available",
+        description: "Updates the installed Nifty plugin from GitHub. In OpenCode mode, updates the installed plugin file. In MCP mode (NIFTY_MCP_ROOT set), also updates mcp/mcp-server.mjs in the cloned repo.",
         args: {
           ref: tool.schema.string().default("main").describe("GitHub ref to install, usually main or a commit SHA"),
           force: tool.schema.boolean().default(false).describe("Run the installer even when the installed plugin already matches the ref"),
@@ -2517,32 +3281,62 @@ export const NiftyPlugin = async () => {
           const ref = args.ref || "main"
           const latestPluginURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/plugin/nifty.js`
           const latestInstallURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/scripts/install.sh`
+          const latestMcpServerURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/mcp/mcp-server.mjs`
+
           const [latestPlugin, latestCommit] = await Promise.all([
             fetchText(latestPluginURL),
             fetchLatestCommit(ref),
           ])
           const currentPlugin = currentPluginSource()
 
-          if (!args.force && samePluginSource(currentPlugin, latestPlugin)) {
+          // Detect MCP mode: NIFTY_MCP_ROOT points to the root of the cloned repo
+          const mcpRoot = process.env.NIFTY_MCP_ROOT
+          let mcpUpdated = false
+          let mcpUpdateError = null
+
+          if (mcpRoot) {
+            try {
+              const latestMcpServer = await fetchText(latestMcpServerURL)
+              const mcpServerPath = join(mcpRoot, "mcp", "mcp-server.mjs")
+              const currentMcpServer = existsSync(mcpServerPath) ? readFileSync(mcpServerPath, "utf8") : ""
+              if (args.force || currentMcpServer.trim() !== latestMcpServer.trim()) {
+                await writeFile(mcpServerPath, latestMcpServer, { encoding: "utf8" })
+                mcpUpdated = true
+              }
+            } catch (err) {
+              mcpUpdateError = err instanceof Error ? err.message : String(err)
+            }
+          }
+
+          if (!args.force && samePluginSource(currentPlugin, latestPlugin) && !mcpUpdated) {
             return json({
               ok: true,
               updated: false,
+              mcp_updated: false,
               ref,
               latest_commit: latestCommit,
-              message: "No new Nifty plugin version is available.",
+              message: "No new Nifty plugin or MCP server version is available.",
               restart_required: false,
             })
           }
 
           const installScript = await fetchText(latestInstallURL)
           const installer_output = await runInstallScript(installScript, ref, context)
+
+          const messages = ["Nifty plugin updated. Restart OpenCode so it loads the new plugin version."]
+          if (mcpUpdated) messages.push("MCP server updated. Restart the MCP server process to apply changes.")
+          if (mcpUpdateError) messages.push(`MCP server update warning: ${mcpUpdateError}`)
+
           return json({
             ok: true,
             updated: true,
+            mcp_updated: mcpUpdated,
+            mcp_root: mcpRoot || null,
+            mcp_update_error: mcpUpdateError || null,
             ref,
             latest_commit: latestCommit,
             restart_required: true,
-            message: "Nifty plugin updated. Restart OpenCode so it loads the new plugin version.",
+            message: messages.join(" "),
             installer_output,
           })
         },
@@ -3024,7 +3818,7 @@ export const NiftyPlugin = async () => {
           private: tool.schema.boolean().optional().describe("Whether the document is private"),
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
           content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
-          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, converted to rich document content when content_json is omitted"),
           external_id: tool.schema.string().optional().describe("External ID"),
           order: tool.schema.number().optional().describe("Document order"),
         },
@@ -3039,7 +3833,7 @@ export const NiftyPlugin = async () => {
             },
             context,
           )
-          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined)
+          const content = parseJSONArg(args.content_json, "content_json") || documentContentFromText(args.content_text)
 
           const response = await niftyRequest("/api/v1.0/docs", {
             method: "POST",
@@ -3079,14 +3873,14 @@ export const NiftyPlugin = async () => {
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
           force: tool.schema.boolean().optional().describe("Force update flag"),
           content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
-          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, converted to rich document content when content_json is omitted"),
           folder_id: tool.schema.string().optional().describe("Folder ID"),
           folder_stack: tool.schema.array(tool.schema.string()).optional().describe("Folder path stack"),
           multipage: tool.schema.boolean().optional().describe("Whether this is a multipage document"),
           order: tool.schema.number().optional().describe("Document order"),
         },
         async execute(args) {
-          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined)
+          const content = parseJSONArg(args.content_json, "content_json") || documentContentFromText(args.content_text)
           const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`, {
             method: "PUT",
             body: cleanObject({
@@ -4051,13 +4845,18 @@ export const NiftyPlugin = async () => {
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           completed: tool.schema.boolean().default(true).describe("Completion state"),
+          close_confirmation: tool.schema.string().optional().describe('Required when completed=true and automation requires explicit close trigger. Use exactly "close {task_id}".'),
         },
-        async execute(args) {
+        async execute(args, context) {
+          if (args.completed !== false) assertExplicitCloseConfirmation(args.task_id, args, context)
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/complete`, {
             method: "POST",
             body: { completed: args.completed },
           })
-          return json(response)
+          const parentAutomation = args.completed === false
+            ? null
+            : await maybeAutoCompleteParentTask(args.task_id, context)
+          return json({ ...response, parent_automation: parentAutomation })
         },
       }),
 
@@ -4178,6 +4977,7 @@ export const NiftyPlugin = async () => {
           status_name: tool.schema.string().optional().describe("Raw status name override"),
           comment: tool.schema.string().optional().describe("Optional note to add after the move"),
           delivery_evidence: deliveryEvidenceArg.optional().describe("Delivery gate evidence. Required when moving into Dev Review by lifecycle policy"),
+          close_confirmation: tool.schema.string().optional().describe('Required when moving to a Done-like status with completion sync. Use exactly "close {task_id}".'),
         },
         async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
@@ -4212,6 +5012,10 @@ export const NiftyPlugin = async () => {
             contextWithConfig,
           )
 
+          if (looksLikeDoneStatus(status, resolved.workflow)) {
+            assertExplicitCloseConfirmation(args.task_id, args, contextWithConfig)
+          }
+
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
             body: {
@@ -4230,10 +5034,19 @@ export const NiftyPlugin = async () => {
             })
           }
 
+          const completionSync = await maybeSyncCompletionForStatus(
+            args.task_id,
+            status,
+            resolved.workflow,
+            contextWithConfig,
+            args,
+          )
+
           return json({
             moved: true,
             task_id: args.task_id,
             target_status: { id: status.id, name: status.name },
+            completion_sync: completionSync,
             response,
           })
         },
@@ -4322,6 +5135,23 @@ export const NiftyPlugin = async () => {
             }),
           })
 
+          const automation = automationConfig(loadPolicy(contextWithConfig), contextWithConfig)
+          const createdSubtasks = []
+          if (automation.enabled && automation.subtasks?.auto_create_from_checklist && args.checklist?.length) {
+            const subtaskPlans = checklistSubtasks(args.checklist, task.subtasks || [])
+            for (const subtask of subtaskPlans) {
+              const created = await niftyRequest("/api/v1.0/tasks", {
+                method: "POST",
+                body: cleanWriteObject({
+                  name: subtask.name,
+                  task_id: args.task_id,
+                  task_group_id: task.task_group_id || task.task_group || targetStatus?.id,
+                }),
+              })
+              createdSubtasks.push({ ...created, name: subtask.name })
+            }
+          }
+
           if (args.comment) {
             await niftyRequest("/api/v1.0/messages", {
               method: "POST",
@@ -4340,6 +5170,7 @@ export const NiftyPlugin = async () => {
               ? { id: targetStatus.id, name: targetStatus.name }
               : null,
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
+            created_subtasks: createdSubtasks,
             response,
           })
         },
@@ -4406,7 +5237,7 @@ export const NiftyPlugin = async () => {
           entity_key: tool.schema.string().optional().describe("Document entity key when doc_id is used"),
           external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 McBotFace marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const targets = [
@@ -4449,7 +5280,7 @@ export const NiftyPlugin = async () => {
           text: tool.schema.string().describe("Updated message text"),
           hide_link_preview: tool.schema.boolean().optional().describe("Hide link previews"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 McBotFace marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/messages/${encodeURIComponent(args.message_id)}`, {
