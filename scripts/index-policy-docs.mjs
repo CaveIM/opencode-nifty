@@ -313,17 +313,14 @@ async function main() {
     return
   }
 
-  // Upsert: drop + recreate for idempotency (policy corpus is small)
+  // Upsert: always replace table contents for idempotency (policy corpus is small)
   const tableNames = await conn.tableNames()
-  let table
-  if (tableNames.includes(TABLE_NAME) && !args.reset) {
-    table = await conn.openTable(TABLE_NAME)
-    await table.add(allChunks)
-    console.log(`Appended ${allChunks.length} chunks to existing table '${TABLE_NAME}'.`)
-  } else {
-    table = await conn.createTable(TABLE_NAME, allChunks)
-    console.log(`Created table '${TABLE_NAME}' with ${allChunks.length} chunks.`)
+  if (tableNames.includes(TABLE_NAME)) {
+    await conn.dropTable(TABLE_NAME)
+    console.log(`Replaced existing table '${TABLE_NAME}'.`)
   }
+  const table = await conn.createTable(TABLE_NAME, allChunks)
+  console.log(`Created table '${TABLE_NAME}' with ${allChunks.length} chunks.`)
 
   // Create FTS index — best-effort
   try {

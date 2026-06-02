@@ -80,9 +80,9 @@ const BOOTSTRAP_MUTATING_PROJECT_TOOLS = new Set([
   "nifty_create_milestone",
   "nifty_update_milestone",
   "nifty_delete_milestone",
-  "nifty_create_doc",
-  "nifty_update_doc",
-  "nifty_delete_doc",
+  "nifty_create_document",
+  "nifty_update_document",
+  "nifty_delete_document",
 ])
 
 /** Extract task_id from a tool's args using the canonical arg key. */
@@ -1120,6 +1120,23 @@ async function createStatus(projectID, status) {
   })
 }
 
+function looksLikeDuplicateWriteError(error) {
+  const message = String(error?.message || "").toLowerCase()
+  return message.includes(" 409 ") || message.includes("already exists") || message.includes("duplicate")
+}
+
+async function createStatusIdempotent(projectID, status) {
+  try {
+    return await createStatus(projectID, status)
+  } catch (error) {
+    if (!looksLikeDuplicateWriteError(error)) throw error
+    const statuses = await fetchAllStatuses(projectID)
+    const existing = statuses.find((item) => statusMatches(item, status.name))
+    if (existing) return existing
+    throw error
+  }
+}
+
 async function fetchMilestones(projectID, options = {}) {
   const response = await niftyRequest("/api/v1.0/milestones", {
     query: cleanObject({
@@ -1162,6 +1179,18 @@ async function createList(projectID, list) {
   })
 }
 
+async function createListIdempotent(projectID, list) {
+  try {
+    return await createList(projectID, list)
+  } catch (error) {
+    if (!looksLikeDuplicateWriteError(error)) throw error
+    const lists = await fetchAllMilestones(projectID, { isList: true })
+    const existing = lists.find((item) => milestoneMatches(item, list.name))
+    if (existing) return existing
+    throw error
+  }
+}
+
 async function recommendedWorkflowSetupPlan(projectID, options = {}) {
   const [statuses, lists] = await Promise.all([
     fetchAllStatuses(projectID),
@@ -1186,13 +1215,13 @@ async function recommendedWorkflowSetupPlan(projectID, options = {}) {
   if (!dryRun) {
     if (createStatuses) {
       for (const status of statusPlan.filter((item) => !item.existing)) {
-        createdStatuses.push(await createStatus(projectID, status))
+        createdStatuses.push(await createStatusIdempotent(projectID, status))
       }
     }
 
     if (createLists) {
       for (const list of listPlan.filter((item) => !item.existing)) {
-        createdLists.push(await createList(projectID, list))
+        createdLists.push(await createListIdempotent(projectID, list))
       }
     }
   }
@@ -2242,6 +2271,61 @@ function checklistSubtasks(checklist = [], existingSubtasks = []) {
       return true
     })
     .map((name) => ({ name }))
+}
+
+function dedupeNamedSubtasks(items = [], existingSubtasks = []) {
+  const existing = new Set(
+    (existingSubtasks || [])
+      .map((item) => normalize(typeof item === "string" ? item : item?.name))
+      .filter(Boolean),
+  )
+  const seen = new Set()
+  const deduped = []
+  for (const item of items || []) {
+    const name = String(item?.name || "").trim()
+    const key = normalize(name)
+    if (!key || existing.has(key) || seen.has(key)) continue
+    seen.add(key)
+    deduped.push({
+      ...item,
+      name,
+      description: item?.description,
+    })
+  }
+  return deduped
+}
+
+function dedupeTaskBodiesByName(planned = [], existingTasks = []) {
+  const existing = new Set(
+    (existingTasks || [])
+      .map((task) => normalize(task?.name))
+      .filter(Boolean),
+  )
+  const seen = new Set()
+  const toCreate = []
+  const skippedExisting = []
+  const skippedDuplicateInput = []
+
+  for (const body of planned || []) {
+    const key = normalize(body?.name)
+    if (!key) continue
+    if (existing.has(key)) {
+      skippedExisting.push(body.name)
+      continue
+    }
+    if (seen.has(key)) {
+      skippedDuplicateInput.push(body.name)
+      continue
+    }
+    seen.add(key)
+    toCreate.push(body)
+  }
+
+  return {
+    toCreate,
+    skippedExisting,
+    skippedDuplicateInput,
+  }
 }
 
 function commandMatchesAutomationPattern(command, patterns = []) {
@@ -4185,6 +4269,7 @@ export const NiftyPlugin = async () => {
           const existingTask = args.task_id
             ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
             : null
+          const proposedSubtasks = dedupeNamedSubtasks(args.proposed_subtasks || [], existingTask?.subtasks || [])
           const title = args.title || existingTask?.name || existingTask?.title
           const idea = args.idea || existingTask?.description || existingTask?.text || null
           const shapeInput = { ...args, title, idea }
@@ -4196,7 +4281,7 @@ export const NiftyPlugin = async () => {
             title: title || null,
             source_idea: idea || null,
             sections: summarizeShapingInput(shapeInput),
-            proposed_subtasks: args.proposed_subtasks || [],
+            proposed_subtasks: proposedSubtasks,
           }
 
           if (missing.length) {
@@ -4219,8 +4304,8 @@ export const NiftyPlugin = async () => {
               next_question: null,
               message: "Shaping is complete. Review the blueprint, ask whether to create proposed subtasks, then re-run with finalize true when approved.",
               blueprint,
-              subtask_confirmation_required: args.proposed_subtasks?.length
-                ? `create ${args.proposed_subtasks.length} ${args.proposed_subtasks.length === 1 ? "subtask" : "subtasks"}`
+              subtask_confirmation_required: proposedSubtasks.length
+                ? `create ${proposedSubtasks.length} ${proposedSubtasks.length === 1 ? "subtask" : "subtasks"}`
                 : null,
             })
           }
@@ -4264,21 +4349,25 @@ export const NiftyPlugin = async () => {
           const parentTaskID = args.task_id || taskResponse.id || taskResponse.task_id
           const createdSubtasks = []
 
-          if (args.create_subtasks && args.proposed_subtasks?.length) {
-            requireSubtaskConfirmation(args.proposed_subtasks, args.subtask_confirmation)
+          if (args.create_subtasks && proposedSubtasks.length) {
+            requireSubtaskConfirmation(proposedSubtasks, args.subtask_confirmation)
             if (!parentTaskID) throw new Error("Unable to determine parent task ID for subtask creation.")
             const subtaskStatusID = targetStatusID || getTaskStatusID(existingTask)
             if (!subtaskStatusID) throw new Error("Unable to determine subtask status ID.")
-            for (const subtask of args.proposed_subtasks) {
-              createdSubtasks.push(await niftyRequest("/api/v1.0/tasks", {
-                method: "POST",
-                body: cleanWriteObject({
-                  name: subtask.name,
-                  description: subtask.description,
-                  task_group_id: subtaskStatusID,
-                  task_id: parentTaskID,
-                }),
-              }))
+            for (const subtask of proposedSubtasks) {
+              try {
+                createdSubtasks.push(await niftyRequest("/api/v1.0/tasks", {
+                  method: "POST",
+                  body: cleanWriteObject({
+                    name: subtask.name,
+                    description: subtask.description,
+                    task_group_id: subtaskStatusID,
+                    task_id: parentTaskID,
+                  }),
+                }))
+              } catch (error) {
+                if (!looksLikeDuplicateWriteError(error)) throw error
+              }
             }
           }
 
@@ -4288,7 +4377,7 @@ export const NiftyPlugin = async () => {
             finalized: true,
             task: taskResponse,
             created_subtasks: createdSubtasks,
-            proposed_subtasks_not_created: args.create_subtasks ? [] : (args.proposed_subtasks || []),
+            proposed_subtasks_not_created: args.create_subtasks ? [] : proposedSubtasks,
           })
         },
       }),
@@ -4520,9 +4609,28 @@ export const NiftyPlugin = async () => {
             })
           }
 
+          const existingTasksResponse = await niftyRequest("/api/v1.0/tasks", {
+            query: cleanObject({
+              project_id: resolved.project.id,
+              task_group_id: status.id,
+              milestone_id: milestone?.id,
+              include_subtasks: "false",
+              limit: 500,
+              offset: 0,
+            }),
+          })
+          const { toCreate, skippedExisting, skippedDuplicateInput } = dedupeTaskBodiesByName(
+            planned,
+            existingTasksResponse.tasks || [],
+          )
+
           const created = []
-          for (const body of planned) {
-            created.push(await niftyRequest("/api/v1.0/tasks", { method: "POST", body }))
+          for (const body of toCreate) {
+            try {
+              created.push(await niftyRequest("/api/v1.0/tasks", { method: "POST", body }))
+            } catch (error) {
+              if (!looksLikeDuplicateWriteError(error)) throw error
+            }
           }
 
           return json({
@@ -4531,6 +4639,8 @@ export const NiftyPlugin = async () => {
             project: { id: resolved.project.id, name: resolved.project.name },
             status: { id: status.id, name: status.name },
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
+            skipped_existing: skippedExisting,
+            skipped_duplicate_input: skippedDuplicateInput,
             created,
           })
         },
@@ -5140,15 +5250,19 @@ export const NiftyPlugin = async () => {
           if (automation.enabled && automation.subtasks?.auto_create_from_checklist && args.checklist?.length) {
             const subtaskPlans = checklistSubtasks(args.checklist, task.subtasks || [])
             for (const subtask of subtaskPlans) {
-              const created = await niftyRequest("/api/v1.0/tasks", {
-                method: "POST",
-                body: cleanWriteObject({
-                  name: subtask.name,
-                  task_id: args.task_id,
-                  task_group_id: task.task_group_id || task.task_group || targetStatus?.id,
-                }),
-              })
-              createdSubtasks.push({ ...created, name: subtask.name })
+              try {
+                const created = await niftyRequest("/api/v1.0/tasks", {
+                  method: "POST",
+                  body: cleanWriteObject({
+                    name: subtask.name,
+                    task_id: args.task_id,
+                    task_group_id: task.task_group_id || task.task_group || targetStatus?.id,
+                  }),
+                })
+                createdSubtasks.push({ ...created, name: subtask.name })
+              } catch (error) {
+                if (!looksLikeDuplicateWriteError(error)) throw error
+              }
             }
           }
 

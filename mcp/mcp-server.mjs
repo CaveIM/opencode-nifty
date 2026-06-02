@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url"
 import { dirname, resolve, join } from "node:path"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { exec, execFile } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -24,6 +24,9 @@ const MCP_PROGRESS_DEFAULT_TEST_TIMEOUT_MS = 300000
 const MCP_ACTIVE_TASK_STATE_VERSION = 1
 const MCP_ACTIVE_TASK_DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const MCP_ACTIVE_TASK_DEFAULT_MAX_ENTRIES = 500
+const MCP_ACTIVE_TASK_LOCK_TIMEOUT_MS = 3000
+const MCP_ACTIVE_TASK_LOCK_STALE_MS = 10000
+const MCP_ACTIVE_TASK_LOCK_WAIT_MS = 20
 const MCP_TASK_OUTPUT_ID_TOOLS = new Set([
   "nifty_create_task",
   "nifty_create_subtask",
@@ -41,6 +44,7 @@ let pluginCache = null
 let pluginCacheAt = 0
 const mcpProgressStates = new Map()
 const mcpActiveProgressKeys = new Map()
+const mcpActiveTaskLockWaitBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 function formatIssues(issues = []) {
   return issues
@@ -200,6 +204,18 @@ function hashText(text = "") {
   return createHash("sha256").update(String(text)).digest("hex")
 }
 
+function sleepBlocking(ms) {
+  if (ms <= 0) return
+  try {
+    Atomics.wait(mcpActiveTaskLockWaitBuffer, 0, 0, ms)
+  } catch {
+    const end = Date.now() + ms
+    while (Date.now() < end) {
+      // Busy wait fallback only when Atomics.wait is unavailable.
+    }
+  }
+}
+
 function parsePorcelainStatus(text = "") {
   return text
     .split("\n")
@@ -230,9 +246,32 @@ export function createMcpProgressState({ taskID, baseline = null } = {}) {
     reportedPushHeads: new Set(),
     reportedTestSignatures: new Set(),
     interval: null,
+    tickPromise: null,
     startedAt: Date.now(),
     lastSeenAt: Date.now(),
   }
+}
+
+function parsePorcelainPath(entry = "") {
+  const match = String(entry).match(/^[^\s]+\s+(.+)$/)
+  return match ? match[1].trim() : null
+}
+
+function dirtySnapshotDigest(worktree, dirtyFiles = []) {
+  const fingerprint = normalizeDirtyFiles(dirtyFiles)
+    .map((entry) => {
+      const relativePath = parsePorcelainPath(entry)
+      if (!relativePath) return `${entry}|missing`
+      try {
+        const metadata = statSync(join(worktree, relativePath))
+        return `${entry}|${metadata.size}|${Math.trunc(metadata.mtimeMs)}`
+      } catch {
+        return `${entry}|missing`
+      }
+    })
+    .join("\n")
+
+  return hashText(fingerprint)
 }
 
 export function mcpProgressConfig() {
@@ -248,16 +287,14 @@ export function mcpProgressConfig() {
 export async function readGitWorktreeSnapshot(worktree, deps = {}) {
   const git = deps.runGit || runGit
   try {
-    const [statusText, head, branch, aheadText, unstagedDiff, stagedDiff] = await Promise.all([
+    const [statusText, head, branch, aheadText] = await Promise.all([
       git(worktree, ["status", "--porcelain=v1"]),
       git(worktree, ["rev-parse", "HEAD"]).catch(() => ""),
       git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => ""),
       git(worktree, ["rev-list", "--count", "@{u}..HEAD"]).catch(() => ""),
-      git(worktree, ["diff", "--no-ext-diff", "--binary", "HEAD", "--"]).catch(() => ""),
-      git(worktree, ["diff", "--cached", "--no-ext-diff", "--binary", "HEAD", "--"]).catch(() => ""),
     ])
     const dirtyFiles = parsePorcelainStatus(statusText)
-    const diffDigest = dirtyFiles.length ? hashText([statusText, unstagedDiff, stagedDiff].join("\n")) : ""
+    const diffDigest = dirtyFiles.length ? dirtySnapshotDigest(worktree, dirtyFiles) : ""
     const parsedAhead = Number.parseInt(aheadText, 10)
 
     return {
@@ -389,17 +426,26 @@ export async function tickMcpProgressObserver({ plugin, taskID, context, state, 
   if (!plugin || !taskID || !context || !state) return []
   const progressConfig = config || mcpProgressConfig()
   if (!progressConfig.enabled) return []
+  if (state.tickPromise) return state.tickPromise
 
-  const worktree = context.worktree || context.directory || cwd()
-  const snapshot = await (readSnapshot ? readSnapshot(worktree) : readGitWorktreeSnapshot(worktree))
-  const events = detectMcpWorktreeProgress(state, snapshot)
+  state.tickPromise = (async () => {
+    const worktree = context.worktree || context.directory || cwd()
+    const snapshot = await (readSnapshot ? readSnapshot(worktree) : readGitWorktreeSnapshot(worktree))
+    const events = detectMcpWorktreeProgress(state, snapshot)
 
-  for (const event of events) {
-    await postMcpProgressComment(plugin, taskID, buildMcpProgressComment(event, taskID), context)
-    await runOptionalMcpProgressTest(plugin, taskID, event, context, state, progressConfig)
+    for (const event of events) {
+      await postMcpProgressComment(plugin, taskID, buildMcpProgressComment(event, taskID), context)
+      await runOptionalMcpProgressTest(plugin, taskID, event, context, state, progressConfig)
+    }
+
+    return events
+  })()
+
+  try {
+    return await state.tickPromise
+  } finally {
+    state.tickPromise = null
   }
-
-  return events
 }
 
 export function extractMcpTaskID(toolName, args = {}, outputText = "", context = {}) {
@@ -482,15 +528,59 @@ function writeMcpActiveTaskStore(store, filePath = mcpActiveTaskStatePath()) {
   writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, "utf8")
 }
 
+function mcpActiveTaskLockPath(filePath = mcpActiveTaskStatePath()) {
+  return `${filePath}.lock`
+}
+
+function withMcpActiveTaskStoreLock(filePath, callback) {
+  mkdirSync(dirname(filePath), { recursive: true })
+  const lockPath = mcpActiveTaskLockPath(filePath)
+  const deadline = Date.now() + MCP_ACTIVE_TASK_LOCK_TIMEOUT_MS
+
+  while (true) {
+    try {
+      mkdirSync(lockPath)
+      break
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error
+
+      try {
+        const ageMs = Date.now() - statSync(lockPath).mtimeMs
+        if (ageMs > MCP_ACTIVE_TASK_LOCK_STALE_MS) {
+          rmSync(lockPath, { recursive: true, force: true })
+          continue
+        }
+      } catch {
+        // If lock inspection fails, continue waiting until timeout.
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out acquiring MCP active-task store lock: ${filePath}`)
+      }
+      sleepBlocking(MCP_ACTIVE_TASK_LOCK_WAIT_MS)
+    }
+  }
+
+  try {
+    return callback()
+  } finally {
+    rmSync(lockPath, { recursive: true, force: true })
+  }
+}
+
 export function persistMcpActiveTask({ sessionID, taskID, context, filePath } = {}) {
   if (!sessionID || !taskID || !context) return false
-  const store = readMcpActiveTaskStore(filePath)
-  const worktree = worktreeKey(context)
-  const entries = pruneMcpActiveTaskEntries(store.entries)
-    .filter((entry) => !(entry.sessionID === sessionID && entry.worktree === worktree))
-  entries.push({ sessionID, worktree, taskID, updatedAt: new Date().toISOString() })
-  writeMcpActiveTaskStore({ version: MCP_ACTIVE_TASK_STATE_VERSION, entries }, filePath)
-  return true
+  const resolvedFilePath = filePath || mcpActiveTaskStatePath()
+
+  return withMcpActiveTaskStoreLock(resolvedFilePath, () => {
+    const store = readMcpActiveTaskStore(resolvedFilePath)
+    const worktree = worktreeKey(context)
+    const entries = pruneMcpActiveTaskEntries(store.entries)
+      .filter((entry) => !(entry.sessionID === sessionID && entry.worktree === worktree))
+    entries.push({ sessionID, worktree, taskID, updatedAt: new Date().toISOString() })
+    writeMcpActiveTaskStore({ version: MCP_ACTIVE_TASK_STATE_VERSION, entries }, resolvedFilePath)
+    return true
+  })
 }
 
 export function loadMcpActiveTaskForContext({ sessionID, context, filePath } = {}) {

@@ -293,6 +293,64 @@ test("nifty_batch_capture_backlog_items dry-run plans standardized creates", asy
   assert.match(parsed.planned[0].description, /Capture multiple ideas/)
 })
 
+test("nifty_batch_capture_backlog_items skips items that already exist in the target status", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nifty-batch-idempotent-"))
+  const configPath = join(dir, "nifty-workflows.json")
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      workflows: {
+        addons: {
+          project: { name: "Addons" },
+          states: { backlog: "Backlog" },
+        },
+      },
+    }),
+    "utf8",
+  )
+
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", query: requestURL.searchParams, body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Addons", nice_id: "ADD" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "Backlog" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks" && (options.method || "GET") === "GET") {
+      return Response.json({ tasks: [{ id: "existing-1", name: "Duplicate item", task_group: "s1" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks" && options.method === "POST") {
+      const body = JSON.parse(options.body)
+      return Response.json({ id: `new-${body.name}`, name: body.name }, { status: 201 })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_batch_capture_backlog_items.execute(
+    {
+      workflow_alias: "addons",
+      dry_run: false,
+      items: [{ name: "Duplicate item" }, { name: "New item" }],
+    },
+    context({ directory: dir }),
+  )
+  const parsed = JSON.parse(output)
+  const createCalls = calls.filter((call) => call.path === "/api/v1.0/tasks" && call.method === "POST")
+
+  assert.equal(parsed.dry_run, false)
+  assert.equal(createCalls.length, 1)
+  assert.equal(JSON.parse(createCalls[0].body).name, "New item")
+})
+
 test("workflow capture blocks open questions before API calls", async () => {
   const calls = []
   globalThis.fetch = async (url) => {
@@ -383,6 +441,72 @@ test("nifty_shape_task finalizes an existing task and confirmed subtasks", async
   assert.match(updateBody.description, /## Security \/ Privacy/)
   assert.equal(subtaskBody.task_id, "t-parent")
   assert.equal(subtaskBody.task_group_id, "s-shaped")
+})
+
+test("nifty_shape_task avoids duplicate subtask creates for existing and repeated names", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t-parent" && !options.method) {
+      return Response.json({
+        id: "t-parent",
+        name: "Rough export idea",
+        task_group: "s-shaping",
+        project_id: "p1",
+        subtasks: [{ name: "Write docs" }],
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/t-parent" && options.method === "PUT") {
+      return Response.json({ id: "t-parent", name: JSON.parse(options.body).name })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks" && options.method === "POST") {
+      const body = JSON.parse(options.body)
+      return Response.json({ id: `st-${calls.length}`, name: body.name }, { status: 201 })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_shape_task.execute(
+    {
+      task_id: "t-parent",
+      title: "Export account data",
+      target_task_group_id: "s-shaped",
+      summary: "Let users export account data.",
+      problem: "Users need portable access to their data.",
+      desired_outcome: "Users can download a complete export from settings.",
+      user_experience: "A settings button starts export and shows completion state.",
+      acceptance_criteria: ["Only account owners can export", "Export includes profile data"],
+      security_privacy: "Require account-owner permissions and avoid cross-account data exposure.",
+      performance: "Run export in a background job for large accounts.",
+      data_integrations: "Read profile and account tables, no third-party integrations.",
+      edge_cases: "Empty accounts get a valid empty export.",
+      implementation_notes: "Use the existing job queue and storage abstraction.",
+      test_plan: "Unit test serializer and permission checks.",
+      rollout: "No feature flag required.",
+      non_goals: "No admin bulk export.",
+      proposed_subtasks: [
+        { name: "Write docs" },
+        { name: "Implement API" },
+        { name: "implement api" },
+      ],
+      create_subtasks: true,
+      subtask_confirmation: "create 1 subtask",
+      finalize: true,
+    },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+  const subtaskCalls = calls
+    .filter((call) => call.path === "/api/v1.0/tasks" && call.method === "POST")
+    .map((call) => JSON.parse(call.body))
+
+  assert.equal(parsed.finalized, true)
+  assert.equal(subtaskCalls.length, 1)
+  assert.equal(subtaskCalls[0].name, "Implement API")
 })
 
 test("nifty_create_document resolves project from workflow alias", async () => {

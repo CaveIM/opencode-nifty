@@ -29,6 +29,8 @@ It gives you:
 
 ## Install Into A Container Or Machine
 
+For a full WSL/devcontainer handoff guide covering OpenCode, GitHub Copilot / VS Code MCP, Codex, and manual VS Code setup, see [`docs/install-wsl-devcontainer.md`](docs/install-wsl-devcontainer.md).
+
 Fast install after this repo is public:
 
 ```bash

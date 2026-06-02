@@ -22,6 +22,7 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
+import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
@@ -40,6 +41,8 @@ const TABLE_NAME = "nifty-tasks"
 const PAGE_SIZE = 100
 const MAX_COMMENT_TEXT = 2000 // chars per comment chunk
 const CHUNK_WORDS = 400 // approximate words per text chunk
+const COMMENT_FETCH_CONCURRENCY = envInt("NIFTY_RAG_COMMENT_CONCURRENCY", 8)
+const WRITE_BATCH_SIZE = envInt("NIFTY_RAG_WRITE_BATCH_SIZE", 2000)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -47,6 +50,11 @@ function resolveIndexPath() {
   const p = process.env.NIFTY_RAG_INDEX_PATH
   if (!p) return join(homedir(), ".config", "opencode", "nifty-rag")
   return p.replace(/^~(?=\/|$)/, homedir())
+}
+
+function envInt(name, fallback) {
+  const value = Number.parseInt(process.env[name] ?? "", 10)
+  return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
 function getToken() {
@@ -94,6 +102,10 @@ function nowIso() {
   return new Date().toISOString()
 }
 
+function hashText(value) {
+  return createHash("sha256").update(String(value)).digest("hex")
+}
+
 function taskToChunks(task, projectId) {
   const fullText = [task.name, task.description].filter(Boolean).join("\n\n")
   const chunks = chunkWords(fullText, CHUNK_WORDS)
@@ -109,10 +121,15 @@ function taskToChunks(task, projectId) {
   return chunks.map((text, i) => ({ ...base, chunk_index: i, text }))
 }
 
+function fallbackCommentId(comment, taskId, projectId, text) {
+  const source = [projectId, taskId, comment.created_at || "", text].join("|")
+  return `${taskId}-comment-${hashText(source).slice(0, 16)}`
+}
+
 function commentToChunk(comment, taskId, projectId) {
   const text = String(comment.text ?? comment.body ?? "").slice(0, MAX_COMMENT_TEXT)
   return {
-    doc_id: comment.id ?? `${taskId}-comment-${Date.now()}`,
+    doc_id: comment.id ?? fallbackCommentId(comment, taskId, projectId, text),
     doc_type: "comment",
     project_id: projectId,
     task_id: taskId,
@@ -124,12 +141,59 @@ function commentToChunk(comment, taskId, projectId) {
   }
 }
 
+function chunkIdentity(chunk) {
+  return [
+    chunk.doc_type,
+    chunk.doc_id,
+    chunk.task_id || "",
+    chunk.chunk_index,
+    chunk.text,
+  ].join("::")
+}
+
+function dedupeChunks(chunks = []) {
+  const seen = new Set()
+  const deduped = []
+  for (const chunk of chunks) {
+    const key = chunkIdentity(chunk)
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(chunk)
+  }
+  return deduped
+}
+
+function escapeSqlValue(value) {
+  return String(value).replaceAll("'", "''")
+}
+
+async function clearProjectScope(table, projectIds = []) {
+  if (!projectIds.length) return
+  if (typeof table.delete !== "function") {
+    throw new Error(
+      "Installed @lancedb/lancedb does not expose table.delete(); run with --reset or upgrade LanceDB for idempotent project-scoped updates.",
+    )
+  }
+  for (const projectId of projectIds) {
+    await table.delete(`project_id = '${escapeSqlValue(projectId)}'`)
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function collectProjectIds(token) {
   if (args.project) return [args.project]
   const data = await niftyGet("/api/v1.0/projects", token)
   return (data.projects ?? []).map((p) => p.id).filter(Boolean)
+}
+
+async function fetchTaskComments(taskId, token) {
+  try {
+    const msgData = await niftyGet(`/api/v1.0/tasks/${taskId}/messages`, token, { limit: 200 })
+    return msgData.messages ?? msgData.comments ?? []
+  } catch {
+    return []
+  }
 }
 
 async function indexProject(projectId, token, sinceDate) {
@@ -162,20 +226,23 @@ async function indexProject(projectId, token, sinceDate) {
     for (const task of tasks) {
       chunks.push(...taskToChunks(task, projectId))
       taskCount++
+    }
 
-      // Comments — best-effort; skip on error
-      try {
-        const msgData = await niftyGet(`/api/v1.0/tasks/${task.id}/messages`, token, { limit: 200 })
-        const comments = msgData.messages ?? msgData.comments ?? []
-        for (const c of comments) {
-          const chunk = commentToChunk(c, task.id, projectId)
-          if (chunk.text) {
-            chunks.push(chunk)
-            commentCount++
-          }
+    for (let index = 0; index < tasks.length; index += COMMENT_FETCH_CONCURRENCY) {
+      const batch = tasks.slice(index, index + COMMENT_FETCH_CONCURRENCY)
+      const batchComments = await Promise.all(
+        batch.map(async (task) => ({
+          taskId: task.id,
+          comments: await fetchTaskComments(task.id, token),
+        })),
+      )
+      for (const taskComments of batchComments) {
+        for (const comment of taskComments.comments) {
+          const chunk = commentToChunk(comment, taskComments.taskId, projectId)
+          if (!chunk.text) continue
+          chunks.push(chunk)
+          commentCount++
         }
-      } catch {
-        // Comments are best-effort
       }
     }
 
@@ -187,6 +254,15 @@ async function indexProject(projectId, token, sinceDate) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function flushChunkBatch(conn, table, chunks = []) {
+  if (!chunks.length) return table
+  if (!table) {
+    return conn.createTable(TABLE_NAME, chunks)
+  }
+  await table.add(chunks)
+  return table
+}
 
 async function main() {
   // Guard: require LanceDB
@@ -205,7 +281,11 @@ async function main() {
 
   const conn = await lancedb.connect(indexPath)
 
-  if (args.reset) {
+  const sinceDate = args.since ?? null
+  const projectIds = await collectProjectIds(token)
+  console.log(`Indexing ${projectIds.length} project(s)${sinceDate ? ` updated after ${sinceDate}` : ""}...`)
+
+  if (args.reset || (!sinceDate && !args.project)) {
     try {
       await conn.dropTable(TABLE_NAME)
       console.log(`Dropped existing table '${TABLE_NAME}'.`)
@@ -214,38 +294,48 @@ async function main() {
     }
   }
 
-  const sinceDate = args.since ?? null
-  const projectIds = await collectProjectIds(token)
-  console.log(`Indexing ${projectIds.length} project(s)${sinceDate ? ` updated after ${sinceDate}` : ""}...`)
+  const tableNames = await conn.tableNames()
+  let table = tableNames.includes(TABLE_NAME) ? await conn.openTable(TABLE_NAME) : null
+  if (table && (args.project || sinceDate)) {
+    await clearProjectScope(table, projectIds)
+    console.log(`Cleared existing index rows for ${projectIds.length} project scope(s).`)
+  }
 
-  const allChunks = []
+  const pendingChunks = []
+  const seenChunkKeys = new Set()
   let totalTasks = 0
   let totalComments = 0
+  let totalChunks = 0
 
   for (const projectId of projectIds) {
     process.stdout.write(`  project ${projectId}... `)
-    const { chunks, taskCount, commentCount } = await indexProject(projectId, token, sinceDate)
-    allChunks.push(...chunks)
+    const { chunks: projectChunks, taskCount, commentCount } = await indexProject(projectId, token, sinceDate)
+    const dedupedProjectChunks = dedupeChunks(projectChunks)
+
+    for (const chunk of dedupedProjectChunks) {
+      const key = chunkIdentity(chunk)
+      if (seenChunkKeys.has(key)) continue
+      seenChunkKeys.add(key)
+      pendingChunks.push(chunk)
+      totalChunks++
+    }
+
+    if (pendingChunks.length >= WRITE_BATCH_SIZE) {
+      table = await flushChunkBatch(conn, table, pendingChunks.splice(0, pendingChunks.length))
+    }
+
     totalTasks += taskCount
     totalComments += commentCount
-    process.stdout.write(`${taskCount} tasks, ${commentCount} comments\n`)
+    process.stdout.write(`${taskCount} tasks, ${commentCount} comments, ${dedupedProjectChunks.length} chunk(s)\n`)
   }
 
-  if (!allChunks.length) {
+  if (pendingChunks.length) {
+    table = await flushChunkBatch(conn, table, pendingChunks.splice(0, pendingChunks.length))
+  }
+
+  if (!totalChunks) {
     console.log("No data to index.")
     return
-  }
-
-  // Write to LanceDB (create or append)
-  const tableNames = await conn.tableNames()
-  let table
-  if (tableNames.includes(TABLE_NAME)) {
-    table = await conn.openTable(TABLE_NAME)
-    await table.add(allChunks)
-    console.log(`Appended ${allChunks.length} chunks to existing table '${TABLE_NAME}'.`)
-  } else {
-    table = await conn.createTable(TABLE_NAME, allChunks)
-    console.log(`Created table '${TABLE_NAME}' with ${allChunks.length} chunks.`)
   }
 
   // Create full-text search index — best-effort (API varies by LanceDB version)
@@ -259,7 +349,7 @@ async function main() {
   }
 
   console.log(
-    `Done. ${totalTasks} tasks + ${totalComments} comments → ${allChunks.length} chunks indexed.`,
+    `Done. ${totalTasks} tasks + ${totalComments} comments → ${totalChunks} chunks indexed.`,
   )
 }
 

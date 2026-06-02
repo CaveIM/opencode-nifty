@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { spawn } from "node:child_process"
 import { afterEach, beforeEach, test } from "node:test"
 import {
   activateMcpProgressState,
@@ -266,6 +267,62 @@ test("persistMcpActiveTask prunes stale active task entries", () => {
   assert.equal(loadMcpActiveTaskForContext({ sessionID: "s1", context, filePath: statePath }), "fresh-task")
 })
 
+test("persistMcpActiveTask keeps both entries when two MCP processes persist concurrently", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nifty-active-task-race-"))
+  const writerPath = join(dir, "persist-writer.mjs")
+  writeFileSync(
+    writerPath,
+    `
+      import { setTimeout as wait } from "node:timers/promises"
+      import { createMcpExecutionContext, persistMcpActiveTask } from ${JSON.stringify(new URL("../mcp/mcp-server.mjs", import.meta.url).href)}
+
+      const [filePath, sessionID, taskID, startAt] = process.argv.slice(2)
+      const context = createMcpExecutionContext({ directory: "/repo", worktree: "/repo" })
+      while (Date.now() < Number(startAt)) await wait(1)
+      persistMcpActiveTask({ sessionID, taskID, context, filePath })
+    `,
+    "utf8",
+  )
+
+  try {
+    let missingRuns = 0
+
+    for (let run = 0; run < 60; run++) {
+      const statePath = join(dir, `active-task-${run}.json`)
+      const startAt = String(Date.now() + 60)
+      const writers = [
+        spawn(process.execPath, [writerPath, statePath, "session-a", "task-a", startAt], { stdio: "ignore" }),
+        spawn(process.execPath, [writerPath, statePath, "session-b", "task-b", startAt], { stdio: "ignore" }),
+      ]
+
+      await Promise.all(
+        writers.map(
+          (child) =>
+            new Promise((resolve, reject) => {
+              child.once("exit", (code) => {
+                if (code === 0) {
+                  resolve()
+                  return
+                }
+                reject(new Error(`writer exited with ${code}`))
+              })
+            }),
+        ),
+      )
+
+      const store = JSON.parse(readFileSync(statePath, "utf8"))
+      const sessions = new Set((store.entries || []).map((entry) => entry.sessionID))
+      if (!sessions.has("session-a") || !sessions.has("session-b")) {
+        missingRuns++
+      }
+    }
+
+    assert.equal(missingRuns, 0)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test("tickMcpProgressObserver posts an autonomous MCP progress comment when git state changes", async () => {
   const calls = []
   const context = createMcpExecutionContext({
@@ -347,4 +404,59 @@ test("tickMcpProgressObserver posts a catch-up comment on first tick when worktr
   assert.equal(calls[0].task_id, "MBC-462")
   assert.match(calls[0].text, /MCP autonomous progress update/i)
   assert.match(calls[0].text, /docs\/rag-architecture\.md/)
+})
+
+test("tickMcpProgressObserver skips overlapping ticks for the same active state", async () => {
+  const context = createMcpExecutionContext({
+    directory: process.cwd(),
+    metadataEntries: { session: "mbc-462", mcp_tool: "mcp_startup" },
+  })
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {},
+        async execute() {
+          return { id: "comment-1" }
+        },
+      },
+    },
+  }
+  const state = createMcpProgressState({ taskID: "MBC-462" })
+  let reads = 0
+
+  const readSnapshot = async () => {
+    reads++
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    return {
+      dirtyFiles: ["M plugin/nifty.js"],
+      head: "a",
+      aheadCount: 0,
+      branch: "dev-tony",
+    }
+  }
+
+  await Promise.all([
+    tickMcpProgressObserver({ plugin, taskID: "MBC-462", context, state, readSnapshot }),
+    tickMcpProgressObserver({ plugin, taskID: "MBC-462", context, state, readSnapshot }),
+  ])
+
+  assert.equal(reads, 1)
+})
+
+test("readGitWorktreeSnapshot limits polling to lightweight git commands", async () => {
+  const calls = []
+  await readGitWorktreeSnapshot(process.cwd(), {
+    runGit: async (_worktree, args) => {
+      const command = args.join(" ")
+      calls.push(command)
+      if (command === "status --porcelain=v1") return " M README.md\n"
+      if (command === "rev-parse HEAD") return "abc123"
+      if (command === "rev-parse --abbrev-ref HEAD") return "dev-tony"
+      if (command === "rev-list --count @{u}..HEAD") return "0"
+      return ""
+    },
+  })
+
+  assert.equal(calls.some((command) => command.startsWith("diff ")), false)
+  assert.equal(calls.length, 4)
 })

@@ -269,3 +269,13 @@ test("filters tasks by configured custom field value", () => {
     ["1"],
   )
 })
+
+test("bootstrap mutating project tool set tracks live document tool names", () => {
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_create_document"), true)
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_update_document"), true)
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_delete_document"), true)
+
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_create_doc"), false)
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_update_doc"), false)
+  assert.equal(__test.BOOTSTRAP_MUTATING_PROJECT_TOOLS.has("nifty_delete_doc"), false)
+})
