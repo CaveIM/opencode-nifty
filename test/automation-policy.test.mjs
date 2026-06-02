@@ -109,6 +109,7 @@ test("taskParentID extracts parent linkage from supported task shapes", () => {
   assert.equal(__test.taskParentID({ task_id: "p1" }), "p1")
   assert.equal(__test.taskParentID({ parent_task_id: "p2" }), "p2")
   assert.equal(__test.taskParentID({ parent: { id: "p3" } }), "p3")
+  assert.equal(__test.taskParentID({ task: "p4" }), "p4")
   assert.equal(__test.taskParentID({ id: "child" }), null)
 })
 

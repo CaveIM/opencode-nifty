@@ -766,7 +766,7 @@ test("nifty_get_task_full_context returns task, comments, subtasks, and project 
   assert.equal(parsed.comments.length, 1)
   assert.equal(parsed.subtasks.length, 1)
   assert.equal(parsed.project.name, "Project One")
-  assert.equal(parsed.project_status_counts["In Progress"], 2)
+  assert.equal(parsed.project_status_counts["In Progress"], 1)
 })
 
 test("nifty_get_project_full_context returns whole project snapshot", async () => {
@@ -1169,6 +1169,94 @@ test("nifty_complete_task does not auto-complete the parent without explicit par
   assert.equal(parsed.parent_automation.blocked, true)
   assert.match(parsed.parent_automation.reason, /close parent-1/i)
   assert.equal(calls.some((call) => call.path === "/api/v1.0/tasks/parent-1/complete" && call.method === "POST"), false)
+})
+
+test("nifty_move_task_to_status rejects subtasks because subtasks are checked off", async () => {
+  process.env.NIFTY_AUTOPOLICY_ENABLED = "true"
+
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1", task_group_id: "s-todo" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_move_task_to_status.execute(
+      { task_id: "sub-1", project_id: "p1", status_name: "Dev Review" },
+      context(),
+    ),
+    /subtask.*nifty_complete_task/i,
+  )
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
+})
+
+test("nifty_update_task rejects status changes for subtasks", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", parent_task_id: "parent-1", project_id: "p1", task_group_id: "s-todo" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_update_task.execute(
+      { task_id: "sub-1", task_group_id: "s-dev" },
+      context(),
+    ),
+    /subtask.*checked off/i,
+  )
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
+})
+
+test("auto lifecycle start does not move subtasks before comments", async () => {
+  process.env.NIFTY_AUTOPOLICY_ENABLED = "true"
+  process.env.NIFTY_POLICY_INLINE = JSON.stringify({
+    version: 1,
+    default_effect: "allow",
+    automation: { enabled: true },
+    rules: [],
+  })
+
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1", task_group_id: "s-todo" })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages" && options.method === "POST") {
+      return Response.json({ id: "m1" }, { status: 201 })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_create_comment.execute(
+    { task_id: "sub-1", text: "Finished and checked off." },
+    context(),
+  )
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/sub-1"],
+    ["POST", "/api/v1.0/messages"],
+  ])
 })
 
 test("tool.execute.after posts a first-edit progress comment once for the active task", async () => {

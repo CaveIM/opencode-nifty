@@ -2697,13 +2697,27 @@ function taskProjectSubtasks(task = {}, tasks = []) {
 }
 
 function taskParentID(task = {}) {
-  return task?.task_id || task?.parent_task_id || task?.parent?.id || null
+  return task?.task_id || task?.parent_task_id || task?.parent?.id || task?.task || null
+}
+
+function isSubtask(task = {}) {
+  return Boolean(taskParentID(task))
+}
+
+function assertTaskCardForStatusChange(task = {}) {
+  if (!isSubtask(task)) return
+  const taskID = task?.id || "unknown"
+  const parentID = taskParentID(task) || "unknown"
+  throw new Error(
+    `Nifty subtask ${taskID} belongs to parent task ${parentID}. Subtasks are checked off with nifty_complete_task; they are not task cards and must not be moved between statuses such as Dev Review.`,
+  )
 }
 
 function projectStatusSummary(tasks = [], statuses = []) {
   const namesByID = new Map((statuses || []).map((status) => [status.id, status.name]))
   const counts = {}
   for (const task of tasks || []) {
+    if (isSubtask(task)) continue
     const statusID = task?.task_group || task?.task_group_id || task?.task_group?.id
     const statusName = namesByID.get(statusID) || task?.task_group?.name || "unknown"
     counts[statusName] = (counts[statusName] || 0) + 1
@@ -2721,13 +2735,21 @@ async function fetchTaskFullContext(taskID, input = {}, context = {}) {
     workflow,
   )
   const projectID = getTaskProjectID(task)
-  const [commentsResponse, projects, statuses, milestones, projectTasksResponse] = await Promise.all([
+  const [commentsResponse, projects, statuses, milestones, subtasksResponse, projectTasksResponse] = await Promise.all([
     niftyRequest("/api/v1.0/messages", {
       query: { task_id: taskID, limit: commentLimit, offset: 0 },
     }),
     projectID ? fetchAllProjects({ includeArchived: true }) : Promise.resolve([]),
     projectID ? fetchAllStatuses(projectID) : Promise.resolve([]),
     projectID ? fetchAllMilestones(projectID) : Promise.resolve([]),
+    niftyRequest("/api/v1.0/tasks", {
+      query: {
+        task_id: task?.id || taskID,
+        include_subtasks: "true",
+        limit: 100,
+        offset: 0,
+      },
+    }).catch(() => ({ tasks: [] })),
     projectID
       ? niftyRequest("/api/v1.0/tasks", {
           query: {
@@ -2742,7 +2764,11 @@ async function fetchTaskFullContext(taskID, input = {}, context = {}) {
 
   const comments = commentsResponse?.items || commentsResponse?.messages || []
   const projectTasks = projectTasksResponse?.tasks || []
-  const subtasks = taskProjectSubtasks(task, projectTasks)
+  const directSubtasks = (subtasksResponse?.tasks || [])
+    .filter((item) => String(taskParentID(item)) === String(task?.id || taskID))
+  const subtasks = directSubtasks.length
+    ? directSubtasks
+    : taskProjectSubtasks(task, projectTasks)
   const project = projects.find((item) => item.id === projectID) || null
 
   return {
@@ -2871,6 +2897,7 @@ async function maybeAutoStartLifecycle(toolName, args = {}, context = {}, policy
   if (policyState.startedTasks?.has(args.task_id)) return
 
   const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+  if (isSubtask(task)) return
   if (task?.completed || task?.archived) return
 
   const projectID = getTaskProjectID(task)
@@ -4840,6 +4867,10 @@ export const NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const workflow = await workflowForArgs(args, context)
+          if (args.task_group_id) {
+            const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+            assertTaskCardForStatusChange(task)
+          }
           const taskBody = cleanWriteObject({
             name: args.name,
             description: args.description,
@@ -5077,7 +5108,7 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_move_task_to_status: tool({
-        description: "Moves a task to a named status or configured workflow state",
+        description: "Moves a task card to a named status or configured workflow state. For subtasks, use nifty_complete_task to check or uncheck the subtask instead.",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),
@@ -5091,6 +5122,7 @@ export const NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+          assertTaskCardForStatusChange(task)
           const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = args.workflow_alias
             ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
@@ -5194,6 +5226,7 @@ export const NiftyPlugin = async () => {
         async execute(args, context) {
           assertNoOpenQuestions(args, "task")
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`)
+          if (args.state_key || args.status_name) assertTaskCardForStatusChange(task)
           const contextWithConfig = workflowContext(context, args.config_path)
           const resolved = args.workflow_alias
             ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig)
