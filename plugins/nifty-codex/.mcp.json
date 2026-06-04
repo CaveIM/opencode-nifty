@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "nifty": {
+      "command": "node",
+      "args": ["./scripts/start-nifty-mcp.mjs"],
+      "env_vars": [
+        "NIFTY_WORKTREE",
+        "NIFTY_MCP_ROOT",
+        "NIFTY_POLICY_PATH",
+        "NIFTY_POLICY_REQUIRED",
+        "NIFTY_POLICY_GATEWAY_URL",
+        "NIFTY_POLICY_GATEWAY_TOKEN",
+        "NIFTY_POLICY_GATEWAY_MODE",
+        "NIFTY_POLICY_GATEWAY_TIMEOUT_MS",
+        "NIFTY_RAG_ENABLED",
+        "NIFTY_RAG_REQUIRED",
+        "NIFTY_RAG_INDEX_PATH",
+        "NIFTY_RAG_TASK_LIMIT",
+        "NIFTY_RAG_POLICY_LIMIT",
+        "NIFTY_RAG_TIMEOUT_MS",
+        "NIFTY_RAG_CACHE_TTL_MS",
+        "NIFTY_RAG_QUERY_FANOUT",
+        "NIFTY_RAG_MAX_QUERY_CHARS",
+        "NIFTY_RAG_MAX_RESULT_TEXT_CHARS",
+        "NIFTY_RAG_INCLUDE_DIAGNOSTICS",
+        "NIFTY_MCP_DEBUG"
+      ]
+    }
+  }
+}

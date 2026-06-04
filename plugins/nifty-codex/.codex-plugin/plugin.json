@@ -1,0 +1,35 @@
+{
+  "name": "nifty-codex",
+  "version": "0.1.0+codex.20260604160149",
+  "description": "Codex adapter for Nifty task-card workflows with policy-gateway enforcement.",
+  "author": {
+    "name": "CaveIM"
+  },
+  "repository": "https://github.com/CaveIM/opencode-nifty",
+  "license": "MIT",
+  "keywords": [
+    "nifty",
+    "codex",
+    "task-cards",
+    "policy-gateway"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Nifty Codex",
+    "shortDescription": "Work Nifty task cards through Codex.",
+    "longDescription": "Nifty Codex packages the Nifty MCP adapter, task-card operating guidance, and advisory local hooks. Codex can request Nifty actions, while sensitive writes are routed through the configured policy gateway for authoritative company-rule enforcement.",
+    "developerName": "CaveIM",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Open my active Nifty task and hydrate full context.",
+      "Prepare this Nifty card for Dev Review with evidence.",
+      "List Nifty work ready for implementation."
+    ],
+    "brandColor": "#635BFF"
+  }
+}
