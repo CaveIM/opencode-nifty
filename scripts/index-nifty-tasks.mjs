@@ -11,7 +11,8 @@
  * Options:
  *   --project <id>    Index a single project (default: all projects)
  *   --reset           Drop and rebuild the table from scratch
- *   --since <ISO>     Only re-index tasks updated after this date (incremental)
+ *   --since <ISO>     Re-index tasks updated after this date. Existing rows are
+ *                     replaced only for those updated task IDs.
  *
  * Required env / auth:
  *   NIFTY_ACCESS_TOKEN       Bearer token (falls back to ~/.config/opencode/nifty-auth.json)
@@ -25,7 +26,9 @@ import { mkdir } from "node:fs/promises"
 import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
+import { envInt, fetchJsonWithRetry } from "./lib/rag-http.mjs"
 
 const { values: args } = parseArgs({
   options: {
@@ -43,6 +46,9 @@ const MAX_COMMENT_TEXT = 2000 // chars per comment chunk
 const CHUNK_WORDS = 400 // approximate words per text chunk
 const COMMENT_FETCH_CONCURRENCY = envInt("NIFTY_RAG_COMMENT_CONCURRENCY", 8)
 const WRITE_BATCH_SIZE = envInt("NIFTY_RAG_WRITE_BATCH_SIZE", 2000)
+const API_TIMEOUT_MS = envInt("NIFTY_RAG_API_TIMEOUT_MS", 15_000)
+const API_RETRIES = envInt("NIFTY_RAG_API_RETRIES", 2)
+const API_RETRY_DELAY_MS = envInt("NIFTY_RAG_API_RETRY_DELAY_MS", 250)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -50,11 +56,6 @@ function resolveIndexPath() {
   const p = process.env.NIFTY_RAG_INDEX_PATH
   if (!p) return join(homedir(), ".config", "opencode", "nifty-rag")
   return p.replace(/^~(?=\/|$)/, homedir())
-}
-
-function envInt(name, fallback) {
-  const value = Number.parseInt(process.env[name] ?? "", 10)
-  return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
 function getToken() {
@@ -74,14 +75,12 @@ async function niftyGet(path, token, params = {}) {
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
   }
-  const res = await fetch(url.toString(), {
+  return fetchJsonWithRetry(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
+    timeoutMs: API_TIMEOUT_MS,
+    retries: API_RETRIES,
+    retryDelayMs: API_RETRY_DELAY_MS,
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => "")
-    throw new Error(`Nifty API ${res.status} ${path}: ${body.slice(0, 200)}`)
-  }
-  return res.json()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -176,6 +175,33 @@ async function clearProjectScope(table, projectIds = []) {
   }
   for (const projectId of projectIds) {
     await table.delete(`project_id = '${escapeSqlValue(projectId)}'`)
+  }
+}
+
+export function chunkTaskIDs(chunks = []) {
+  const seen = new Set()
+  const taskIDs = []
+  for (const chunk of chunks) {
+    const taskID = chunk.doc_type === "task" ? chunk.doc_id : chunk.task_id
+    const normalized = String(taskID || "").trim()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    taskIDs.push(normalized)
+  }
+  return taskIDs
+}
+
+export async function clearChunkScope(table, chunks = []) {
+  const taskIDs = chunkTaskIDs(chunks)
+  if (!taskIDs.length) return
+  if (typeof table.delete !== "function") {
+    throw new Error(
+      "Installed @lancedb/lancedb does not expose table.delete(); run with --reset or upgrade LanceDB for idempotent incremental updates.",
+    )
+  }
+  for (const taskID of taskIDs) {
+    await table.delete(`doc_type = 'task' AND doc_id = '${escapeSqlValue(taskID)}'`)
+    await table.delete(`doc_type = 'comment' AND task_id = '${escapeSqlValue(taskID)}'`)
   }
 }
 
@@ -296,7 +322,7 @@ async function main() {
 
   const tableNames = await conn.tableNames()
   let table = tableNames.includes(TABLE_NAME) ? await conn.openTable(TABLE_NAME) : null
-  if (table && (args.project || sinceDate)) {
+  if (table && args.project && !sinceDate) {
     await clearProjectScope(table, projectIds)
     console.log(`Cleared existing index rows for ${projectIds.length} project scope(s).`)
   }
@@ -311,6 +337,9 @@ async function main() {
     process.stdout.write(`  project ${projectId}... `)
     const { chunks: projectChunks, taskCount, commentCount } = await indexProject(projectId, token, sinceDate)
     const dedupedProjectChunks = dedupeChunks(projectChunks)
+    if (table && sinceDate) {
+      await clearChunkScope(table, dedupedProjectChunks)
+    }
 
     for (const chunk of dedupedProjectChunks) {
       const key = chunkIdentity(chunk)
@@ -353,7 +382,9 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error("Indexing failed:", err.message)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("Indexing failed:", err.message)
+    process.exit(1)
+  })
+}
