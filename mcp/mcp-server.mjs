@@ -9,7 +9,7 @@ import { cwd } from "node:process"
 import * as z from "zod"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { NiftyPlugin } from "../plugin/nifty.js"
+import { NiftyPlugin, validateNiftyTaskCommentTemplate } from "../plugin/nifty.js"
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -27,6 +27,22 @@ const MCP_ACTIVE_TASK_DEFAULT_MAX_ENTRIES = 500
 const MCP_ACTIVE_TASK_LOCK_TIMEOUT_MS = 3000
 const MCP_ACTIVE_TASK_LOCK_STALE_MS = 10000
 const MCP_ACTIVE_TASK_LOCK_WAIT_MS = 20
+const MCP_POLICY_GATEWAY_DEFAULT_TIMEOUT_MS = 10000
+const MCP_POLICY_GATEWAY_SENSITIVE_TOOL_PATTERNS = [
+  "nifty_create_*",
+  "nifty_run_*",
+  "nifty_update_*",
+  "nifty_delete_*",
+  "nifty_move_*",
+  "nifty_complete_*",
+  "nifty_archive_*",
+  "nifty_clone_*",
+  "nifty_attach_*",
+  "nifty_link_*",
+  "nifty_batch_*",
+  "nifty_prepare_*",
+  "nifty_setup_*",
+]
 const MCP_TASK_OUTPUT_ID_TOOLS = new Set([
   "nifty_create_task",
   "nifty_create_subtask",
@@ -36,6 +52,7 @@ const MCP_TASK_OUTPUT_ID_TOOLS = new Set([
   "nifty_update_task_assignees",
   "nifty_move_task_to_status",
   "nifty_complete_task",
+  "nifty_complete_child_task",
   "nifty_archive_task",
   "nifty_prepare_task_for_delivery",
 ])
@@ -45,6 +62,13 @@ let pluginCacheAt = 0
 const mcpProgressStates = new Map()
 const mcpActiveProgressKeys = new Map()
 const mcpActiveTaskLockWaitBuffer = new Int32Array(new SharedArrayBuffer(4))
+
+function assertMcpRuntime() {
+  const major = Number.parseInt(process.versions.node.split(".")[0] || "0", 10)
+  if (!Number.isFinite(major) || major < 20) {
+    throw new Error(`Nifty MCP requires Node 20 or newer. Current Node: ${process.version}`)
+  }
+}
 
 function formatIssues(issues = []) {
   return issues
@@ -88,6 +112,146 @@ function normalizeMetadataEntries(entries = {}) {
 function mcpLog(level, event, data = {}) {
   if (!process.env.NIFTY_MCP_DEBUG) return
   process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), level, event, ...data }) + "\n")
+}
+
+function patternToRegExp(pattern) {
+  const escaped = String(pattern).replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replace(/\*/g, ".*")
+  return new RegExp(`^${escaped}$`)
+}
+
+export function isSensitiveNiftyTool(toolName, patterns = MCP_POLICY_GATEWAY_SENSITIVE_TOOL_PATTERNS) {
+  return patterns.some((pattern) => patternToRegExp(pattern).test(toolName))
+}
+
+export function mcpPolicyGatewayConfig(env = process.env) {
+  const mode = String(env.NIFTY_POLICY_GATEWAY_MODE || "shadow").toLowerCase()
+  const normalizedMode = mode === "enforce" ? "enforce" : "shadow"
+  const timeoutMs = envInteger("NIFTY_POLICY_GATEWAY_TIMEOUT_MS", MCP_POLICY_GATEWAY_DEFAULT_TIMEOUT_MS, env)
+  return {
+    mode: normalizedMode,
+    url: env.NIFTY_POLICY_GATEWAY_URL || "",
+    token: env.NIFTY_POLICY_GATEWAY_TOKEN || "",
+    timeoutMs,
+  }
+}
+
+export function buildMcpPolicyGatewayPayload({ toolName, args, context, sessionID, callID } = {}) {
+  const idempotencySource = JSON.stringify({
+    session_id: sessionID,
+    call_id: callID || null,
+    tool: toolName,
+    args,
+    worktree: context?.worktree || context?.directory || null,
+  })
+
+  return {
+    mode: mcpPolicyGatewayConfig().mode,
+    tool: toolName,
+    args,
+    context: {
+      directory: context?.directory || null,
+      worktree: context?.worktree || null,
+      active_task_id: context?.metadata?.("active_task_id") || null,
+      mcp_tool: context?.metadata?.("mcp_tool") || toolName,
+    },
+    client: {
+      name: DEFAULT_SERVER_NAME,
+      version: DEFAULT_SERVER_VERSION,
+      transport: "mcp",
+    },
+    session_id: sessionID,
+    call_id: callID || null,
+    idempotency_key: createHash("sha256").update(idempotencySource).digest("hex"),
+  }
+}
+
+async function parseGatewayResponse(response) {
+  const text = await response.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error("Policy gateway returned malformed JSON.")
+  }
+}
+
+function formatGatewayDenial(toolName, payload = {}) {
+  const reason = payload.reason || "request denied"
+  const violations = Array.isArray(payload.violations) && payload.violations.length
+    ? ` Violations: ${payload.violations.map((violation) => violation.reason || violation.id || String(violation)).join("; ")}`
+    : ""
+  const audit = payload.audit_id ? ` Audit: ${payload.audit_id}.` : ""
+  return `Policy gateway denied ${toolName}: ${reason}.${audit}${violations}`
+}
+
+export async function callMcpPolicyGateway({ toolName, args, context, sessionID, callID } = {}, deps = {}) {
+  const config = deps.config || mcpPolicyGatewayConfig()
+  const fetchFn = deps.fetchFn || globalThis.fetch
+
+  if (!isSensitiveNiftyTool(toolName)) return { action: "bypass", sensitive: false }
+  if (!config.url) {
+    if (config.mode === "enforce") {
+      throw new Error(`Policy gateway is required in enforce mode before executing ${toolName}. Set NIFTY_POLICY_GATEWAY_URL.`)
+    }
+    return { action: "bypass", sensitive: true, reason: "gateway_not_configured" }
+  }
+  if (typeof fetchFn !== "function") {
+    if (config.mode === "enforce") {
+      throw new Error("Policy gateway fetch is unavailable in enforce mode. Run the MCP server on Node 20+ or provide fetch.")
+    }
+    return { action: "bypass", sensitive: true, reason: "fetch_unavailable" }
+  }
+
+  const payload = buildMcpPolicyGatewayPayload({ toolName, args, context, sessionID, callID })
+  payload.mode = config.mode
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
+
+  try {
+    const response = await fetchFn(new URL("/v1/tool-calls", config.url), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.token ? { authorization: `Bearer ${config.token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    const gatewayPayload = await parseGatewayResponse(response)
+    if (!response.ok) {
+      throw new Error(gatewayPayload.reason || `Policy gateway returned HTTP ${response.status}.`)
+    }
+    if (!["allow", "deny"].includes(gatewayPayload.decision)) {
+      throw new Error("Policy gateway response must include decision \"allow\" or \"deny\".")
+    }
+
+    if (gatewayPayload.decision === "deny") {
+      const denial = formatGatewayDenial(toolName, gatewayPayload)
+      if (config.mode === "enforce") throw new Error(denial)
+      mcpLog("warn", "policy_gateway_shadow_denied", { tool: toolName, audit_id: gatewayPayload.audit_id, reason: gatewayPayload.reason })
+      return { action: "continue", sensitive: true, decision: "deny", payload: gatewayPayload }
+    }
+
+    if (config.mode === "enforce") {
+      const text = gatewayPayload.result?.text
+      if (typeof text !== "string") {
+        throw new Error("Policy gateway enforce allow response must include result.text.")
+      }
+      return { action: "return", sensitive: true, decision: "allow", text, payload: gatewayPayload }
+    }
+
+    return { action: "continue", sensitive: true, decision: "allow", payload: gatewayPayload }
+  } catch (error) {
+    if (config.mode === "enforce") {
+      throw new Error(`Policy gateway failed before executing ${toolName}: ${error.message}`)
+    }
+    mcpLog("warn", "policy_gateway_shadow_failed", { tool: toolName, error: error.message })
+    return { action: "continue", sensitive: true, reason: error.message }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export async function loadNiftyTools() {
@@ -157,9 +321,13 @@ function envBoolean(name, fallback) {
   return !["0", "false", "no", "off"].includes(String(value).toLowerCase())
 }
 
-function envInteger(name, fallback) {
-  const parsed = Number.parseInt(process.env[name] ?? "", 10)
+function envInteger(name, fallback, env = process.env) {
+  const parsed = Number.parseInt(env[name] ?? "", 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function isNiftyTaskTargetedComment(toolName, args = {}) {
+  return toolName === "nifty_create_comment" && typeof args.task_id === "string" && args.task_id.trim().length > 0
 }
 
 function pruneMcpActiveTaskEntries(entries = [], options = {}) {
@@ -361,28 +529,21 @@ export function buildMcpProgressComment(event = {}, taskID = "") {
   const snapshot = event.snapshot || {}
   if (event.type === "push") {
     return [
-      "MCP autonomous progress update:",
+      "## What was done",
+      "MCP autonomous progress update detected repository sync.",
+      "- Local commits are no longer ahead of the upstream branch.",
       "",
-      "### Repository sync detected",
+      "## Evidence / Tests",
       `- Task: ${taskID}`,
       snapshot.branch ? `- Branch: ${snapshot.branch}` : null,
       snapshot.head ? `- HEAD: ${snapshot.head}` : null,
-      "- Local commits are no longer ahead of the upstream branch.",
+      "",
+      "## How to verify",
+      "- Confirm the remote branch contains the local commits for this task.",
     ].filter(Boolean).join("\n")
   }
 
-  const files = normalizeDirtyFiles(snapshot.dirtyFiles)
-  return [
-    "MCP autonomous progress update:",
-    "",
-    "### Workspace changed",
-    `- Task: ${taskID}`,
-    snapshot.branch ? `- Branch: ${snapshot.branch}` : null,
-    snapshot.head ? `- HEAD: ${snapshot.head}` : null,
-    files.length ? "- Changed files:" : "- Changed files: detected",
-    ...files.slice(0, 20).map((file) => `  - ${file}`),
-    files.length > 20 ? `  - ...and ${files.length - 20} more` : null,
-  ].filter(Boolean).join("\n")
+  return ""
 }
 
 async function postMcpProgressComment(plugin, taskID, text, context) {
@@ -390,6 +551,10 @@ async function postMcpProgressComment(plugin, taskID, text, context) {
   if (!createComment || typeof createComment.execute !== "function") return false
   await createComment.execute({ task_id: taskID, text }, context)
   return true
+}
+
+function shouldPostMcpProgressComment(event = {}) {
+  return event.type === "push"
 }
 
 async function runOptionalMcpProgressTest(plugin, taskID, event, context, state, config) {
@@ -407,13 +572,18 @@ async function runOptionalMcpProgressTest(plugin, taskID, event, context, state,
       plugin,
       taskID,
       [
-        "MCP autonomous progress update:",
+        "## What was done",
+        "MCP autonomous progress update detected a passing verification command.",
+        "- Verification command completed successfully.",
         "",
-        "### Verification passed",
+        "## Evidence / Tests",
         `- Task: ${taskID}`,
         `- Command: ${config.testCommand}`,
         result.stdout?.trim() ? "- Output:" : null,
         result.stdout?.trim()?.slice(0, 1000) || null,
+        "",
+        "## How to verify",
+        "- Re-run the listed command from the same worktree.",
       ].filter(Boolean).join("\n"),
       context,
     )
@@ -434,7 +604,9 @@ export async function tickMcpProgressObserver({ plugin, taskID, context, state, 
     const events = detectMcpWorktreeProgress(state, snapshot)
 
     for (const event of events) {
-      await postMcpProgressComment(plugin, taskID, buildMcpProgressComment(event, taskID), context)
+      if (shouldPostMcpProgressComment(event)) {
+        await postMcpProgressComment(plugin, taskID, buildMcpProgressComment(event, taskID), context)
+      }
       await runOptionalMcpProgressTest(plugin, taskID, event, context, state, progressConfig)
     }
 
@@ -660,12 +832,32 @@ export async function runNiftyTool(pluginOrTools, toolName, rawArgs = {}, contex
 
   ensureTool(toolName, definition)
   const args = validateToolArgs(toolName, definition, rawArgs)
+  if (isNiftyTaskTargetedComment(toolName, args)) {
+    validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.text })
+  }
+  const sessionID = mcpSessionID(context, options)
+  const callID = options.callID
   const hookInput = {
     tool: toolName,
-    sessionID: mcpSessionID(context, options),
-    callID: options.callID,
+    sessionID,
+    callID,
     args,
     context,
+  }
+
+  const gatewayResult = await callMcpPolicyGateway({ toolName, args, context, sessionID, callID })
+  if (gatewayResult.action === "return") {
+    const text = gatewayResult.text
+    await plugin?.["tool.execute.after"]?.(hookInput, {
+      title: toolName,
+      output: text,
+      metadata: {
+        policy_gateway: gatewayResult.payload || {},
+      },
+      context,
+    })
+    await observeMcpProgress(plugin, toolName, args, text, context, options)
+    return text
   }
 
   await plugin?.["tool.execute.before"]?.(hookInput, { args, context })
@@ -816,6 +1008,7 @@ export async function createNiftyMcpServer(options = {}) {
 }
 
 export async function startNiftyMcpServer(options = {}) {
+  assertMcpRuntime()
   const server = await createNiftyMcpServer(options)
   const transport = new StdioServerTransport()
 

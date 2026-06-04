@@ -4,17 +4,22 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawn } from "node:child_process"
 import { afterEach, beforeEach, test } from "node:test"
+import * as z from "zod"
 import {
   activateMcpProgressState,
   buildMcpInputSchema,
   buildMcpToolCatalog,
+  buildMcpPolicyGatewayPayload,
+  callMcpPolicyGateway,
   createMcpExecutionContext,
   createMcpProgressState,
   detectMcpWorktreeProgress,
   extractMcpTaskID,
+  isSensitiveNiftyTool,
   loadMcpActiveTaskForContext,
   loadNiftyPlugin,
   loadNiftyTools,
+  mcpPolicyGatewayConfig,
   persistMcpActiveTask,
   readGitWorktreeSnapshot,
   runNiftyTool,
@@ -22,6 +27,7 @@ import {
 } from "../mcp/mcp-server.mjs"
 
 const originalEnv = { ...process.env }
+const originalFetch = globalThis.fetch
 
 beforeEach(() => {
   process.env = { ...originalEnv }
@@ -29,6 +35,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = { ...originalEnv }
+  globalThis.fetch = originalFetch
 })
 
 test("loads full Nifty tool catalog for MCP", async () => {
@@ -100,6 +107,15 @@ test("runNiftyTool blocks MCP task completion without explicit close confirmatio
     const requestURL = new URL(String(url))
     calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
+    if (requestURL.pathname === "/api/v1.0/tasks/MBC-462" && (options.method || "GET") === "GET") {
+      return Response.json({
+        id: "MBC-462",
+        nice_id: "MBC-462",
+        name: "Parent task",
+        project_id: "p1",
+        task_group_id: "s1",
+      })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks/MBC-462/complete" && options.method === "POST") {
       return Response.json({ ok: true })
     }
@@ -145,6 +161,15 @@ test("runNiftyTool dispatches plugin hooks after confirmed MCP task completion",
     const requestURL = new URL(String(url))
     calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
+    if (requestURL.pathname === "/api/v1.0/tasks/MBC-462" && (options.method || "GET") === "GET") {
+      return Response.json({
+        id: "MBC-462",
+        nice_id: "MBC-462",
+        name: "Parent task",
+        project_id: "p1",
+        task_group_id: "s1",
+      })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks/MBC-462/complete" && options.method === "POST") {
       return Response.json({ ok: true })
     }
@@ -167,8 +192,323 @@ test("runNiftyTool dispatches plugin hooks after confirmed MCP task completion",
   const messagePost = calls.find((call) => call.path === "/api/v1.0/messages" && call.method === "POST")
   assert.ok(messagePost, "expected automation comment post")
   const postedText = JSON.parse(messagePost.body).text
-  assert.match(postedText, /^🤖 McBotFace/)
+  assert.match(postedText, /^🤖 Cave Updater/)
   assert.match(postedText, /Task marked complete/i)
+})
+
+test("runNiftyTool requires template for task_id comments", async () => {
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {
+          task_id: z.string(),
+          text: z.string(),
+        },
+        async execute() {
+          throw new Error("local mutation should be blocked without a template")
+        },
+      },
+    },
+  }
+
+  await assert.rejects(
+    () => runNiftyTool(
+      plugin,
+      "nifty_create_comment",
+      { task_id: "MBC-462", text: "Updated some files and finished." },
+      createMcpExecutionContext(),
+    ),
+    /Missing or invalid sections:|Task-card update comments require a template/i,
+  )
+})
+
+test("runNiftyTool accepts valid task comment template for task_id target", async () => {
+  process.env.NIFTY_MCP_PROGRESS_POLL_ENABLED = "false"
+  let localCalls = 0
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {
+          task_id: z.string(),
+          text: z.string(),
+        },
+        async execute() {
+          localCalls += 1
+          return "comment-posted"
+        },
+      },
+    },
+  }
+
+  const output = await runNiftyTool(
+    plugin,
+    "nifty_create_comment",
+    {
+      task_id: "MBC-462",
+      text: [
+        "## What was done",
+        "",
+        "- Implemented fallback branch and tests.",
+        "",
+        "## Evidence / Tests",
+        "",
+        "- `npm test`",
+        "",
+        "## How to verify",
+        "",
+        "- Confirm the task card shows the expected status comment.",
+      ].join("\n"),
+    },
+    createMcpExecutionContext(),
+  )
+
+  assert.equal(output, "comment-posted")
+  assert.equal(localCalls, 1)
+})
+
+test("runNiftyTool keeps non-task comments permissive", async () => {
+  process.env.NIFTY_MCP_PROGRESS_POLL_ENABLED = "false"
+  let localCalls = 0
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {
+          text: z.string(),
+        },
+        async execute() {
+          localCalls += 1
+          return "comment-posted"
+        },
+      },
+    },
+  }
+
+  const output = await runNiftyTool(
+    plugin,
+    "nifty_create_comment",
+    { text: "Plain status update for doc chat." },
+    createMcpExecutionContext(),
+  )
+
+  assert.equal(output, "comment-posted")
+  assert.equal(localCalls, 1)
+})
+
+test("policy gateway shadow mode audits sensitive tools then runs local execution", async () => {
+  process.env.NIFTY_POLICY_GATEWAY_URL = "https://gateway.example"
+  process.env.NIFTY_POLICY_GATEWAY_TOKEN = "gateway-token"
+  process.env.NIFTY_POLICY_GATEWAY_MODE = "shadow"
+
+  const calls = []
+  let localCalls = 0
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({
+      url: String(url),
+      authorization: options.headers.authorization,
+      body: JSON.parse(options.body),
+    })
+    return Response.json({ decision: "allow", audit_id: "audit-shadow" })
+  }
+
+  const plugin = {
+    tool: {
+      nifty_create_task: {
+        args: {},
+        async execute() {
+          localCalls += 1
+          return "local-ok"
+        },
+      },
+    },
+  }
+
+  const context = createMcpExecutionContext({ metadataEntries: { session: "shadow-session" } })
+  const output = await runNiftyTool(plugin, "nifty_create_task", {}, context, { callID: "call-1" })
+
+  assert.equal(output, "local-ok")
+  assert.equal(localCalls, 1)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, "https://gateway.example/v1/tool-calls")
+  assert.equal(calls[0].authorization, "Bearer gateway-token")
+  assert.equal(calls[0].body.mode, "shadow")
+  assert.equal(calls[0].body.tool, "nifty_create_task")
+})
+
+test("policy gateway enforce mode skips local mutation and returns gateway text", async () => {
+  process.env.NIFTY_POLICY_GATEWAY_URL = "https://gateway.example"
+  process.env.NIFTY_POLICY_GATEWAY_MODE = "enforce"
+
+  let localCalls = 0
+  globalThis.fetch = async () => Response.json({
+    decision: "allow",
+    audit_id: "audit-enforce",
+    result: { text: "gateway-ok" },
+  })
+
+  const plugin = {
+    tool: {
+      nifty_update_task: {
+        args: {},
+        async execute() {
+          localCalls += 1
+          throw new Error("local mutation should not run")
+        },
+      },
+    },
+  }
+
+  const output = await runNiftyTool(plugin, "nifty_update_task", {}, createMcpExecutionContext())
+
+  assert.equal(output, "gateway-ok")
+  assert.equal(localCalls, 0)
+})
+
+test("policy gateway enforce mode fails closed on gateway denial", async () => {
+  process.env.NIFTY_POLICY_GATEWAY_URL = "https://gateway.example"
+  process.env.NIFTY_POLICY_GATEWAY_MODE = "enforce"
+
+  let localCalls = 0
+  globalThis.fetch = async () => Response.json({
+    decision: "deny",
+    audit_id: "audit-deny",
+    reason: "missing delivery evidence",
+    violations: [{ id: "delivery-proof", reason: "green proof required" }],
+  })
+
+  const plugin = {
+    tool: {
+      nifty_move_task_to_status: {
+        args: {},
+        async execute() {
+          localCalls += 1
+          return "local"
+        },
+      },
+    },
+  }
+
+  await assert.rejects(
+    () => runNiftyTool(plugin, "nifty_move_task_to_status", {}, createMcpExecutionContext()),
+    /Policy gateway denied nifty_move_task_to_status: missing delivery evidence/i,
+  )
+  assert.equal(localCalls, 0)
+})
+
+test("policy gateway enforce mode fails closed on timeout and malformed response", async () => {
+  process.env.NIFTY_POLICY_GATEWAY_URL = "https://gateway.example"
+  process.env.NIFTY_POLICY_GATEWAY_MODE = "enforce"
+  process.env.NIFTY_POLICY_GATEWAY_TIMEOUT_MS = "1"
+
+  await assert.rejects(
+    () => callMcpPolicyGateway({
+      toolName: "nifty_delete_task",
+      args: {},
+      context: createMcpExecutionContext(),
+      sessionID: "timeout-session",
+    }, {
+      fetchFn: (_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")))
+      }),
+    }),
+    /Policy gateway failed before executing nifty_delete_task: aborted/i,
+  )
+
+  process.env.NIFTY_POLICY_GATEWAY_TIMEOUT_MS = "1000"
+  await assert.rejects(
+    () => callMcpPolicyGateway({
+      toolName: "nifty_delete_task",
+      args: {},
+      context: createMcpExecutionContext(),
+      sessionID: "malformed-session",
+    }, {
+      fetchFn: async () => new Response("{not-json", { status: 200 }),
+    }),
+    /Policy gateway failed before executing nifty_delete_task: Policy gateway returned malformed JSON/i,
+  )
+})
+
+test("policy gateway bypasses read-only tools even in enforce mode", async () => {
+  process.env.NIFTY_POLICY_GATEWAY_URL = "https://gateway.example"
+  process.env.NIFTY_POLICY_GATEWAY_MODE = "enforce"
+
+  globalThis.fetch = async () => {
+    throw new Error("gateway should not be called")
+  }
+
+  const plugin = {
+    tool: {
+      nifty_health_check: {
+        args: {},
+        async execute() {
+          return "healthy"
+        },
+      },
+    },
+  }
+
+  const output = await runNiftyTool(plugin, "nifty_health_check", {}, createMcpExecutionContext())
+
+  assert.equal(output, "healthy")
+})
+
+test("policy gateway sensitive tool patterns and idempotency key are stable", () => {
+  for (const toolName of [
+    "nifty_create_task",
+    "nifty_run_task",
+    "nifty_update_task",
+    "nifty_delete_status",
+    "nifty_move_task_to_status",
+    "nifty_complete_task",
+    "nifty_complete_child_task",
+    "nifty_archive_task",
+    "nifty_clone_task",
+    "nifty_attach_task_document",
+    "nifty_link_tasks",
+    "nifty_batch_capture_backlog_items",
+    "nifty_prepare_task_for_delivery",
+    "nifty_setup_recommended_workflow",
+  ]) {
+    assert.equal(isSensitiveNiftyTool(toolName), true, `${toolName} should be gateway-sensitive`)
+  }
+  assert.equal(isSensitiveNiftyTool("nifty_get_task"), false)
+  assert.equal(isSensitiveNiftyTool("nifty_list_projects"), false)
+
+  const context = createMcpExecutionContext({
+    directory: "/repo",
+    worktree: "/repo",
+    metadataEntries: { session: "idempotency-session", active_task_id: "MBC-462" },
+  })
+  const first = buildMcpPolicyGatewayPayload({
+    toolName: "nifty_update_task",
+    args: { task_id: "MBC-462", name: "Fix auth" },
+    context,
+    sessionID: "idempotency-session",
+    callID: "call-42",
+  })
+  const second = buildMcpPolicyGatewayPayload({
+    toolName: "nifty_update_task",
+    args: { task_id: "MBC-462", name: "Fix auth" },
+    context,
+    sessionID: "idempotency-session",
+    callID: "call-42",
+  })
+
+  assert.equal(first.idempotency_key, second.idempotency_key)
+  assert.equal(first.context.active_task_id, "MBC-462")
+})
+
+test("policy gateway config reads timeout from injected env", () => {
+  const config = mcpPolicyGatewayConfig({
+    NIFTY_POLICY_GATEWAY_MODE: "enforce",
+    NIFTY_POLICY_GATEWAY_URL: "https://gateway.example",
+    NIFTY_POLICY_GATEWAY_TOKEN: "token",
+    NIFTY_POLICY_GATEWAY_TIMEOUT_MS: "1234",
+  })
+
+  assert.equal(config.mode, "enforce")
+  assert.equal(config.url, "https://gateway.example")
+  assert.equal(config.token, "token")
+  assert.equal(config.timeoutMs, 1234)
 })
 
 test("detectMcpWorktreeProgress reports every new dirty worktree signature", () => {
@@ -323,7 +663,7 @@ test("persistMcpActiveTask keeps both entries when two MCP processes persist con
   }
 })
 
-test("tickMcpProgressObserver posts an autonomous MCP progress comment when git state changes", async () => {
+test("tickMcpProgressObserver does not post dirty-only autonomous progress comments", async () => {
   const calls = []
   const context = createMcpExecutionContext({
     directory: process.cwd(),
@@ -351,24 +691,24 @@ test("tickMcpProgressObserver posts an autonomous MCP progress comment when git 
     taskID: "MBC-462",
     context,
     state,
+    config: { enabled: true, testCommand: "" },
     readSnapshot: async () => snapshots.shift(),
   })
-  await tickMcpProgressObserver({
+  const events = await tickMcpProgressObserver({
     plugin,
     taskID: "MBC-462",
     context,
     state,
+    config: { enabled: true, testCommand: "" },
     readSnapshot: async () => snapshots.shift(),
   })
 
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0].task_id, "MBC-462")
-  assert.match(calls[0].text, /MCP autonomous progress update/i)
-  assert.match(calls[0].text, /plugin\/nifty\.js/)
-  assert.match(calls[0].text, /scripts\/install-codex\.sh/)
+  assert.equal(events.length, 1)
+  assert.equal(events[0].type, "worktree_changed")
+  assert.equal(calls.length, 0)
 })
 
-test("tickMcpProgressObserver posts a catch-up comment on first tick when worktree is already dirty", async () => {
+test("tickMcpProgressObserver does not post dirty-only catch-up comments on first tick", async () => {
   const calls = []
   const context = createMcpExecutionContext({
     directory: process.cwd(),
@@ -387,11 +727,12 @@ test("tickMcpProgressObserver posts a catch-up comment on first tick when worktr
   }
   const state = createMcpProgressState({ taskID: "MBC-462" })
 
-  await tickMcpProgressObserver({
+  const events = await tickMcpProgressObserver({
     plugin,
     taskID: "MBC-462",
     context,
     state,
+    config: { enabled: true, testCommand: "" },
     readSnapshot: async () => ({
       dirtyFiles: ["M docs/rag-architecture.md"],
       head: "a",
@@ -400,10 +741,102 @@ test("tickMcpProgressObserver posts a catch-up comment on first tick when worktr
     }),
   })
 
+  assert.equal(events.length, 1)
+  assert.equal(events[0].type, "worktree_changed")
+  assert.equal(calls.length, 0)
+})
+
+test("tickMcpProgressObserver posts when worktree change has passing verification command", async () => {
+  const calls = []
+  const context = createMcpExecutionContext({
+    directory: process.cwd(),
+    metadataEntries: { session: "mbc-462", mcp_tool: "mcp_startup" },
+  })
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {},
+        async execute(args) {
+          calls.push(args)
+          return { id: "comment-1" }
+        },
+      },
+    },
+  }
+  const state = createMcpProgressState({ taskID: "MBC-462" })
+  const snapshots = [
+    { dirtyFiles: [], head: "a", aheadCount: 0, branch: "dev-tony" },
+    { dirtyFiles: ["M plugin/nifty.js"], head: "a", aheadCount: 0, branch: "dev-tony" },
+  ]
+
+  await tickMcpProgressObserver({
+    plugin,
+    taskID: "MBC-462",
+    context,
+    state,
+    config: { enabled: true, testCommand: `${process.execPath} -e "console.log('green')"`, testTimeoutMs: 30000 },
+    readSnapshot: async () => snapshots.shift(),
+  })
+  const events = await tickMcpProgressObserver({
+    plugin,
+    taskID: "MBC-462",
+    context,
+    state,
+    config: { enabled: true, testCommand: `${process.execPath} -e "console.log('green')"`, testTimeoutMs: 30000 },
+    readSnapshot: async () => snapshots.shift(),
+  })
+
+  assert.deepEqual(events.map((event) => event.type), ["worktree_changed"])
   assert.equal(calls.length, 1)
   assert.equal(calls[0].task_id, "MBC-462")
-  assert.match(calls[0].text, /MCP autonomous progress update/i)
-  assert.match(calls[0].text, /docs\/rag-architecture\.md/)
+  assert.match(calls[0].text, /passing verification command/i)
+  assert.match(calls[0].text, /green/)
+})
+
+test("tickMcpProgressObserver posts repository sync comments when branch is no longer ahead", async () => {
+  const calls = []
+  const context = createMcpExecutionContext({
+    directory: process.cwd(),
+    metadataEntries: { session: "mbc-462", mcp_tool: "mcp_startup" },
+  })
+  const plugin = {
+    tool: {
+      nifty_create_comment: {
+        args: {},
+        async execute(args) {
+          calls.push(args)
+          return { id: "comment-1" }
+        },
+      },
+    },
+  }
+  const state = createMcpProgressState({ taskID: "MBC-462" })
+  const snapshots = [
+    { dirtyFiles: [], head: "a", aheadCount: 2, branch: "dev-tony" },
+    { dirtyFiles: [], head: "b", aheadCount: 0, branch: "dev-tony" },
+  ]
+
+  await tickMcpProgressObserver({
+    plugin,
+    taskID: "MBC-462",
+    context,
+    state,
+    config: { enabled: true, testCommand: "" },
+    readSnapshot: async () => snapshots.shift(),
+  })
+  const events = await tickMcpProgressObserver({
+    plugin,
+    taskID: "MBC-462",
+    context,
+    state,
+    config: { enabled: true, testCommand: "" },
+    readSnapshot: async () => snapshots.shift(),
+  })
+
+  assert.deepEqual(events.map((event) => event.type), ["push"])
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].task_id, "MBC-462")
+  assert.match(calls[0].text, /repository sync/i)
 })
 
 test("tickMcpProgressObserver skips overlapping ticks for the same active state", async () => {
