@@ -1,10 +1,10 @@
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, statSync } from "node:fs"
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { spawn, spawnSync } from "node:child_process"
 import { createServer } from "node:http"
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { tool } from "@opencode-ai/plugin"
 
@@ -16,7 +16,23 @@ const DEFAULT_AUTH_NODE_BINARY = process.execPath
 const TOKEN_SKEW_MS = 60 * 1000
 const LEGACY_BOT_COMMENT_PREFIX = "🤖"
 const LEGACY_MCP_COMMENT_PREFIX = "[MCP Automation]"
-const BOT_COMMENT_PREFIX = "🤖 McBotFace"
+const LEGACY_MCBOTFACE_COMMENT_PREFIX = "🤖 McBotFace"
+const BOT_COMMENT_PREFIX = "🤖 Cave Updater"
+const POLICY_MANAGED_MUTATION_PATTERNS = [
+  "nifty_create_*",
+  "nifty_run_*",
+  "nifty_update_*",
+  "nifty_delete_*",
+  "nifty_move_*",
+  "nifty_complete_*",
+  "nifty_archive_*",
+  "nifty_clone_*",
+  "nifty_attach_*",
+  "nifty_link_*",
+  "nifty_batch_*",
+  "nifty_prepare_*",
+  "nifty_setup_*",
+]
 const NIFTY_SHELL_COMMAND_HINT = [
   "Nifty is installed as OpenCode plugin tools, not as a shell command.",
   "Use the OpenCode tool `nifty_health_check` for health checks.",
@@ -26,6 +42,7 @@ const LIFECYCLE_DEFAULT_IN_PROGRESS_KEY = "in_progress"
 const LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review"
 const AUTOCONTEXT_DEFAULT_COMMENT_LIMIT = 200
 const AUTOCONTEXT_DEFAULT_TASK_LIMIT = 200
+const RAG_ENABLED_DEFAULT = true
 const AUTOMATION_DEFAULT_EDIT_TOOLS = ["apply_patch", "write", "edit", "patch"]
 const AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS = [
   "npm test",
@@ -38,6 +55,9 @@ const AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS = [
 ]
 const AUTOMATION_DEFAULT_PUSH_COMMAND_PATTERNS = ["git push"]
 const AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT = "I lost context of the active task card for autonomous updates. Enter the task card ID you are working on (for example: MBC-462 or an internal task id)."
+const NIFTY_WORKFLOW_LOCK_DEFAULT_TIMEOUT_MS = 10000
+const NIFTY_WORKFLOW_LOCK_DEFAULT_STALE_MS = 30000
+const NIFTY_WORKFLOW_LOCK_WAIT_MS = 25
 const LIFECYCLE_AUTO_START_TOOLS = new Set([
   "nifty_get_task",
   "nifty_update_task",
@@ -83,6 +103,30 @@ const BOOTSTRAP_MUTATING_PROJECT_TOOLS = new Set([
   "nifty_create_document",
   "nifty_update_document",
   "nifty_delete_document",
+])
+const SUBTASK_ALLOWED_MUTATING_TASK_TOOLS = new Set([
+  "nifty_complete_task",
+])
+const TASK_CARD_ONLY_SINGLE_TASK_TOOLS = new Set([
+  "nifty_update_task",
+  "nifty_update_task_custom_fields",
+  "nifty_update_task_assignees",
+  "nifty_prepare_task_for_delivery",
+  "nifty_create_comment",
+  "nifty_move_task_to_status",
+  "nifty_archive_task",
+  "nifty_delete_task",
+  "nifty_clone_task",
+  "nifty_link_tasks",
+  "nifty_update_task_labels",
+  "nifty_attach_task_document",
+  "nifty_shape_task",
+])
+const TASK_CARD_ONLY_BULK_TASK_TOOLS = new Set([
+  "nifty_move_tasks",
+])
+const TASK_CARD_ONLY_PARENT_TASK_TOOLS = new Set([
+  "nifty_create_subtask",
 ])
 
 /** Extract task_id from a tool's args using the canonical arg key. */
@@ -283,7 +327,22 @@ function loadPolicy(context) {
  */
 function enforcePolicyGate(toolName, args, policyState, context) {
   const policy = policyState.loadedPolicy
-  if (!policy) return // No policy configured — pass through
+  const managedMutation = policyRequired(context) && isPolicyManagedMutation(toolName)
+  if (policyState.policyLoadError && managedMutation) {
+    throw Object.assign(
+      new Error(`[PolicyGate] Policy is required but failed to load before '${toolName}': ${policyState.policyLoadError.message}`),
+      { code: "NIFTY_POLICY_REQUIRED", toolName },
+    )
+  }
+  if (!policy) {
+    if (managedMutation) {
+      throw Object.assign(
+        new Error(`[PolicyGate] Policy is required before executing '${toolName}'. Set NIFTY_POLICY_PATH or NIFTY_POLICY_INLINE.`),
+        { code: "NIFTY_POLICY_REQUIRED", toolName },
+      )
+    }
+    return // No policy configured — pass through for unmanaged/local mode
+  }
 
   const result = evaluatePolicy(toolName, args, policy, { auditLog: policyState.auditLog })
   if (!result.allowed) {
@@ -292,6 +351,15 @@ function enforcePolicyGate(toolName, args, policyState, context) {
       { code: "NIFTY_POLICY_VIOLATION", toolName, policy_reason: result.reason },
     )
   }
+}
+
+function policyRequired(context = {}) {
+  return envBoolean("NIFTY_POLICY_REQUIRED", false, context)
+    || envBoolean("NIFTY_MANAGED_MODE", false, context)
+}
+
+function isPolicyManagedMutation(toolName) {
+  return POLICY_MANAGED_MUTATION_PATTERNS.some((pattern) => matchesActionPattern(pattern, toolName))
 }
 
 const RECOMMENDED_WORKFLOW = {
@@ -441,12 +509,21 @@ async function readTokenCache() {
 async function writeTokenCache(token) {
   const tokenDir = dirname(TOKEN_PATH)
   await mkdir(tokenDir, { recursive: true, mode: 0o700 })
-  await chmod(tokenDir, 0o700).catch(() => {})
+  await chmod(tokenDir, 0o700)
   await writeFile(TOKEN_PATH, `${JSON.stringify(token, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   })
-  await chmod(TOKEN_PATH, 0o600).catch(() => {})
+  await chmod(TOKEN_PATH, 0o600)
+  const dirMode = (await stat(tokenDir)).mode & 0o777
+  const fileMode = (await stat(TOKEN_PATH)).mode & 0o777
+  if (dirMode !== 0o700 || fileMode !== 0o600) {
+    throw new Error(
+      `Unable to secure Nifty token cache permissions at ${TOKEN_PATH}. `
+      + `Expected directory 0700 and file 0600, got directory 0${dirMode.toString(8)} and file 0${fileMode.toString(8)}. `
+      + "Move NIFTY_TOKEN_PATH to a filesystem that honors chmod before storing credentials.",
+    )
+  }
 }
 
 function resolveAuthNodeBinary(context = {}) {
@@ -548,7 +625,7 @@ async function assertPortAvailable(host, port) {
   })
 }
 
-function sleep(ms) {
+function sleepWorkflowLock(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
@@ -1691,6 +1768,8 @@ function botCommentText(text, enabled = true) {
   if (trimmed.startsWith(BOT_COMMENT_PREFIX)) return trimmed
   const withoutLegacyPrefix = trimmed.startsWith(LEGACY_MCP_COMMENT_PREFIX)
     ? trimmed.slice(LEGACY_MCP_COMMENT_PREFIX.length).trimStart()
+    : trimmed.startsWith(LEGACY_MCBOTFACE_COMMENT_PREFIX)
+    ? trimmed.slice(LEGACY_MCBOTFACE_COMMENT_PREFIX.length).trimStart()
     : trimmed.startsWith(LEGACY_BOT_COMMENT_PREFIX)
     ? trimmed.slice(LEGACY_BOT_COMMENT_PREFIX.length).trimStart()
     : trimmed
@@ -1818,11 +1897,40 @@ function requiresVisualProof(changedFiles = []) {
   return (changedFiles || []).some((filePath) => isVisualFile(filePath))
 }
 
+function isCodeChangeFile(filePath = "") {
+  const path = String(filePath || "").trim().toLowerCase()
+  if (!path) return false
+  if (/(^|\/)(docs|documentation|screenshots|artifacts|coverage|dist|build|vendor|node_modules)\//.test(path)) {
+    return false
+  }
+  if (/(^|\/)(readme|changelog|license|notice)(\.[a-z0-9]+)?$/.test(path)) return false
+  if (/\.(md|mdx|txt|png|jpe?g|gif|webp|svg|pdf|log)$/i.test(path)) return false
+  if (/(^|\/)(package|composer|pnpm-lock|package-lock|yarn)\.json$/.test(path)) return true
+  if (/(^|\/)(package-lock|pnpm-lock|yarn)\.(json|yaml|yml)$/.test(path)) return true
+  if (/(^|\/)(src|app|lib|plugin|mcp|scripts|test|tests|backend|frontend|resources|database|migrations)\//.test(path)) {
+    return true
+  }
+  return /\.(js|mjs|cjs|jsx|ts|tsx|py|php|rb|go|rs|java|kt|swift|cs|c|cc|cpp|h|hpp|css|scss|sass|less|vue|svelte|astro|html|htm|json|ya?ml|toml|ini|env|sql|sh|bash|zsh|ps1)$/i.test(path)
+}
+
+function codeChangedFiles(changedFiles = []) {
+  return [...new Set((changedFiles || []).map((filePath) => String(filePath || "").trim()).filter(isCodeChangeFile))]
+}
+
+function requiresTddProof(changedFiles = []) {
+  return codeChangedFiles(changedFiles).length > 0
+}
+
+function requiresVisualRegressionProof(changedFiles = [], quality = engineeringQualityConfig(null)) {
+  return quality.require_visual_regression_for_code_changes !== false && requiresTddProof(changedFiles)
+}
+
 function engineeringQualityConfig(policy) {
   const defaults = {
     enabled: true,
     require_architectural_integration: true,
     require_tdd_red_green: true,
+    require_visual_regression_for_code_changes: true,
     require_regression_proof: true,
     require_iterative_validation: true,
     forbid_placeholder_delivery: true,
@@ -1862,7 +1970,14 @@ function assertSubstantiveEvidence(label, value, quality = engineeringQualityCon
 
 function validateDeliveryEvidence(evidence = {}, options = {}) {
   const quality = options.engineeringQuality || engineeringQualityConfig(options.policy)
-  const visualRequired = options.visualRequired === true
+  const changedFiles = Array.isArray(evidence.changed_files) && evidence.changed_files.length
+    ? evidence.changed_files
+    : Array.isArray(options.changedFiles)
+      ? options.changedFiles
+      : []
+  const changedCodeFiles = codeChangedFiles(changedFiles)
+  const tddRequired = quality.require_tdd_red_green !== false && changedCodeFiles.length > 0
+  const visualRequired = options.visualRequired === true || requiresVisualRegressionProof(changedFiles, quality)
   const redProof = String(evidence.red_proof || "").trim()
   const greenProof = String(evidence.green_proof || "").trim()
   const sadPathProof = String(evidence.sad_path_proof || "").trim()
@@ -1872,12 +1987,16 @@ function validateDeliveryEvidence(evidence = {}, options = {}) {
   const visualProof = Array.isArray(evidence.visual_proof)
     ? evidence.visual_proof.map((item) => String(item || "").trim()).filter(Boolean)
     : []
+  const visualProofFileIDs = [
+    ...(Array.isArray(evidence.visual_proof_file_ids) ? evidence.visual_proof_file_ids : []),
+    ...(Array.isArray(evidence.nifty_file_ids) ? evidence.nifty_file_ids : []),
+  ].map((item) => String(item || "").trim()).filter(Boolean)
 
-  if (quality.require_tdd_red_green !== false && !redProof) {
-    throw new Error("delivery_evidence.red_proof is required before moving to Dev Review.")
+  if (tddRequired && !redProof) {
+    throw new Error(`delivery_evidence.red_proof is required because code files changed: ${changedCodeFiles.join(", ")}.`)
   }
-  if (quality.require_tdd_red_green !== false && !greenProof) {
-    throw new Error("delivery_evidence.green_proof is required before moving to Dev Review.")
+  if (tddRequired && !greenProof) {
+    throw new Error(`delivery_evidence.green_proof is required because code files changed: ${changedCodeFiles.join(", ")}.`)
   }
   if (!sadPathProof) throw new Error("delivery_evidence.sad_path_proof is required before moving to Dev Review.")
   const validatedArchitectureProof = quality.enabled !== false && quality.require_architectural_integration !== false
@@ -1889,8 +2008,11 @@ function validateDeliveryEvidence(evidence = {}, options = {}) {
   const validatedIterativeProof = quality.enabled !== false && quality.require_iterative_validation !== false
     ? assertSubstantiveEvidence("iterative_proof", iterativeProof, quality)
     : iterativeProof
-  if (visualRequired && visualProof.length === 0) {
-    throw new Error("delivery_evidence.visual_proof is required when visual-impacting files changed.")
+  if (visualRequired && visualProof.length === 0 && visualProofFileIDs.length === 0) {
+    const reason = changedCodeFiles.length
+      ? `code files changed: ${changedCodeFiles.join(", ")}`
+      : "visual-impacting files changed"
+    throw new Error(`delivery_evidence.visual_proof or delivery_evidence.visual_proof_file_ids is required for visual regression proof because ${reason}.`)
   }
 
   return {
@@ -1902,6 +2024,11 @@ function validateDeliveryEvidence(evidence = {}, options = {}) {
     regression_proof: validatedRegressionProof,
     iterative_proof: validatedIterativeProof,
     visual_proof: visualProof,
+    visual_proof_file_ids: [...new Set(visualProofFileIDs)],
+    changed_files: changedFiles,
+    code_changed_files: changedCodeFiles,
+    tdd_required: tddRequired,
+    visual_required: visualRequired,
   }
 }
 
@@ -1950,10 +2077,173 @@ function reportingConfig(policy) {
     require_structured_report: true,
     require_playwright_proof_for_visual_changes: true,
     comment_template:
-      "## What was done\n{summary}\n\n## Completed\n{completed_items}\n\n## Evidence / Tests\n{evidence}\n\n## How to verify\n{verification_steps}\n\n## Visual proof (Playwright screenshots)\n{visual_proof}",
+      "## What was done\n{summary}\n\n## Evidence / Tests\n{evidence}\n\n## How to verify\n{verification_steps}\n\n## Visual proof (Playwright screenshots)\n{visual_proof}",
   }
   if (!policy || typeof policy !== "object") return defaults
   return { ...defaults, ...(policy.reporting ?? {}) }
+}
+
+const TASK_COMMENT_TEMPLATE_REQUIRED_SECTIONS = [
+  { key: "what_was_done", labels: ["what was done"] },
+  { key: "evidence_tests", labels: ["evidence", "evidence tests", "evidence / tests"] },
+  { key: "how_to_verify", labels: ["how to verify"] },
+]
+const TASK_COMMENT_TEMPLATE_EXAMPLE = [
+  "## What was done",
+  "",
+  "- Implemented the requested change.",
+  "",
+  "## Evidence / Tests",
+  "",
+  "- `npm test`",
+  "- `npm run lint`",
+  "",
+  "## How to verify",
+  "",
+  "- Open the related task and confirm the checks and status transition.",
+].join("\n")
+
+function normalizeTemplateSectionLabel(label = "") {
+  return String(label).toLowerCase().replace(/[^a-z0-9/ ]/g, "").replace(/\s+/g, " ").trim()
+}
+
+function parseTaskCommentTemplateSections(text = "") {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n")
+  const sections = new Map()
+  let current = null
+  let buffer = []
+
+  for (const line of lines) {
+    const matched = line.match(/^##\s*(.+?)\s*:?\s*$/)
+    if (matched) {
+      if (current) sections.set(normalizeTemplateSectionLabel(current), buffer.join("\n").trim())
+      current = matched[1]
+      buffer = []
+      continue
+    }
+    if (current) buffer.push(line)
+  }
+  if (current) sections.set(normalizeTemplateSectionLabel(current), buffer.join("\n").trim())
+  return sections
+}
+
+function isDirtyOnlyAutonomousMcpProgressComment(text = "") {
+  const normalizedText = normalize(text)
+  return normalizedText.includes("mcp autonomous progress update detected local workspace changes")
+    && normalizedText.includes("changed files detected")
+    && normalizedText.includes("review the listed local changes and continue implementation or validation")
+}
+
+function changedFilesForTaskCommentPolicy({ changed_files, context } = {}) {
+  if (Array.isArray(changed_files)) return changed_files
+  if (context) return changedFilesFromGit(context)
+  return []
+}
+
+function hasRedGreenTddProof(text = "") {
+  const normalizedText = normalize(text)
+  const hasRed = /\bred\b/i.test(text)
+    || normalizedText.includes("failed before implementation")
+    || normalizedText.includes("failing test")
+    || normalizedText.includes("test failed first")
+  const hasGreen = /\bgreen\b/i.test(text)
+    || normalizedText.includes("passed after implementation")
+    || normalizedText.includes("passing test")
+    || normalizedText.includes("test passed after")
+  return hasRed && hasGreen
+}
+
+function hasVisualRegressionProof(text = "") {
+  const normalizedText = normalize(text)
+  return normalizedText.includes("visual regression proof")
+    || normalizedText.includes("playwright screenshot")
+    || normalizedText.includes("screenshot proof")
+    || normalizedText.includes("attached screenshot")
+    || normalizedText.includes("video proof")
+    || /https?:\/\/\S+/i.test(text)
+}
+
+function assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_files, context } = {}) {
+  const changedCodeFiles = codeChangedFiles(changedFilesForTaskCommentPolicy({ changed_files, context }))
+  if (!changedCodeFiles.length) return
+
+  const evidenceText = [
+    sections.get("evidence") || "",
+    sections.get("evidence tests") || "",
+    sections.get("evidence / tests") || "",
+    sections.get("how to verify") || "",
+  ].join("\n")
+  const verificationText = sections.get("how to verify") || ""
+
+  if (hasRedGreenTddProof(evidenceText) && hasVisualRegressionProof(verificationText)) return
+
+  throw Object.assign(
+    new Error([
+      "Task-card update comments for code changes require TDD RED proof, GREEN proof, and visual regression proof in ## How to verify.",
+      `Code files changed: ${changedCodeFiles.join(", ")}`,
+      "Example:",
+      "## Evidence / Tests",
+      "RED: `npm test -- path/to/regression.test` failed before implementation.",
+      "GREEN: `npm test -- path/to/regression.test` passed after implementation.",
+      "## How to verify",
+      "Re-run the GREEN command.",
+      "Visual regression proof: attached Playwright screenshot or URL.",
+    ].join("\n")),
+    { code: "NIFTY_CODE_CHANGE_EVIDENCE_REQUIRED", task_id, changed_files: changedCodeFiles },
+  )
+}
+
+export function validateNiftyTaskCommentTemplate({ task_id, text, changed_files, context, skip_code_change_evidence = false } = {}) {
+  if (typeof task_id !== "string" || !task_id.trim()) return
+
+  if (isDirtyOnlyAutonomousMcpProgressComment(text)) {
+    throw Object.assign(
+      new Error(
+        "Dirty-only autonomous MCP progress comments are not useful task evidence. Post a comment only when there is a concrete result, verification output, screenshot attachment, or reviewer-actionable status.",
+      ),
+      { code: "NIFTY_LOW_VALUE_TASK_COMMENT_BLOCKED", task_id },
+    )
+  }
+
+  const sections = parseTaskCommentTemplateSections(text || "")
+  const missing = []
+
+  for (const requirement of TASK_COMMENT_TEMPLATE_REQUIRED_SECTIONS) {
+    const sectionLabel = requirement.labels
+      .map((candidateLabel) => normalizeTemplateSectionLabel(candidateLabel))
+      .find((label) => sections.has(label))
+
+    if (!sectionLabel) {
+      missing.push(requirement.labels[0])
+      continue
+    }
+
+    const content = sections.get(sectionLabel)
+    if (!content) {
+      missing.push(`${requirement.labels[0]} (empty)`)
+      continue
+    }
+  }
+
+  if (!missing.length) {
+    if (skip_code_change_evidence) return
+    assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_files, context })
+    return
+  }
+
+  throw Object.assign(
+    new Error([
+      "Task-card update comments require a template when task_id is set.",
+      `Missing or invalid sections: ${missing.join(", ")}`,
+      "Use exactly these section headings before posting task comments:",
+      "## What was done",
+      "## Evidence / Tests",
+      "## How to verify",
+      "Example:",
+      TASK_COMMENT_TEMPLATE_EXAMPLE,
+    ].join("\n")),
+    { code: "NIFTY_TASK_COMMENT_TEMPLATE_REQUIRED", task_id },
+  )
 }
 
 /**
@@ -1961,7 +2251,7 @@ function reportingConfig(policy) {
  *
  * Rules (all sections are optional — omitted when blank):
  *  - summary           : one-line description of what happened
- *  - completed         : string[] — each item becomes a bullet
+ *  - completed         : string[] — each item becomes a bullet under What was done
  *  - evidence          : free-form test/command output or reference
  *  - verification      : how to validate the change manually
  *  - visual_proof      : string[] of screenshot/video URLs
@@ -1985,16 +2275,16 @@ function structuredReport({
 } = {}) {
   const sections = []
 
-  if (summary) {
-    sections.push(`## What was done\n${summary}`)
-  }
-
+  const doneLines = []
+  if (summary) doneLines.push(summary)
   if (completed.length) {
     const bullets = completed
       .map((item) => `- ${String(item).replace(/^[-•*]\s*/, "")}`)
       .join("\n")
-    sections.push(`## Completed\n${bullets}`)
+    if (doneLines.length) doneLines.push("")
+    doneLines.push(bullets)
   }
+  if (doneLines.length) sections.push(`## What was done\n${doneLines.join("\n")}`)
 
   if (evidence) {
     sections.push(`## Evidence / Tests\n${evidence}`)
@@ -2577,6 +2867,19 @@ function commentExternalFiles(visualProof = []) {
   return (visualProof || []).filter((item) => /^https?:\/\//i.test(String(item || "").trim()))
 }
 
+function commentNiftyFiles(...lists) {
+  return [...new Set(lists.flat().map((item) => String(item || "").trim()).filter(Boolean))]
+}
+
+function visualProofReferences(evidence = {}) {
+  const urls = Array.isArray(evidence.visual_proof) ? evidence.visual_proof : []
+  const fileIDs = Array.isArray(evidence.visual_proof_file_ids) ? evidence.visual_proof_file_ids : []
+  return [
+    ...urls.map((item) => String(item || "").trim()).filter(Boolean),
+    ...fileIDs.map((item) => `Nifty file: ${String(item || "").trim()}`).filter((item) => item !== "Nifty file: "),
+  ]
+}
+
 async function maybeAutoCompleteParentTask(taskID, context = {}) {
   const automation = automationConfig(loadPolicy(context), context)
   if (!automation.enabled || !automation.parent_tasks?.auto_complete_when_subtasks_complete) return null
@@ -2652,6 +2955,222 @@ async function postLifecycleComment(taskID, text, options = {}) {
   })
 }
 
+function meaningfulCaveUpdaterField(label, value) {
+  const text = String(value || "").trim()
+  if (!text || /^(?:n\/?a|none|no tests?|not run|todo|tbd)$/i.test(text)) {
+    throw Object.assign(
+      new Error(`Cave Updater comments require meaningful '${label}' content.`),
+      { code: "NIFTY_CAVE_UPDATER_FIELD_REQUIRED", field: label },
+    )
+  }
+  return text
+}
+
+function caveUpdaterReport({ what_was_done, evidence_tests, how_to_verify } = {}) {
+  return structuredReport({
+    summary: meaningfulCaveUpdaterField("What was done", what_was_done),
+    evidence: meaningfulCaveUpdaterField("Evidence / Tests", evidence_tests),
+    verification: meaningfulCaveUpdaterField("How to verify", how_to_verify),
+  })
+}
+
+function workflowLockDir(context = {}) {
+  const configured = env("NIFTY_WORKFLOW_LOCK_DIR", context)
+  const root = configured || join(homedir(), ".config", "opencode", "nifty-workflow-locks")
+  mkdirSync(root, { recursive: true })
+  return root
+}
+
+function workflowLockKey(parts = []) {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex")
+}
+
+function workflowLockTimeoutMs(context = {}) {
+  return envInteger("NIFTY_WORKFLOW_LOCK_TIMEOUT_MS", NIFTY_WORKFLOW_LOCK_DEFAULT_TIMEOUT_MS, context)
+}
+
+function workflowLockStaleMs(context = {}) {
+  return envInteger("NIFTY_WORKFLOW_LOCK_STALE_MS", NIFTY_WORKFLOW_LOCK_DEFAULT_STALE_MS, context)
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function withNiftyWorkflowLock(parts, context, callback) {
+  const key = workflowLockKey(parts)
+  const lockPath = join(workflowLockDir(context), `${key}.lock`)
+  const timeoutAt = Date.now() + workflowLockTimeoutMs(context)
+  const staleMs = workflowLockStaleMs(context)
+
+  while (true) {
+    try {
+      mkdirSync(lockPath)
+      writeFileSync(
+        join(lockPath, "owner.json"),
+        `${JSON.stringify({
+          pid: process.pid,
+          started_at: new Date().toISOString(),
+          parts,
+        })}\n`,
+        "utf8",
+      )
+      break
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error
+      try {
+        if (Date.now() - statSync(lockPath).mtimeMs > staleMs) {
+          rmSync(lockPath, { recursive: true, force: true })
+          continue
+        }
+      } catch {
+        rmSync(lockPath, { recursive: true, force: true })
+        continue
+      }
+      if (Date.now() >= timeoutAt) {
+        throw Object.assign(
+          new Error(`Timed out acquiring Nifty workflow lock for ${parts.join(":")}.`),
+          { code: "NIFTY_WORKFLOW_LOCK_TIMEOUT", lock: parts },
+        )
+      }
+      await sleepWorkflowLock(NIFTY_WORKFLOW_LOCK_WAIT_MS)
+    }
+  }
+
+  try {
+    return await callback()
+  } finally {
+    rmSync(lockPath, { recursive: true, force: true })
+  }
+}
+
+function stripKnownBotPrefix(text = "") {
+  const trimmed = String(text || "").trim()
+  for (const prefix of [BOT_COMMENT_PREFIX, LEGACY_MCBOTFACE_COMMENT_PREFIX, LEGACY_MCP_COMMENT_PREFIX, LEGACY_BOT_COMMENT_PREFIX]) {
+    if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length).trim()
+  }
+  return trimmed
+}
+
+function normalizeCommentForIdempotency(text = "") {
+  return stripKnownBotPrefix(text)
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+$/gm, "")
+    .trim()
+}
+
+function commentBodyText(comment = {}) {
+  return comment.text || comment.message || comment.body || comment.content || comment.html || ""
+}
+
+async function findExistingCaveUpdaterComment(taskID, report, context = {}) {
+  const target = normalizeCommentForIdempotency(botCommentText(report))
+  const response = await niftyRequest("/api/v1.0/messages", {
+    query: {
+      task_id: taskID,
+      limit: envInteger("NIFTY_WORKFLOW_COMMENT_LOOKBACK_LIMIT", 100, context),
+      offset: 0,
+    },
+  }).catch(() => ({ items: [] }))
+  const comments = response?.items || response?.messages || []
+  return comments.find((comment) => normalizeCommentForIdempotency(commentBodyText(comment)) === target) || null
+}
+
+async function postCaveUpdaterTaskComment(taskID, report, context = {}) {
+  validateNiftyTaskCommentTemplate({ task_id: taskID, text: report, context })
+  const existing = await findExistingCaveUpdaterComment(taskID, report, context)
+  if (existing) return { existing: true, comment: existing }
+
+  const comment = await niftyRequest("/api/v1.0/messages", {
+    method: "POST",
+    body: {
+      type: "text",
+      task_id: taskID,
+      text: botCommentText(report),
+    },
+  })
+  return { existing: false, comment }
+}
+
+async function authorizedAssigneeIDs(args = {}, context = {}) {
+  const explicit = Array.isArray(args.assignee_ids)
+    ? args.assignee_ids.map((id) => String(id || "").trim()).filter(Boolean)
+    : []
+  if (explicit.length) return explicit
+
+  const configured = lifecycleDefaultAssigneeIDs(context)
+  if (configured.length) return configured
+
+  const me = await niftyRequest("/api/v1.0/users/me")
+  return me?.id ? [me.id] : []
+}
+
+async function assignTaskToAuthorizedUser(taskID, task = {}, args = {}, context = {}) {
+  if (args.assign === false) return { attempted: false, assigned: false, reason: "assignment disabled" }
+  const assigneeIDs = await authorizedAssigneeIDs(args, context)
+  if (!assigneeIDs.length) return { attempted: true, assigned: false, reason: "no authorized assignee resolved" }
+
+  const existing = new Set(taskAssigneeIDs(task))
+  const missing = assigneeIDs.filter((id) => !existing.has(id))
+  if (!missing.length) {
+    return {
+      attempted: true,
+      assigned: false,
+      reason: "authorized assignee already present",
+      assignee_ids: assigneeIDs,
+    }
+  }
+
+  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}/assignees`, {
+    method: "PUT",
+    body: { assignees: missing },
+  })
+  return {
+    attempted: true,
+    assigned: true,
+    assignee_ids: assigneeIDs,
+    added_assignee_ids: missing,
+  }
+}
+
+function childWorkSummary(subtasks = []) {
+  return (subtasks || []).map((subtask) => ({
+    id: subtask?.id,
+    nice_id: subtask?.nice_id,
+    name: subtask?.name,
+    completed: subtask?.completed === true,
+    parent_task_id: taskParentID(subtask),
+    description: subtask?.description,
+  }))
+}
+
+async function hydrateTaskWorkSession(taskID, args = {}, context = {}) {
+  const requestedContext = await fetchTaskFullContext(taskID, args, context)
+  const requestedTask = requestedContext.task
+  if (!requestedTask?.id) throw new Error(`Unable to hydrate Nifty task ${taskID}.`)
+
+  if (!isSubtask(requestedTask)) {
+    return {
+      requested_task_id: taskID,
+      requested_was_subtask: false,
+      parent_task_id: requestedTask.id,
+      parent_context: requestedContext,
+      requested_context: requestedContext,
+    }
+  }
+
+  const parentTaskID = taskParentID(requestedTask)
+  const parentContext = await fetchTaskFullContext(parentTaskID, args, context)
+  return {
+    requested_task_id: taskID,
+    requested_was_subtask: true,
+    requested_subtask: requestedTask,
+    parent_task_id: parentTaskID,
+    parent_context: parentContext,
+    requested_context: requestedContext,
+  }
+}
+
 async function maybeAutoAssignTask(taskID, task, policyState, context = {}) {
   if (!lifecycleAssignSelfEnabled(context)) return false
   if (taskAssigneeIDs(task).length) return false
@@ -2704,13 +3223,133 @@ function isSubtask(task = {}) {
   return Boolean(taskParentID(task))
 }
 
+function subtaskTaskID(task = {}) {
+  return task?.nice_id || task?.id || "unknown"
+}
+
+function subtaskHardGateMessage(toolName, task = {}) {
+  const taskID = subtaskTaskID(task)
+  const parentID = taskParentID(task) || "unknown"
+  return [
+    `[SubtaskGate] Hard gate: '${toolName}' targets Nifty parent task cards only.`,
+    `${taskID} is a Nifty subtask under parent task ${parentID}.`,
+    "Subtasks are checklist-style execution items, not workflow/status/list task cards.",
+    "Use nifty_complete_task to check or uncheck the subtask.",
+    `For task-card comments, delivery, status, archive, delete, link, document, label, or bulk operations, hydrate and target the parent task card ${parentID}.`,
+  ].join(" ")
+}
+
+function numericTaskCounter(value) {
+  const number = Number.parseInt(value ?? "", 10)
+  return Number.isFinite(number) && number >= 0 ? number : null
+}
+
+function taskSubtaskSummary(task = {}, childRows = []) {
+  const loadedChildren = Array.isArray(childRows) ? childRows : []
+  const totalFromCounter = numericTaskCounter(task.total_subtasks ?? task.subtasks_count ?? task.subtask_count)
+  const completedFromCounter = numericTaskCounter(task.completed_subtasks ?? task.completed_subtask_count)
+  const completedFromRows = loadedChildren.filter((item) => item?.completed === true).length
+  const total = totalFromCounter ?? loadedChildren.length
+  const completed = completedFromCounter ?? completedFromRows
+  const open = Math.max(total - completed, 0)
+
+  return {
+    total_subtasks: total,
+    completed_subtasks: completed,
+    open_subtasks: open,
+    loaded_subtasks: loadedChildren.length,
+    subtasks_fully_loaded: total === loadedChildren.length,
+    subtask_ids: loadedChildren.map((item) => item?.id).filter(Boolean),
+  }
+}
+
+function groupSubtasksByParent(tasks = []) {
+  const grouped = {}
+  for (const task of tasks || []) {
+    const parentID = taskParentID(task)
+    if (!parentID) continue
+    const key = String(parentID)
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(task)
+  }
+  return grouped
+}
+
+function parentTaskRows(tasks = []) {
+  return (tasks || []).filter((task) => !isSubtask(task))
+}
+
+function enrichParentTaskSubtaskState(task = {}, subtasksByParent = {}) {
+  const childRows = subtasksByParent[String(task?.id)] || []
+  const summary = taskSubtaskSummary(task, childRows)
+  return {
+    ...task,
+    total_subtasks: summary.total_subtasks,
+    completed_subtasks: summary.completed_subtasks,
+    open_subtasks: summary.open_subtasks,
+    loaded_subtasks: summary.loaded_subtasks,
+    subtasks_fully_loaded: summary.subtasks_fully_loaded,
+    subtask_ids: summary.subtask_ids,
+    subtask_summary: summary,
+  }
+}
+
 function assertTaskCardForStatusChange(task = {}) {
   if (!isSubtask(task)) return
-  const taskID = task?.id || "unknown"
+  const taskID = subtaskTaskID(task)
   const parentID = taskParentID(task) || "unknown"
   throw new Error(
     `Nifty subtask ${taskID} belongs to parent task ${parentID}. Subtasks are checked off with nifty_complete_task; they are not task cards and must not be moved between statuses such as Dev Review.`,
   )
+}
+
+function assertParentTaskCardForTool(toolName, task = {}) {
+  if (!isSubtask(task)) return
+  throw Object.assign(
+    new Error(subtaskHardGateMessage(toolName, task)),
+    {
+      code: "NIFTY_SUBTASK_TASK_CARD_REQUIRED",
+      toolName,
+      taskID: task?.id || null,
+      niceID: task?.nice_id || null,
+      parentTaskID: taskParentID(task),
+    },
+  )
+}
+
+async function fetchTaskForEntityGate(taskID) {
+  if (!taskID) return null
+  return niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`)
+}
+
+async function assertTaskIDsAreParentTaskCards(toolName, taskIDs = []) {
+  const uniqueTaskIDs = [...new Set((taskIDs || []).filter(Boolean).map((id) => String(id)))]
+  for (const taskID of uniqueTaskIDs) {
+    const task = await fetchTaskForEntityGate(taskID)
+    assertParentTaskCardForTool(toolName, task)
+  }
+}
+
+async function enforceSubtaskEntityGate(toolName, args = {}) {
+  if (SUBTASK_ALLOWED_MUTATING_TASK_TOOLS.has(toolName)) return
+
+  if (TASK_CARD_ONLY_SINGLE_TASK_TOOLS.has(toolName) && args.task_id) {
+    const task = await fetchTaskForEntityGate(args.task_id)
+    assertParentTaskCardForTool(toolName, task)
+  }
+
+  if (TASK_CARD_ONLY_BULK_TASK_TOOLS.has(toolName)) {
+    await assertTaskIDsAreParentTaskCards(toolName, args.task_ids || [])
+  }
+
+  if (toolName === "nifty_link_tasks") {
+    await assertTaskIDsAreParentTaskCards(toolName, args.task_ids || [])
+  }
+
+  if (TASK_CARD_ONLY_PARENT_TASK_TOOLS.has(toolName) && args.parent_task_id) {
+    const parent = await fetchTaskForEntityGate(args.parent_task_id)
+    assertParentTaskCardForTool(toolName, parent)
+  }
 }
 
 function projectStatusSummary(tasks = [], statuses = []) {
@@ -2769,15 +3408,26 @@ async function fetchTaskFullContext(taskID, input = {}, context = {}) {
   const subtasks = directSubtasks.length
     ? directSubtasks
     : taskProjectSubtasks(task, projectTasks)
+  const subtaskSummary = taskSubtaskSummary(task, subtasks)
   const project = projects.find((item) => item.id === projectID) || null
 
   return {
-    task,
+    task: {
+      ...task,
+      total_subtasks: subtaskSummary.total_subtasks,
+      completed_subtasks: subtaskSummary.completed_subtasks,
+      open_subtasks: subtaskSummary.open_subtasks,
+      loaded_subtasks: subtaskSummary.loaded_subtasks,
+      subtasks_fully_loaded: subtaskSummary.subtasks_fully_loaded,
+      subtask_ids: subtaskSummary.subtask_ids,
+      subtask_summary: subtaskSummary,
+    },
     project,
     workflow,
     project_id: projectID || null,
     comments,
     subtasks,
+    subtask_summary: subtaskSummary,
     statuses,
     milestones,
     project_status_counts: projectStatusSummary(projectTasks, statuses),
@@ -2799,7 +3449,7 @@ async function fetchProjectFullContext(input = {}, context = {}) {
     niftyRequest("/api/v1.0/tasks", {
       query: {
         project_id: projectID,
-        include_subtasks: "false",
+        include_subtasks: "true",
         limit: taskLimit,
         offset: 0,
       },
@@ -2814,7 +3464,10 @@ async function fetchProjectFullContext(input = {}, context = {}) {
     validateWorkflows(contextWithConfig).catch(() => ({ workflows: [] })),
   ])
 
-  const tasks = tasksResponse?.tasks || []
+  const allTasks = tasksResponse?.tasks || []
+  const subtasksByParent = groupSubtasksByParent(allTasks)
+  const subtasks = Object.values(subtasksByParent).flat()
+  const tasks = parentTaskRows(allTasks).map((task) => enrichParentTaskSubtaskState(task, subtasksByParent))
   const docs = docsResponse?.items || docsResponse?.docs || []
   const workflowValidation = (validation?.workflows || []).find((item) => {
     if (resolved.workflowAlias && item.alias === resolved.workflowAlias) return true
@@ -2830,8 +3483,13 @@ async function fetchProjectFullContext(input = {}, context = {}) {
     statuses,
     milestones,
     tasks,
+    subtasks,
+    subtasks_by_parent: subtasksByParent,
     documents: docs,
     status_counts: projectStatusSummary(tasks, statuses),
+    task_sample_size: tasks.length,
+    subtask_sample_size: subtasks.length,
+    raw_task_sample_size: allTasks.length,
     fetched_at: new Date().toISOString(),
   }
 }
@@ -2952,10 +3610,14 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
   const changedFiles = Array.isArray(deliveryEvidence?.changed_files) && deliveryEvidence.changed_files.length
     ? deliveryEvidence.changed_files
     : changedFilesFromGit(context)
-  const visualRequired = requiresVisualProof(changedFiles)
+  const quality = engineeringQualityConfig(policy)
+  const visualRequired = requiresVisualProof(changedFiles) || requiresVisualRegressionProof(changedFiles, quality)
   const evidenceForValidation = { ...(deliveryEvidence || {}) }
   let generatedVisualProof = null
-  if (visualRequired && (!Array.isArray(evidenceForValidation.visual_proof) || evidenceForValidation.visual_proof.length === 0)) {
+  const hasProvidedVisualProof = Array.isArray(evidenceForValidation.visual_proof) && evidenceForValidation.visual_proof.length > 0
+  const hasProvidedVisualFileIDs = (Array.isArray(evidenceForValidation.visual_proof_file_ids) && evidenceForValidation.visual_proof_file_ids.length > 0)
+    || (Array.isArray(evidenceForValidation.nifty_file_ids) && evidenceForValidation.nifty_file_ids.length > 0)
+  if (visualRequired && !hasProvidedVisualProof && !hasProvidedVisualFileIDs) {
     generatedVisualProof = await autoGenerateVisualProof(
       taskID,
       changedFiles,
@@ -2965,8 +3627,12 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
     if (generatedVisualProof?.visual_proof?.length) {
       evidenceForValidation.visual_proof = generatedVisualProof.visual_proof
     }
+    if (generatedVisualProof?.nifty_file_ids?.length) {
+      evidenceForValidation.visual_proof_file_ids = generatedVisualProof.nifty_file_ids
+    }
   }
-  const validated = validateDeliveryEvidence(evidenceForValidation, { visualRequired, policy })
+  const validated = validateDeliveryEvidence(evidenceForValidation, { visualRequired, changedFiles, policy, engineeringQuality: quality })
+  const visualReferences = visualProofReferences(validated)
 
   const completedItems = [
     `Architecture integration: ${validated.architecture_proof}`,
@@ -2978,25 +3644,40 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
     changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected",
   ]
   if (validated.notes) completedItems.push(`Notes: ${validated.notes}`)
+  const verificationLines = [
+    validated.tdd_required ? `Confirm RED proof: ${validated.red_proof}` : null,
+    validated.tdd_required ? `Re-run GREEN proof: ${validated.green_proof}` : null,
+    `Re-run sad-path proof: ${validated.sad_path_proof}`,
+    validated.visual_required
+      ? `Visual regression proof: ${visualReferences.join(", ")}`
+      : "Visual regression proof: not required because no code or visual-impacting files changed.",
+  ].filter(Boolean)
 
   const report = structuredReport({
     summary: "Delivery gate passed — change is ready for Dev Review.",
     completed: completedItems,
-    evidence: `Visual proof required: ${visualRequired ? "yes" : "no"}`,
-    visual_proof: visualRequired ? (validated.visual_proof ?? []) : [],
-    visual_required: visualRequired,
+    evidence: [
+      `TDD required: ${validated.tdd_required ? "yes" : "no"}`,
+      `Visual regression proof required: ${validated.visual_required ? "yes" : "no"}`,
+      changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected",
+    ].join("\n"),
+    verification: verificationLines.join("\n"),
+    visual_proof: validated.visual_required ? visualReferences : [],
+    visual_required: validated.visual_required,
   })
 
   await postLifecycleComment(taskID, report, {
-    externalFiles: visualRequired ? commentExternalFiles(validated.visual_proof) : undefined,
-    niftyFiles: generatedVisualProof?.nifty_file_ids?.length ? generatedVisualProof.nifty_file_ids : undefined,
+    externalFiles: validated.visual_required ? commentExternalFiles(validated.visual_proof) : undefined,
+    niftyFiles: validated.visual_required
+      ? commentNiftyFiles(validated.visual_proof_file_ids, generatedVisualProof?.nifty_file_ids)
+      : undefined,
   })
 }
 
 /**
  * Inject RAG context into the tool call context metadata.
  * Best-effort: never throws, never blocks tool execution.
- * NIFTY_RAG_ENABLED must be true (default false) or this is a no-op.
+ * NIFTY_RAG_ENABLED must not be false (default true) or this is a no-op.
  *
  * @param {string} toolName
  * @param {object} args
@@ -3005,7 +3686,7 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
  * @param {Function} [_ragFn] - injectable for tests (bypasses dynamic import)
  */
 async function maybeInjectRagContext(toolName, args, context, policyState, _ragFn) {
-  if (!envBoolean("NIFTY_RAG_ENABLED", false, context)) return
+  if (!envBoolean("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context)) return
   try {
     const ragFn = _ragFn ?? (await import("./rag.mjs")).ragContextForTool
     const rag = await ragFn(toolName, args)
@@ -3018,6 +3699,37 @@ async function maybeInjectRagContext(toolName, args, context, policyState, _ragF
     }
   } catch {
     // RAG is best-effort. Failure never blocks tool execution.
+  }
+}
+
+function parseJsonToolResult(result) {
+  if (typeof result !== "string") return result
+  try {
+    return JSON.parse(result)
+  } catch {
+    return null
+  }
+}
+
+function registerBootstrappedTaskID(taskID, policyState, context) {
+  if (!taskID) return
+  const value = String(taskID)
+  policyState.bootstrappedTasks.add(value)
+  const effectiveBootstrap = context?.bootstrapState
+  if (effectiveBootstrap) {
+    effectiveBootstrap.resolvedTasks?.add(value)
+    effectiveBootstrap.bootstrappedTasks?.add(value)
+  }
+}
+
+function registerBootstrappedProjectID(projectID, policyState, context) {
+  if (!projectID) return
+  const value = String(projectID)
+  policyState.bootstrappedProjects.add(value)
+  const effectiveBootstrap = context?.bootstrapState
+  if (effectiveBootstrap) {
+    effectiveBootstrap.resolvedProjects?.add(value)
+    effectiveBootstrap.bootstrappedProjects?.add(value)
   }
 }
 
@@ -3035,6 +3747,14 @@ function withLifecyclePolicy(tools = {}, initContext = {}) {
         return loadPolicy(initContext)
       } catch {
         return null
+      }
+    })(),
+    policyLoadError: (() => {
+      try {
+        loadPolicy(initContext)
+        return null
+      } catch (error) {
+        return error
       }
     })(),
     // Append-only policy audit log for this session
@@ -3058,21 +3778,37 @@ function withLifecyclePolicy(tools = {}, initContext = {}) {
             const effectiveBootstrapState = context?.bootstrapState ?? policyState
             assertContextBootstrapped(name, args, effectiveBootstrapState, context)
 
-            // 3. Auto context hydration — best-effort; registers bootstrap on success
+            // 3. Mandatory subtask/entity-kind gate — hard-fail if a task-card-only
+            //    mutation targets a Nifty subtask. This prevents agents from
+            //    confusing parent task cards with checklist-style subtasks.
+            if (name === "nifty_create_comment" && args.task_id) {
+              validateNiftyTaskCommentTemplate({
+                task_id: args.task_id,
+                text: args.text,
+                context,
+                skip_code_change_evidence: true,
+              })
+            }
+            await enforceSubtaskEntityGate(name, args)
+            if (name === "nifty_create_comment" && args.task_id) {
+              validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.text, context })
+            }
+
+            // 4. Auto context hydration — best-effort; registers bootstrap on success
             try {
               await maybeAutoHydrateContext(name, args, context, policyState)
             } catch {
               // Auto context hydration is best-effort for compatibility.
             }
 
-            // 4. Auto lifecycle start — best-effort
+            // 5. Auto lifecycle start — best-effort
             try {
               await maybeAutoStartLifecycle(name, args, context, policyState)
             } catch {
               // Auto lifecycle start is best-effort; delivery gate remains hard-fail.
             }
 
-            // 5. RAG context injection — best-effort, never blocks tool execution
+            // 6. RAG context injection — best-effort, never blocks tool execution
             try {
               await maybeInjectRagContext(name, args, context, policyState)
             } catch {
@@ -3086,16 +3822,21 @@ function withLifecyclePolicy(tools = {}, initContext = {}) {
             //    (nifty_get_task_full_context / nifty_get_project_full_context)
             //    rather than relying on auto-hydration.
             if (name === "nifty_get_task_full_context" && args.task_id) {
-              policyState.bootstrappedTasks.add(args.task_id)
-              const effectiveBootstrap = context?.bootstrapState
-              if (effectiveBootstrap) effectiveBootstrap.resolvedTasks?.add(args.task_id)
+              const parsed = parseJsonToolResult(result)
+              registerBootstrappedTaskID(args.task_id, policyState, context)
+              registerBootstrappedTaskID(parsed?.task?.id, policyState, context)
+              registerBootstrappedTaskID(parsed?.task?.nice_id, policyState, context)
             }
             if (name === "nifty_get_project_full_context") {
+              const parsed = parseJsonToolResult(result)
               const pid = args.project_id || args.project_name || args.project_nice_id || args.workflow_alias
               if (pid) {
-                policyState.bootstrappedProjects.add(pid)
-                if (args.project_id) policyState.bootstrappedProjects.add(args.project_id)
+                registerBootstrappedProjectID(pid, policyState, context)
+                registerBootstrappedProjectID(args.project_id, policyState, context)
               }
+              registerBootstrappedProjectID(parsed?.project?.id, policyState, context)
+              registerBootstrappedProjectID(parsed?.project?.nice_id, policyState, context)
+              registerBootstrappedProjectID(parsed?.project?.name, policyState, context)
             }
 
             return result
@@ -3294,7 +4035,11 @@ const __test = {
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
   samePluginSource,
+  codeChangedFiles,
+  isCodeChangeFile,
+  requiresTddProof,
   requiresVisualProof,
+  requiresVisualRegressionProof,
   validateDeliveryEvidence,
   statusMatches,
   summarizeTask,
@@ -3308,11 +4053,14 @@ const __test = {
   lifecycleStatusCommentsEnabled,
   reportingConfig,
   structuredReport,
+  validateNiftyTaskCommentTemplate,
   automationConfig,
   detectAutomationMilestones,
   taskParentID,
   checklistSubtasks,
   autoGenerateVisualProof,
+  policyRequired,
+  isPolicyManagedMutation,
   resolveAuthNodeBinary,
   writeTokenCache,
 }
@@ -3332,6 +4080,8 @@ export const NiftyPlugin = async () => {
     regression_proof: tool.schema.string().optional().describe("Regression tests or checks added/updated to lock the behavior"),
     iterative_proof: tool.schema.string().optional().describe("Iterative RED/GREEN/refactor or reproduce/fix/retest loop evidence"),
     visual_proof: tool.schema.array(tool.schema.string()).optional().describe("Screenshot/video URLs required when visual changes are detected"),
+    visual_proof_file_ids: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs for screenshot/video proof attachments"),
+    nifty_file_ids: tool.schema.array(tool.schema.string()).optional().describe("Alias for visual_proof_file_ids"),
     changed_files: tool.schema.array(tool.schema.string()).optional().describe("Optional changed files list override for lifecycle gate detection"),
     notes: tool.schema.string().optional().describe("Optional delivery notes appended to lifecycle gate comment"),
   })
@@ -3591,7 +4341,7 @@ export const NiftyPlugin = async () => {
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
           sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order"),
         },
-        async execute(args) {
+        async execute(args, context) {
           const response = await niftyRequest("/api/v1.0/projects", {
             query: cleanObject({
               subteam_id: args.subteam_id,
@@ -4138,6 +4888,13 @@ export const NiftyPlugin = async () => {
         async execute(_args, context) {
           const config = getClientConfig(context)
           const cached = await readTokenCache()
+          let loadedPolicy = null
+          let policyError = null
+          try {
+            loadedPolicy = loadPolicy(context)
+          } catch (error) {
+            policyError = error.message
+          }
           const checks = {
             credentials: {
               client_id: Boolean(config.clientID),
@@ -4148,6 +4905,19 @@ export const NiftyPlugin = async () => {
               cached_access_token_usable: isTokenUsable(cached),
             },
             api: { ok: false, error: null },
+            policy: {
+              required: policyRequired(context),
+              loaded: Boolean(loadedPolicy),
+              policy_id: loadedPolicy?.policy_id || null,
+              path: process.env.NIFTY_POLICY_PATH || null,
+              inline: Boolean(process.env.NIFTY_POLICY_INLINE),
+              error: policyError,
+            },
+            runtime: {
+              node: process.version,
+              node_20_or_newer: Number.parseInt(process.versions.node.split(".")[0] || "0", 10) >= 20,
+            },
+            rag: null,
             workflows: null,
           }
 
@@ -4167,8 +4937,31 @@ export const NiftyPlugin = async () => {
             checks.workflows = { ok: false, error: error.message }
           }
 
+          try {
+            const { ragDiagnostics } = await import("./rag.mjs")
+            checks.rag = await ragDiagnostics({
+              enabled: envBoolean("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context),
+            })
+            checks.rag.ready = Boolean(
+              checks.rag.tables?.["nifty-tasks"]?.available
+                && checks.rag.tables?.["nifty-policy"]?.available,
+            )
+            checks.rag.required = envBoolean("NIFTY_RAG_REQUIRED", false, context)
+          } catch (error) {
+            checks.rag = {
+              enabled: envBoolean("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context),
+              required: envBoolean("NIFTY_RAG_REQUIRED", false, context),
+              ready: false,
+              error: error.message,
+            }
+          }
+
           return json({
-            ok: checks.api.ok && checks.workflows?.ok !== false,
+            ok: checks.api.ok
+              && checks.workflows?.ok !== false
+              && (!checks.policy.required || (checks.policy.loaded && !checks.policy.error))
+              && checks.runtime.node_20_or_newer
+              && (!checks.rag?.required || checks.rag?.ready),
             token_cache: TOKEN_PATH,
             workflow_config: configPath(context),
             default_workflow: defaultWorkflowAlias(context) || null,
@@ -4766,6 +5559,131 @@ export const NiftyPlugin = async () => {
         },
       }),
 
+      nifty_run_task: tool({
+        description: "Runs the canonical Nifty task workflow entrypoint: hydrate the parent card, comments, and child tasks, then assign the parent card to the authorized user.",
+        args: {
+          task_id: tool.schema.string().describe("Parent task card ID or child task ID from the user prompt, for example MBC-495"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the Codex/OpenCode project directory"),
+          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
+          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context"),
+          assign: tool.schema.boolean().optional().describe("Assign the parent card to the authorized user; defaults to true"),
+          assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Authorized Nifty member IDs to assign; defaults to policy default or current user"),
+        },
+        async execute(args, context) {
+          return withNiftyWorkflowLock(["run-task", args.task_id], context, async () => {
+            const session = await hydrateTaskWorkSession(args.task_id, args, context)
+            const parentTask = session.parent_context.task
+            const assignment = await assignTaskToAuthorizedUser(parentTask.id, parentTask, args, context)
+
+            safeContextMetadata(context, {
+              title: "Nifty task work session",
+              active_task_id: parentTask.id,
+              active_task_nice_id: parentTask.nice_id,
+              requested_task_id: args.task_id,
+              requested_was_subtask: session.requested_was_subtask,
+              parent_task_id: parentTask.id,
+              subtask_summary: session.parent_context.subtask_summary,
+            })
+
+            return json({
+              workflow: "nifty_task_work_session",
+              active_task_id: parentTask.id,
+              active_task_nice_id: parentTask.nice_id,
+              requested_task_id: args.task_id,
+              requested_was_subtask: session.requested_was_subtask,
+              requested_subtask: session.requested_subtask || null,
+              assignment,
+              task: parentTask,
+              description: parentTask.description,
+              comments: session.parent_context.comments,
+              subtasks: childWorkSummary(session.parent_context.subtasks),
+              subtask_summary: session.parent_context.subtask_summary,
+              statuses: session.parent_context.statuses,
+              milestones: session.parent_context.milestones,
+              project: session.parent_context.project,
+              instructions: [
+                "Use this hydrated Nifty context as the source of truth before reading repository files.",
+                "Work child tasks from the subtasks list.",
+                "When a child task is actually complete and evidence exists, call nifty_complete_child_task with the child task id and Cave Updater evidence fields.",
+                "Do not move, archive, comment on, or deliver a child task as if it were the parent task card.",
+              ],
+            })
+          })
+        },
+      }),
+
+      nifty_complete_child_task: tool({
+        description: "Completes a Nifty child/subtask and automatically posts a meaningful Cave Updater comment using the required three-section template.",
+        args: {
+          child_task_id: tool.schema.string().describe("Child/subtask ID to check off"),
+          parent_task_id: tool.schema.string().optional().describe("Expected parent task card ID; used as a safety check when provided"),
+          what_was_done: tool.schema.string().describe("Meaningful completion summary for ## What was done"),
+          evidence_tests: tool.schema.string().describe("Concrete evidence, commands, tests, or review proof for ## Evidence / Tests"),
+          how_to_verify: tool.schema.string().describe("Concrete verification steps for ## How to verify"),
+          completed: tool.schema.boolean().optional().describe("Completion state; defaults to true"),
+          idempotency_key: tool.schema.string().optional().describe("Optional stable key for retrying the same child completion workflow"),
+        },
+        async execute(args, context) {
+          const report = caveUpdaterReport({
+            what_was_done: args.what_was_done,
+            evidence_tests: args.evidence_tests,
+            how_to_verify: args.how_to_verify,
+          })
+          const idempotencyKey = args.idempotency_key || workflowLockKey([
+            "complete-child",
+            args.child_task_id,
+            args.completed !== false,
+            normalizeCommentForIdempotency(report),
+          ])
+
+          return withNiftyWorkflowLock(["complete-child", args.child_task_id, idempotencyKey], context, async () => {
+            const childTask = await fetchTaskForEntityGate(args.child_task_id)
+            if (!isSubtask(childTask)) {
+              throw Object.assign(
+                new Error("nifty_complete_child_task requires a child/subtask id. Use parent task-card tools for parent cards."),
+                { code: "NIFTY_CHILD_TASK_REQUIRED", taskID: args.child_task_id },
+              )
+            }
+
+            const parentTaskID = taskParentID(childTask)
+            if (args.parent_task_id && String(args.parent_task_id) !== String(parentTaskID)) {
+              throw Object.assign(
+                new Error(`Child task ${args.child_task_id} belongs to parent ${parentTaskID}, not ${args.parent_task_id}.`),
+                { code: "NIFTY_CHILD_PARENT_MISMATCH", taskID: args.child_task_id, parentTaskID },
+              )
+            }
+
+            const completed = args.completed !== false
+            let completion = null
+            if (childTask.completed === completed) {
+              completion = { existing: true, completed }
+            } else {
+              completion = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.child_task_id)}/complete`, {
+                method: "POST",
+                body: { completed },
+              })
+            }
+            const comment = await postCaveUpdaterTaskComment(args.child_task_id, report, context)
+            const parentAutomation = completed ? await maybeAutoCompleteParentTask(args.child_task_id, context) : null
+
+            return json({
+              workflow: "nifty_child_completion",
+              idempotency_key: idempotencyKey,
+              child_task_id: args.child_task_id,
+              child_task_nice_id: childTask.nice_id || null,
+              parent_task_id: parentTaskID,
+              completed,
+              completion,
+              comment,
+              comment_template: "cave_updater",
+              comment_text: botCommentText(report),
+              parent_automation: parentAutomation,
+            })
+          })
+        },
+      }),
+
       nifty_create_task: tool({
         description: "Creates a Nifty task",
         args: {
@@ -4970,6 +5888,7 @@ export const NiftyPlugin = async () => {
         },
         async execute(args) {
           requireBulkTaskConfirmation("delete", args.task_ids, args.confirmation)
+          await assertTaskIDsAreParentTaskCards("nifty_delete_tasks", args.task_ids)
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "DELETE",
             body: {
@@ -4982,14 +5901,17 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_complete_task: tool({
-        description: "Completes or reopens a Nifty task",
+        description: "Completes or reopens a Nifty task. For subtasks, this checks or unchecks the child row. Parent task-card completion still requires close_confirmation when the lifecycle policy requires it.",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           completed: tool.schema.boolean().default(true).describe("Completion state"),
-          close_confirmation: tool.schema.string().optional().describe('Required when completed=true and automation requires explicit close trigger. Use exactly "close {task_id}".'),
+          close_confirmation: tool.schema.string().optional().describe('Required only when completing a parent task card and automation requires explicit close trigger. Use exactly "close {task_id}". Subtask checkoff does not require this.'),
         },
         async execute(args, context) {
-          if (args.completed !== false) assertExplicitCloseConfirmation(args.task_id, args, context)
+          if (args.completed !== false) {
+            const task = await fetchTaskForEntityGate(args.task_id)
+            if (!isSubtask(task)) assertExplicitCloseConfirmation(args.task_id, args, context)
+          }
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/complete`, {
             method: "POST",
             body: { completed: args.completed },
@@ -5145,6 +6067,9 @@ export const NiftyPlugin = async () => {
           if (!status) {
             throw new Error("Target status missing. Provide state_key or status_name.")
           }
+          if (args.comment) {
+            validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.comment, context: contextWithConfig })
+          }
 
           await enforceDeliveryLifecyclePolicy(
             args.task_id,
@@ -5246,6 +6171,9 @@ export const NiftyPlugin = async () => {
             state_key: args.state_key,
             status_name: args.status_name,
           })
+          if (args.comment) {
+            validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.comment, context: contextWithConfig })
+          }
 
           await enforceDeliveryLifecyclePolicy(
             args.task_id,
@@ -5384,7 +6312,7 @@ export const NiftyPlugin = async () => {
           entity_key: tool.schema.string().optional().describe("Document entity key when doc_id is used"),
           external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 McBotFace marker; defaults to true for AI/tool comments"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 Cave Updater marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const targets = [
@@ -5400,6 +6328,7 @@ export const NiftyPlugin = async () => {
               "Provide exactly one target: chat_id, message_id, task_id, file_id, or doc_id.",
             )
           }
+          validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.text, context })
 
           const response = await niftyRequest("/api/v1.0/messages", {
             method: "POST",
@@ -5426,8 +6355,9 @@ export const NiftyPlugin = async () => {
           message_id: tool.schema.string().describe("Message ID"),
           text: tool.schema.string().describe("Updated message text"),
           hide_link_preview: tool.schema.boolean().optional().describe("Hide link previews"),
+          external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 McBotFace marker; defaults to true for AI/tool comments"),
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with 🤖 Cave Updater marker; defaults to true for AI/tool comments"),
         },
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/messages/${encodeURIComponent(args.message_id)}`, {
@@ -5435,6 +6365,7 @@ export const NiftyPlugin = async () => {
             body: cleanObject({
               text: botCommentText(args.text, args.bot_marker !== false),
               hide_link_preview: args.hide_link_preview,
+              external_files: args.external_files,
               nifty_files: args.nifty_files,
             }),
           })

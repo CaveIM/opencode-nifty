@@ -131,13 +131,18 @@ test("nifty_auth_localhost_start explicit port overrides project env file", asyn
   assert.equal(shutdownResponse.status, 400)
 })
 
-test("writeTokenCache restricts token cache parent directory permissions", async () => {
+test("writeTokenCache restricts token cache permissions or fails closed", async () => {
   const dir = await mkdtemp(join(tmpdir(), "nifty-token-perms-"))
   const tokenPath = join(dir, "nested", "auth-token.json")
   process.env.NIFTY_TOKEN_PATH = tokenPath
 
   const { NiftyPlugin } = await import(`../plugin/nifty.js?token-perms-test=${Date.now()}`)
-  await NiftyPlugin.__test.writeTokenCache({ access_token: "test-token", refresh_token: "refresh" })
+  try {
+    await NiftyPlugin.__test.writeTokenCache({ access_token: "test-token", refresh_token: "refresh" })
+  } catch (error) {
+    assert.match(error.message, /Unable to secure Nifty token cache permissions/i)
+    return
+  }
 
   const parentMode = (await stat(join(dir, "nested"))).mode & 0o777
   const fileMode = (await stat(tokenPath)).mode & 0o777

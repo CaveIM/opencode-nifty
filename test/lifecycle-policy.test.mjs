@@ -38,6 +38,42 @@ test("delivery evidence requires tdd and sad path proofs", () => {
   }, { visualRequired: true }))
 })
 
+test("delivery evidence requires TDD only when code files changed", () => {
+  const nonCodeEvidence = {
+    sad_path_proof: "Reviewed the documentation-only change and confirmed no runtime path changed.",
+    architecture_proof: "No runtime architecture changed; this only updated task-facing documentation.",
+    regression_proof: "Documentation diff was reviewed against the existing workflow behavior.",
+    iterative_proof: "Reviewed the wording, corrected the documented behavior, and re-read the final diff.",
+  }
+
+  assert.doesNotThrow(() => __test.validateDeliveryEvidence(nonCodeEvidence, {
+    changedFiles: ["docs/runbook.md"],
+  }))
+
+  assert.throws(
+    () => __test.validateDeliveryEvidence(nonCodeEvidence, {
+      changedFiles: ["plugin/nifty.js"],
+    }),
+    /red_proof.*code files changed/i,
+  )
+})
+
+test("delivery evidence requires visual regression proof when code files changed", () => {
+  assert.throws(
+    () => __test.validateDeliveryEvidence({
+      red_proof: "RED: `npx -y node@20 --test test/lifecycle-policy.test.mjs` failed before the implementation.",
+      green_proof: "GREEN: `npx -y node@20 --test test/lifecycle-policy.test.mjs` passed after the implementation.",
+      sad_path_proof: "Verified missing evidence is denied before status mutation.",
+      architecture_proof: "Integrated through the existing lifecycle evidence gate; no parallel delivery path added.",
+      regression_proof: "Added regression coverage for code-change evidence requirements.",
+      iterative_proof: "RED failed first, GREEN passed after implementation, then focused regression reran.",
+    }, {
+      changedFiles: ["backend/app/Services/BuildReport.php"],
+    }),
+    /visual_proof.*code files changed/i,
+  )
+})
+
 test("delivery evidence rejects hand-wavy fixes without architectural integration and regression proof", () => {
   assert.throws(
     () => __test.validateDeliveryEvidence({
@@ -84,6 +120,21 @@ test("delivery evidence enforces visual artifacts only when visual changes are p
   }, { visualRequired: false }))
 })
 
+test("delivery evidence accepts Nifty file IDs as visual proof attachments", () => {
+  const validated = __test.validateDeliveryEvidence({
+    red_proof: "RED: focused visual regression failed before implementation.",
+    green_proof: "GREEN: focused visual regression passed after implementation.",
+    sad_path_proof: "Verified missing visual proof is denied before status mutation.",
+    architecture_proof: "Integrated through the existing lifecycle evidence gate and report template path.",
+    regression_proof: "Added regression coverage for Nifty file ID screenshot proof attachments.",
+    iterative_proof: "RED failed first, GREEN passed after implementation, then focused regression reran.",
+    visual_proof_file_ids: ["file-1"],
+  }, { visualRequired: true, changedFiles: ["frontend/src/app/page.tsx"] })
+
+  assert.deepEqual(validated.visual_proof, [])
+  assert.deepEqual(validated.visual_proof_file_ids, ["file-1"])
+})
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Global report standard
 
@@ -125,7 +176,7 @@ test("structuredReport — includes all non-empty sections", () => {
   })
   assert.ok(report.includes("## What was done"), "missing summary section")
   assert.ok(report.includes("Fixed the login redirect"), "missing summary text")
-  assert.ok(report.includes("## Completed"), "missing completed section")
+  assert.ok(!report.includes("## Completed"), "completed section should be folded into What was done")
   assert.ok(report.includes("- Updated redirect logic"), "missing completed bullet")
   assert.ok(report.includes("## Evidence / Tests"), "missing evidence section")
   assert.ok(report.includes("45/45 passing"), "missing evidence text")
@@ -162,4 +213,3 @@ test("structuredReport — visual_required=true with no proof shows mandatory wa
   assert.ok(report.includes("## Visual proof"))
   assert.ok(report.includes("MANDATORY"), "missing mandatory warning for absent screenshots")
 })
-

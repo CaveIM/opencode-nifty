@@ -33,6 +33,22 @@ function context(overrides = {}) {
   }
 }
 
+function taskCommentTemplate() {
+  return [
+    "## What was done",
+    "",
+    "- Updated the task card with the requested implementation status.",
+    "",
+    "## Evidence / Tests",
+    "",
+    "- Plugin unit test fixture.",
+    "",
+    "## How to verify",
+    "",
+    "- Confirm the posted comment includes all required headings.",
+  ].join("\n")
+}
+
 test("workflow config ignores env path and uses project-local config", async () => {
   const envDir = await mkdtemp(join(tmpdir(), "nifty-env-config-"))
   const projectDir = await mkdtemp(join(tmpdir(), "nifty-project-config-"))
@@ -699,6 +715,9 @@ test("nifty_create_subtask sends parent task id", async () => {
   globalThis.fetch = async (url, options = {}) => {
     const requestURL = new URL(String(url))
 
+    if (requestURL.pathname === "/api/v1.0/tasks/parent-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "parent-1", name: "Parent task" })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks" && options.method === "POST") {
       capturedBody = JSON.parse(options.body)
       return Response.json({ id: "st1", name: capturedBody.name })
@@ -769,6 +788,67 @@ test("nifty_get_task_full_context returns task, comments, subtasks, and project 
   assert.equal(parsed.project_status_counts["In Progress"], 1)
 })
 
+test("nifty_run_task hydrates parent context and assigns authorized user", async () => {
+  process.env.NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS = "u1"
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body, query: requestURL.searchParams })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/MBC-495") {
+      return Response.json({
+        id: "parent-495",
+        nice_id: "MBC-495",
+        name: "Parent card",
+        description: "Parent description",
+        project_id: "p1",
+        task_group_id: "s1",
+        assignees: [],
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ items: [{ id: "c1", text: "Existing context" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project", nice_id: "MBC" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "In Progress" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks" && !options.method) {
+      if (requestURL.searchParams.get("task_id") === "parent-495") {
+        return Response.json({ tasks: [{ id: "child-1", nice_id: "MBC-713", name: "Child task", task_id: "parent-495", completed: false }] })
+      }
+      return Response.json({
+        tasks: [
+          { id: "parent-495", nice_id: "MBC-495", name: "Parent card", project_id: "p1", task_group_id: "s1" },
+          { id: "child-1", nice_id: "MBC-713", name: "Child task", task_id: "parent-495", completed: false },
+        ],
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/parent-495/assignees" && options.method === "PUT") {
+      return Response.json({ ok: true })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_run_task.execute({ task_id: "MBC-495" }, context())
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.workflow, "nifty_task_work_session")
+  assert.equal(parsed.active_task_id, "parent-495")
+  assert.equal(parsed.assignment.assigned, true)
+  assert.deepEqual(parsed.subtasks.map((item) => item.id), ["child-1"])
+  const assignment = calls.find((call) => call.path === "/api/v1.0/tasks/parent-495/assignees" && call.method === "PUT")
+  assert.ok(assignment)
+  assert.deepEqual(JSON.parse(assignment.body), { assignees: ["u1"] })
+})
+
 test("nifty_get_project_full_context returns whole project snapshot", async () => {
   globalThis.fetch = async (url) => {
     const requestURL = new URL(String(url))
@@ -801,6 +881,117 @@ test("nifty_get_project_full_context returns whole project snapshot", async () =
   assert.equal(parsed.tasks.length, 2)
   assert.equal(parsed.documents.length, 1)
   assert.equal(parsed.status_counts["To Do"], 1)
+})
+
+test("nifty_get_project_full_context includes subtask child rows and parent counters", async () => {
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "To Do" }, { id: "s2", name: "Done" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [], hasMore: false })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      assert.equal(requestURL.searchParams.get("include_subtasks"), "true")
+      return Response.json({
+        tasks: [
+          {
+            id: "parent-1",
+            name: "Parent task",
+            project_id: "p1",
+            task_group: "s1",
+            total_subtasks: 2,
+            completed_subtasks: 1,
+          },
+          {
+            id: "child-1",
+            name: "Child one",
+            project_id: "p1",
+            task_id: "parent-1",
+            completed: true,
+          },
+          {
+            id: "child-2",
+            name: "Child two",
+            project_id: "p1",
+            task_id: "parent-1",
+            completed: false,
+          },
+        ],
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/docs") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_get_project_full_context.execute({ project_id: "p1", task_limit: 20 }, context())
+  const parsed = JSON.parse(output)
+
+  assert.deepEqual(parsed.tasks.map((task) => task.id), ["parent-1"])
+  assert.equal(parsed.tasks[0].total_subtasks, 2)
+  assert.equal(parsed.tasks[0].completed_subtasks, 1)
+  assert.equal(parsed.tasks[0].open_subtasks, 1)
+  assert.deepEqual(parsed.tasks[0].subtask_ids, ["child-1", "child-2"])
+  assert.deepEqual(parsed.subtasks.map((task) => task.id), ["child-1", "child-2"])
+  assert.equal(parsed.subtasks_by_parent["parent-1"].length, 2)
+  assert.equal(parsed.status_counts["To Do"], 1)
+})
+
+test("nifty_get_project_full_context preserves subtask counters when child rows are absent", async () => {
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "In Progress" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [], hasMore: false })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      assert.equal(requestURL.searchParams.get("include_subtasks"), "true")
+      return Response.json({
+        tasks: [
+          {
+            id: "parent-1",
+            nice_id: "MBC-462",
+            name: "Parent task",
+            project_id: "p1",
+            task_group: "s1",
+            total_subtasks: 6,
+            completed_subtasks: 6,
+          },
+        ],
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/docs") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_get_project_full_context.execute({ project_id: "p1", task_limit: 20 }, context())
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.tasks[0].total_subtasks, 6)
+  assert.equal(parsed.tasks[0].completed_subtasks, 6)
+  assert.equal(parsed.tasks[0].open_subtasks, 0)
+  assert.equal(parsed.tasks[0].loaded_subtasks, 0)
+  assert.equal(parsed.tasks[0].subtasks_fully_loaded, false)
+  assert.deepEqual(parsed.subtasks, [])
 })
 
 test("auto context hydration injects full task context metadata", async () => {
@@ -870,6 +1061,9 @@ test("nifty_update_task writes configured custom fields", async () => {
     const requestURL = new URL(String(url))
     calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "t1", project_id: "p1" })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks/t1/fields/field-1" && options.method === "PUT") {
       return Response.json({ id: "field-1", value: JSON.parse(options.body).value })
     }
@@ -888,9 +1082,10 @@ test("nifty_update_task writes configured custom fields", async () => {
   )
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1/fields/field-1"],
   ])
-  assert.deepEqual(JSON.parse(calls[0].body), { value: "Deployment" })
+  assert.deepEqual(JSON.parse(calls[1].body), { value: "Deployment" })
 })
 
 test("nifty_update_task_custom_fields never sends a generic task update", async () => {
@@ -917,6 +1112,9 @@ test("nifty_update_task_custom_fields never sends a generic task update", async 
     const requestURL = new URL(String(url))
     calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "t1", project_id: "p1" })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks/t1/fields/field-1" && options.method === "PUT") {
       return Response.json({ id: "field-1", value: JSON.parse(options.body).value })
     }
@@ -936,9 +1134,10 @@ test("nifty_update_task_custom_fields never sends a generic task update", async 
   const parsed = JSON.parse(output)
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1/fields/field-1"],
   ])
-  assert.deepEqual(JSON.parse(calls[0].body), { value: "Deployment" })
+  assert.deepEqual(JSON.parse(calls[1].body), { value: "Deployment" })
   assert.equal(parsed.task_id, "t1")
   assert.deepEqual(parsed.custom_fields, [{ id: "field-1", value: "Deployment" }])
 })
@@ -967,6 +1166,9 @@ test("nifty_update_task separates normal fields from custom fields", async () =>
     const requestURL = new URL(String(url))
     calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
 
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "t1", name: "Original", project_id: "p1" })
+    }
     if (requestURL.pathname === "/api/v1.0/tasks/t1" && options.method === "PUT") {
       return Response.json({ id: "t1", name: JSON.parse(options.body).name })
     }
@@ -989,11 +1191,12 @@ test("nifty_update_task separates normal fields from custom fields", async () =>
   )
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1/fields/field-1"],
   ])
-  assert.deepEqual(JSON.parse(calls[0].body), { name: "Updated task" })
-  assert.deepEqual(JSON.parse(calls[1].body), { value: "Deployment" })
+  assert.deepEqual(JSON.parse(calls[1].body), { name: "Updated task" })
+  assert.deepEqual(JSON.parse(calls[2].body), { value: "Deployment" })
 })
 
 test("nifty_delete_status deletes task group by id", async () => {
@@ -1033,8 +1236,12 @@ test("nifty_delete_tasks requires explicit bulk confirmation", async () => {
     context(),
   )
 
-  assert.deepEqual(calls.map((call) => [call.method, call.path]), [["DELETE", "/api/v1.0/tasks"]])
-  assert.deepEqual(JSON.parse(calls[0].body), { project_id: "p1", task_ids: ["t1", "t2"] })
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
+    ["GET", "/api/v1.0/tasks/t2"],
+    ["DELETE", "/api/v1.0/tasks"],
+  ])
+  assert.deepEqual(JSON.parse(calls[2].body), { project_id: "p1", task_ids: ["t1", "t2"] })
 })
 
 test("task lifecycle tools call expected endpoints and bodies", async () => {
@@ -1068,14 +1275,19 @@ test("task lifecycle tools call expected endpoints and bodies", async () => {
   )
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
     ["POST", "/api/v1.0/tasks/t1/complete"],
+    ["GET", "/api/v1.0/tasks/t1"],
     ["POST", "/api/v1.0/tasks/t1/archive"],
+    ["GET", "/api/v1.0/tasks/t1"],
+    ["GET", "/api/v1.0/tasks/t2"],
     ["POST", "/api/v1.0/tasks/t1/link_task"],
+    ["GET", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1/labels"],
   ])
-  assert.deepEqual(JSON.parse(calls[0].body), { completed: true })
-  assert.deepEqual(JSON.parse(calls[2].body), { tasks: ["t2"] })
-  assert.deepEqual(JSON.parse(calls[3].body), { labels: ["l1"] })
+  assert.deepEqual(JSON.parse(calls[1].body), { completed: true })
+  assert.deepEqual(JSON.parse(calls[6].body), { tasks: ["t2"] })
+  assert.deepEqual(JSON.parse(calls[8].body), { labels: ["l1"] })
 })
 
 test("nifty_complete_task blocks completion without explicit close confirmation", async () => {
@@ -1102,7 +1314,114 @@ test("nifty_complete_task blocks completion without explicit close confirmation"
     /close_confirmation.*close MBC-462/i,
   )
 
-  assert.deepEqual(calls, [])
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/MBC-462"],
+  ])
+})
+
+test("nifty_complete_task checks off subtasks without parent-card close confirmation", async () => {
+  process.env.NIFTY_POLICY_INLINE = JSON.stringify({
+    version: 1,
+    default_effect: "allow",
+    automation: {
+      enabled: true,
+      completion: { require_explicit_close_trigger: true },
+      parent_tasks: { auto_complete_when_subtasks_complete: false },
+    },
+    rules: [],
+  })
+
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/child-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "child-1", nice_id: "MBC-713", task_id: "parent-1", project_id: "p1" })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/child-1/complete" && options.method === "POST") {
+      return Response.json({ ok: true, id: "child-1", completed: true })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_complete_task.execute({ task_id: "child-1", completed: true }, context())
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.id, "child-1")
+  assert.equal(parsed.completed, true)
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/child-1"],
+    ["POST", "/api/v1.0/tasks/child-1/complete"],
+  ])
+  assert.deepEqual(JSON.parse(calls[1].body), { completed: true })
+})
+
+test("nifty_complete_child_task is idempotent under concurrent retries and posts Cave Updater once", async () => {
+  const lockDir = await mkdtemp(join(tmpdir(), "nifty-workflow-lock-"))
+  process.env.NIFTY_WORKFLOW_LOCK_DIR = lockDir
+
+  let childCompleted = false
+  const comments = []
+  let completePosts = 0
+  let commentPosts = 0
+
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/tasks/child-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "child-1", nice_id: "MBC-713", name: "Child", task_id: "parent-1", project_id: "p1", completed: childCompleted })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/child-1/complete" && options.method === "POST") {
+      completePosts += 1
+      childCompleted = JSON.parse(options.body).completed
+      return Response.json({ ok: true, id: "child-1", completed: childCompleted })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages" && (options.method || "GET") === "GET") {
+      return Response.json({ items: comments })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages" && options.method === "POST") {
+      commentPosts += 1
+      const body = JSON.parse(options.body)
+      const comment = { id: `comment-${commentPosts}`, text: body.text, task_id: body.task_id }
+      comments.push(comment)
+      return Response.json(comment, { status: 201 })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const args = {
+    child_task_id: "child-1",
+    parent_task_id: "parent-1",
+    idempotency_key: "child-1-proof-a",
+    what_was_done: "Implemented and verified the child task.",
+    evidence_tests: [
+      "RED: `npx -y node@20 --test test/tools.test.mjs --test-name-pattern child` failed before implementation.",
+      "GREEN: `npx -y node@20 --test test/tools.test.mjs --test-name-pattern child` passed after implementation.",
+    ].join("\n"),
+    how_to_verify: [
+      "Re-run the GREEN command.",
+      "Visual regression proof: attached Playwright screenshot showing the child completion update on the task card.",
+    ].join("\n"),
+  }
+
+  const [first, second] = await Promise.all([
+    plugin.tool.nifty_complete_child_task.execute(args, context()),
+    plugin.tool.nifty_complete_child_task.execute(args, context()),
+  ])
+  const parsed = [JSON.parse(first), JSON.parse(second)]
+
+  assert.equal(completePosts, 1)
+  assert.equal(commentPosts, 1)
+  assert.equal(parsed.every((item) => item.completed === true), true)
+  assert.equal(comments[0].task_id, "child-1")
+  assert.match(comments[0].text, /^🤖 Cave Updater/)
+  assert.match(comments[0].text, /## What was done/)
+  assert.match(comments[0].text, /## Evidence \/ Tests/)
+  assert.match(comments[0].text, /## How to verify/)
 })
 
 test("nifty_complete_task does not auto-complete the parent without explicit parent close confirmation", async () => {
@@ -1217,13 +1536,151 @@ test("nifty_update_task rejects status changes for subtasks", async () => {
       { task_id: "sub-1", task_group_id: "s-dev" },
       context(),
     ),
-    /subtask.*checked off/i,
+    /Hard gate.*nifty_update_task.*subtask/i,
   )
 
   assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
 })
 
-test("auto lifecycle start does not move subtasks before comments", async () => {
+test("subtask entity gate blocks task-card comments on subtask targets", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", nice_id: "MBC-468", task_id: "parent-1", project_id: "p1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_create_comment.execute(
+      { task_id: "sub-1", text: taskCommentTemplate() },
+      context(),
+    ),
+    /Hard gate.*subtask.*parent task parent-1/i,
+  )
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
+})
+
+test("subtask entity gate blocks delivery preparation on subtask targets", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1", task_group_id: "s1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_prepare_task_for_delivery.execute(
+      { task_id: "sub-1", project_id: "p1", summary: "Should be parent-only" },
+      context(),
+    ),
+    /Hard gate.*nifty_prepare_task_for_delivery.*subtask/i,
+  )
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
+})
+
+test("subtask entity gate blocks archive on subtask targets", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_archive_task.execute({ task_id: "sub-1", archived: true }, context()),
+    /Hard gate.*nifty_archive_task.*subtask/i,
+  )
+
+  assert.deepEqual(calls, [{ path: "/api/v1.0/tasks/sub-1", method: "GET", body: undefined }])
+})
+
+test("subtask entity gate blocks bulk task-card moves containing subtasks", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/task-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "task-1", project_id: "p1" })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1" })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_move_tasks.execute(
+      { task_ids: ["task-1", "sub-1"], target_type: "task_group", target_id: "s-dev" },
+      context(),
+    ),
+    /Hard gate.*nifty_move_tasks.*subtask/i,
+  )
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/task-1"],
+    ["GET", "/api/v1.0/tasks/sub-1"],
+  ])
+})
+
+test("subtask entity gate allows explicit subtask completion", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1/complete" && options.method === "POST") {
+      return Response.json({ ok: true })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/sub-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "sub-1", task_id: "parent-1", project_id: "p1", completed: true })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/parent-1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "parent-1", project_id: "p1", completed: false })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages") return Response.json({ items: [] })
+    if (requestURL.pathname === "/api/v1.0/projects") return Response.json({ projects: [{ id: "p1", name: "Project One" }] })
+    if (requestURL.pathname === "/api/v1.0/taskgroups") return Response.json({ items: [] })
+    if (requestURL.pathname === "/api/v1.0/milestones") return Response.json({ items: [] })
+    if (requestURL.pathname === "/api/v1.0/tasks" && !options.method) return Response.json({ tasks: [] })
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_complete_task.execute(
+    { task_id: "sub-1", completed: true, close_confirmation: "close sub-1" },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.ok, true)
+  assert.equal(calls.some((call) => call.path === "/api/v1.0/tasks/sub-1/complete" && call.method === "POST"), true)
+})
+
+test("auto lifecycle start hard-gates task-card comments on subtasks", async () => {
   process.env.NIFTY_AUTOPOLICY_ENABLED = "true"
   process.env.NIFTY_POLICY_INLINE = JSON.stringify({
     version: 1,
@@ -1248,15 +1705,61 @@ test("auto lifecycle start does not move subtasks before comments", async () => 
   }
 
   const plugin = await NiftyPlugin()
-  await plugin.tool.nifty_create_comment.execute(
-    { task_id: "sub-1", text: "Finished and checked off." },
-    context(),
+  await assert.rejects(
+    () => plugin.tool.nifty_create_comment.execute(
+      { task_id: "sub-1", text: taskCommentTemplate() },
+      context(),
+    ),
+    /Hard gate.*nifty_create_comment.*subtask/i,
   )
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
     ["GET", "/api/v1.0/tasks/sub-1"],
-    ["POST", "/api/v1.0/messages"],
   ])
+})
+
+test("nifty_create_comment rejects malformed task update comments before API calls", async () => {
+  globalThis.fetch = async () => {
+    throw new Error("Should not reach API")
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_create_comment.execute(
+      { task_id: "t1", text: "Fixed it." },
+      context(),
+    ),
+    /Task-card update comments require a template/i,
+  )
+})
+
+test("nifty_move_task_to_status rejects malformed task comment before status mutation", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+
+    if (requestURL.pathname === "/api/v1.0/tasks/t1" && (options.method || "GET") === "GET") {
+      return Response.json({ id: "t1", project_id: "p1", task_group_id: "s-todo" })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s-progress", name: "In Progress" }] })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_move_task_to_status.execute(
+      { task_id: "t1", project_id: "p1", status_name: "In Progress", comment: "Started." },
+      context(),
+    ),
+    /Task-card update comments require a template/i,
+  )
+
+  assert.equal(calls.some((call) => call.path === "/api/v1.0/tasks/t1" && call.method === "PUT"), false)
+  assert.equal(calls.some((call) => call.path === "/api/v1.0/messages" && call.method === "POST"), false)
 })
 
 test("tool.execute.after posts a first-edit progress comment once for the active task", async () => {
@@ -1302,7 +1805,7 @@ test("tool.execute.after posts a first-edit progress comment once for the active
   const messagePosts = calls.filter((call) => call.path === "/api/v1.0/messages" && call.method === "POST")
   assert.equal(messagePosts.length, 1)
   const postedText = JSON.parse(messagePosts[0].body).text
-  assert.match(postedText, /^🤖 McBotFace/)
+  assert.match(postedText, /^🤖 Cave Updater/)
   assert.match(postedText, /First edit/i)
 })
 
@@ -1533,6 +2036,7 @@ test("move_task_to_status writes delivery gate comment and moves to Dev Review w
         architecture_proof: "Integrated through the existing lifecycle delivery gate and policy validator instead of adding a parallel review path.",
         regression_proof: "Updated lifecycle policy regression tests to require strict evidence before Dev Review movement.",
         iterative_proof: "Captured RED failure for missing strict proof, implemented validator changes, then reran focused and full suites.",
+        visual_proof: ["https://example.com/playwright/dev-review-proof.png"],
         changed_files: ["backend/app/Services/Workflow.php"],
       },
     },
@@ -1556,11 +2060,36 @@ test("clone and attach document tools send Nifty string bodies", async () => {
   await plugin.tool.nifty_attach_task_document.execute({ task_id: "t1", document_id: "d1" }, context())
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["GET", "/api/v1.0/tasks/t1"],
     ["POST", "/api/v1.0/tasks/t1/clone"],
+    ["GET", "/api/v1.0/tasks/t1"],
     ["PUT", "/api/v1.0/tasks/t1/documents"],
   ])
-  assert.equal(calls[0].body, JSON.stringify(""))
-  assert.equal(calls[1].body, JSON.stringify({ document_id: "d1" }))
+  assert.equal(calls[1].body, JSON.stringify(""))
+  assert.equal(calls[3].body, JSON.stringify({ document_id: "d1" }))
+})
+
+test("nifty_update_comment can attach external visual proof URLs", async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    calls.push({ path: requestURL.pathname, method: options.method || "GET", body: options.body })
+    return Response.json({ id: "m1" })
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_update_comment.execute({
+    message_id: "m1",
+    text: taskCommentTemplate(),
+    external_files: ["https://example.com/proof.png"],
+    nifty_files: ["file-1"],
+  }, context())
+
+  assert.deepEqual(calls.map((call) => [call.method, call.path]), [
+    ["PUT", "/api/v1.0/messages/m1"],
+  ])
+  assert.deepEqual(JSON.parse(calls[0].body).external_files, ["https://example.com/proof.png"])
+  assert.deepEqual(JSON.parse(calls[0].body).nifty_files, ["file-1"])
 })
 
 test("recommended workflow tool returns lifecycle and config snippet", async () => {

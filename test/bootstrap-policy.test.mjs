@@ -119,6 +119,60 @@ test("bootstrap gate allows mutating tool after explicit full context resolution
   assert.equal(parsed.task.id, "t1")
 })
 
+test("bootstrap gate registers resolved internal task id after nice-id full context hydration", async () => {
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+
+    if (requestURL.pathname === "/api/v1.0/tasks/MBC-462") {
+      return Response.json({
+        id: "internal-462",
+        nice_id: "MBC-462",
+        name: "Parent task",
+        project_id: "p1",
+        task_group_id: "s1",
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/internal-462" && (options.method || "GET") === "GET") {
+      return Response.json({
+        id: "internal-462",
+        nice_id: "MBC-462",
+        name: "Parent task",
+        project_id: "p1",
+        task_group_id: "s1",
+      })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks/internal-462" && (options.method || "GET") === "PUT") {
+      return Response.json({ id: "internal-462", name: "Updated" })
+    }
+    if (requestURL.pathname === "/api/v1.0/tasks") {
+      return Response.json({ tasks: [], hasMore: false })
+    }
+    if (requestURL.pathname === "/api/v1.0/messages") {
+      return Response.json({ items: [] })
+    }
+    if (requestURL.pathname === "/api/v1.0/projects") {
+      return Response.json({ projects: [{ id: "p1", name: "Project One", nice_id: "P1" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/taskgroups") {
+      return Response.json({ items: [{ id: "s1", name: "In Progress" }] })
+    }
+    if (requestURL.pathname === "/api/v1.0/milestones") {
+      return Response.json({ items: [], hasMore: false })
+    }
+
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  await plugin.tool.nifty_get_task_full_context.execute({ task_id: "MBC-462" }, context())
+  const output = await plugin.tool.nifty_update_task.execute(
+    { task_id: "internal-462", name: "Updated" },
+    context(),
+  )
+  const parsed = JSON.parse(output)
+  assert.equal(parsed.task.id, "internal-462")
+})
+
 test("bootstrap gate hard-fails on project-scoped mutations without project context", async () => {
   globalThis.fetch = async (url, options = {}) => {
     const requestURL = new URL(String(url))
@@ -237,6 +291,37 @@ test("policy is enforced at tool call boundary and hard-fails on deny", async ()
   await assert.rejects(
     () => plugin.tool.nifty_delete_status.execute({ status_id: "s1" }, context()),
     /company policy/i,
+  )
+})
+
+test("managed mode blocks mutating tools when policy is missing", async () => {
+  process.env.NIFTY_POLICY_REQUIRED = "true"
+  delete process.env.NIFTY_POLICY_INLINE
+  delete process.env.NIFTY_POLICY_PATH
+
+  globalThis.fetch = async () => {
+    throw new Error("Should not reach fetch")
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_delete_status.execute({ status_id: "s1" }, context()),
+    /Policy is required/i,
+  )
+})
+
+test("managed mode blocks mutating tools when policy fails to parse", async () => {
+  process.env.NIFTY_POLICY_REQUIRED = "true"
+  process.env.NIFTY_POLICY_INLINE = "{not-json"
+
+  globalThis.fetch = async () => {
+    throw new Error("Should not reach fetch")
+  }
+
+  const plugin = await NiftyPlugin()
+  await assert.rejects(
+    () => plugin.tool.nifty_delete_status.execute({ status_id: "s1" }, context()),
+    /failed to load/i,
   )
 })
 

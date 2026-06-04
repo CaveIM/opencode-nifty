@@ -5,8 +5,8 @@ import { NiftyPlugin } from "../plugin/nifty.js"
 
 const { __test } = NiftyPlugin
 
-test("exports only OpenCode plugin functions", () => {
-  assert.deepEqual(Object.keys(pluginModule), ["NiftyPlugin"])
+test("exports OpenCode plugin and shared validators", () => {
+  assert.deepEqual(Object.keys(pluginModule), ["NiftyPlugin", "validateNiftyTaskCommentTemplate"])
 })
 
 test("normalizes user-facing names for matching", () => {
@@ -126,12 +126,13 @@ NIFTY_AUTHORIZE_URL='https://nifty.pm/authorize?x=1'
   )
 })
 
-test("prefixes bot comments with the McBotFace automation marker", () => {
-  assert.equal(__test.botCommentText("Starting work"), "🤖 McBotFace Starting work")
-  assert.equal(__test.botCommentText("🤖 McBotFace Already marked"), "🤖 McBotFace Already marked")
-  assert.equal(__test.botCommentText("[MCP Automation] Legacy marker"), "🤖 McBotFace Legacy marker")
-  assert.equal(__test.botCommentText("🤖 Legacy marker"), "🤖 McBotFace Legacy marker")
-  assert.equal(__test.botCommentText("   Trimmed"), "🤖 McBotFace Trimmed")
+test("prefixes bot comments with the Cave Updater automation marker", () => {
+  assert.equal(__test.botCommentText("Starting work"), "🤖 Cave Updater Starting work")
+  assert.equal(__test.botCommentText("🤖 Cave Updater Already marked"), "🤖 Cave Updater Already marked")
+  assert.equal(__test.botCommentText("🤖 McBotFace Legacy marker"), "🤖 Cave Updater Legacy marker")
+  assert.equal(__test.botCommentText("[MCP Automation] Legacy marker"), "🤖 Cave Updater Legacy marker")
+  assert.equal(__test.botCommentText("🤖 Legacy marker"), "🤖 Cave Updater Legacy marker")
+  assert.equal(__test.botCommentText("   Trimmed"), "🤖 Cave Updater Trimmed")
   assert.equal(__test.botCommentText("Personal note", false), "Personal note")
 })
 
@@ -139,6 +140,81 @@ test("detects mistaken Nifty shell health commands", () => {
   assert.match(__test.niftyShellCommandHint("nifty health check"), /nifty_health_check/)
   assert.match(__test.niftyShellCommandHint("nifty_health_check"), /nifty_health_check/)
   assert.equal(__test.niftyShellCommandHint("npm test"), undefined)
+})
+
+test("rejects dirty-only autonomous MCP task comments", () => {
+  assert.throws(
+    () => pluginModule.validateNiftyTaskCommentTemplate({
+      task_id: "MBC-462",
+      text: [
+        "## What was done",
+        "MCP autonomous progress update detected local workspace changes.",
+        "## Completed",
+        "- Changed files detected.",
+        "## Evidence / Tests",
+        "- Task: MBC-462",
+        "- Branch: dev-tony",
+        "- HEAD: 957d7d81ff9679c1e396aa9db57eb4a4542eebae",
+        "- Changed files:",
+        "  - M plugin/nifty.js",
+        "## How to verify",
+        "- Review the listed local changes and continue implementation or validation.",
+      ].join("\n"),
+    }),
+    /Dirty-only autonomous MCP progress comments are not useful/i,
+  )
+})
+
+test("task comments require TDD and visual proof when code files changed", () => {
+  assert.throws(
+    () => pluginModule.validateNiftyTaskCommentTemplate({
+      task_id: "MBC-462",
+      changed_files: ["plugin/nifty.js"],
+      text: [
+        "## What was done",
+        "Updated the workflow gate.",
+        "",
+        "## Evidence / Tests",
+        "`npx -y node@20 --test test/helpers.test.mjs` passed.",
+        "",
+        "## How to verify",
+        "Re-run the focused helper test.",
+      ].join("\n"),
+    }),
+    /TDD.*RED.*GREEN.*visual regression proof/i,
+  )
+
+  assert.doesNotThrow(() => pluginModule.validateNiftyTaskCommentTemplate({
+    task_id: "MBC-462",
+    changed_files: ["README.md"],
+    text: [
+      "## What was done",
+      "Updated documentation wording only.",
+      "",
+      "## Evidence / Tests",
+      "Reviewed the rendered README section.",
+      "",
+      "## How to verify",
+      "Open the README and confirm the MCP observer wording matches implementation.",
+    ].join("\n"),
+  }))
+
+  assert.doesNotThrow(() => pluginModule.validateNiftyTaskCommentTemplate({
+    task_id: "MBC-462",
+    changed_files: ["plugin/nifty.js"],
+    text: [
+      "## What was done",
+      "Updated the workflow gate.",
+      "",
+      "## Evidence / Tests",
+      "RED: `npx -y node@20 --test test/helpers.test.mjs` failed before implementation.",
+      "GREEN: `npx -y node@20 --test test/helpers.test.mjs` passed after implementation.",
+      "",
+      "## How to verify",
+      "Re-run the focused helper test.",
+      "Visual regression proof: attached Playwright screenshot showing the task-card update format.",
+    ].join("\n"),
+  }))
 })
 
 test("builds recommended workflow config snippets", () => {
