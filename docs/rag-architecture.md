@@ -1,195 +1,307 @@
-# RAG Architecture Specification — Nifty AI Agent Context System
+# RAG Production Architecture Specification — Nifty Codex Plugin
 
-> Status: **Implemented.** Phase 3 is fully operational.  
-> Phases 1–3 are all complete: direct-API precision hydration (Phase 1), central policy-as-code deterministic gates (Phase 2), and LanceDB-backed RAG context injection (Phase 3).
-
----
-
-## Motivation
-
-Direct-API hydration (Phase 1) gives the agent exact task and project state for the current session. But agents lack:
-
-- **Cross-project recall**: "How did we implement multi-tenant auth last quarter?"
-- **Historical decision context**: previous ADRs, comment threads, resolved disagreements
-- **Citable policy compliance**: "Which policy rule governs bulk deletes?"
-
-RAG (Retrieval-Augmented Generation) over the Nifty corpus fills these gaps while keeping the deterministic gate layer (Phase 2) as the authoritative enforcement boundary.
+> Status: **Production release spec implemented in this repository.** This is not an MVP, demo, or temporary phase document. The runtime contract is: deterministic gates remain authoritative, RAG is bounded best-effort context augmentation, and health can mark RAG as required for managed production.
 
 ---
 
-## Architecture
+## Requirement Analysis
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                        Agent Request                               │
-└──────────────────────────┬─────────────────────────────────────────┘
-                           │
-          ┌────────────────▼──────────────────┐
-          │   Phase 2: Policy Gate (sync)      │  ← hard-fail on deny
-          │   Phase 1: Context Bootstrap (sync)│  ← hard-fail if missing
-          └────────────────┬──────────────────┘
-                           │
-          ┌────────────────▼──────────────────┐
-          │   Phase 3: RAG Context Injection   │  ← best-effort, never blocks
-          │   (async, timeout-bounded)          │
-          └────────────────┬──────────────────┘
-                           │
-          ┌────────────────▼──────────────────┐
-          │         Tool Execution             │
-          └────────────────────────────────────┘
-```
+The plugin must support teams of developers using Codex to work Nifty task cards while preserving company rules and operational reliability.
 
-**Key invariant**: RAG failure never blocks a tool call. It augments context; it does not gate it.
+Specific constraints:
+
+- RAG must improve recall for task history, comments, policies, ADRs, and implementation evidence without becoming a write-authority or policy gate.
+- RAG must never hang or crash tool execution; every lookup is timeout-bounded and fail-soft unless health is explicitly configured with `NIFTY_RAG_REQUIRED=true`.
+- The indexer must survive transient Nifty/API failures, 429s, and hung requests with retries, timeouts, and clear failure messages.
+- Context injected into Codex must be deduped and size-bounded to avoid prompt bloat.
+- Production health must expose RAG readiness, cache state, runtime config, and table availability.
 
 ---
 
-## Corpus Sources
+## Verification Step
 
-### Implemented Source A — Nifty Task And Comment Corpus
+Verified by local execution under Node 20:
 
-| Dataset | Content | Indexing |
-|---------|---------|----------|
-| Task cards | Names, descriptions, project IDs, timestamps | Per-task word chunking |
-| Task comments | Comment text/body, task ID, project ID, timestamps | One chunk per comment, capped to 2,000 chars |
+- `npx -y node@20 --test test/rag.test.mjs test/rag-http.test.mjs`
+- Result: `18` tests passed, `0` failed.
 
-The bulk indexer fetches tasks with `include_subtasks: "true"`, then indexes the returned task records and comments. Direct task-card context remains the source of truth for current subtasks; the historical RAG corpus currently stores task/subtask records as task chunks rather than a separate `subtask` document type.
-
-**Freshness**: Run `npm run rag:index:tasks` for a bulk sync. The optional `npm run rag:webhook` server accepts task/comment update events, debounces them, and re-runs the task indexer for the affected project when possible. It can also schedule a nightly full task re-index.
-
-### Implemented Source B — Policy Corpus
-
-| Dataset | Content |
-|---------|---------|
-| `policy/nifty-ai-policy.json` | Machine-readable rules with reasons |
-| `policy/nifty-ai-policy.schema.json` | Schema definitions |
-| `README.md` (policy section) | Human-readable policy overview |
-| ADR documents | Architecture Decision Records, when present |
-
-Run `npm run rag:index:policy` to populate the `nifty-policy` LanceDB table from local policy files, ADR/decision markdown, and the README. Policy freshness is commit-driven/manual today; the webhook server currently refreshes the task/comment corpus, not the policy corpus.
+This proves the implemented behaviors for query fanout, timeout safety, result dedupe, result bounding, table caching, diagnostics, and indexer HTTP retry behavior.
 
 ---
 
-## Index Design
+## Production Architecture
 
-```
-nifty-rag/
-  nifty-tasks/           ← Nifty task + comment table created by scripts/index-nifty-tasks.mjs
-  nifty-policy/          ← Policy/ADR/README table created by scripts/index-policy-docs.mjs
+```mermaid
+flowchart TD
+  A["Codex / MCP Nifty tool call"] --> B["Policy gateway / local policy"]
+  B --> C["Bootstrap context gate"]
+  C --> D["Auto-hydrate current Nifty task/project"]
+  D --> E["RAG context injection"]
+  E --> F["Nifty tool execution"]
 
-scripts/
-  index-nifty-tasks.mjs  ← Bulk task/comment indexer
-  index-policy-docs.mjs  ← Policy JSON + markdown indexer
-  rag-webhook.mjs        ← Optional debounced task/comment re-index server
+  E --> G["RAG runtime config"]
+  E --> H["Query fanout builder"]
+  H --> I["nifty-tasks LanceDB table"]
+  H --> J["nifty-policy LanceDB table"]
+  I --> K["Dedupe + bound result text"]
+  J --> K
+  K --> L["Context metadata for Codex"]
+
+  M["Bulk task/comment indexer"] --> I
+  N["Policy/ADR indexer"] --> J
+  O["Webhook re-index server"] --> M
 ```
 
-**Search mode**: LanceDB full-text search over the `text` column.  
-**Vector store**: `lancedb` (embedded, file-based, no external service required for local dev).  
-**Optional dependency**: if `@lancedb/lancedb` is unavailable, RAG silently returns empty context.
+### Hard Boundary
+
+RAG is **not** a security boundary. Policy enforcement remains in:
+
+- Local policy gate for local managed mode.
+- Remote policy gateway for authoritative sensitive writes.
+- Nifty task-comment template validator for required task update format.
+
+RAG only supplies additional context and citations.
 
 ---
 
-## Query Flow
+## Runtime RAG Contract
 
-```js
-async function ragContextForTool(toolName, args, policy, options = {}) {
-  const query = buildRagQuery(toolName, args)
-  const indexPath = options.indexPath ?? resolveIndexPath()
-  const [taskResults, policyResults] = await Promise.allSettled([
-    withTimeout(openIndex(indexPath, "nifty-tasks").then((table) => searchIndex(table, query, { limit: 5 })), 2000),
-    withTimeout(openIndex(indexPath, "nifty-policy").then((table) => searchIndex(table, query, { limit: 3 })), 2000),
-  ])
-  return {
-    historical_context: taskResults.status === "fulfilled" ? taskResults.value : [],
-    policy_citations: policyResults.status === "fulfilled" ? policyResults.value : [],
-  }
-}
-```
+### Inputs
 
-- Both searches run in parallel.
-- Both are wrapped in `Promise.allSettled` — individual failures produce empty arrays, not exceptions.
-- Timeout cap: 2 seconds per search. Exceeded → empty array, not a block.
+`ragContextForTool(toolName, args, options)` accepts:
 
----
+- Tool name, for example `nifty_update_task`.
+- Tool args, including nested evidence objects.
+- Optional test/runtime config for limits, timeouts, table cache TTL, and injected search/open functions.
 
-## Metadata Schema (per chunk)
+### Outputs
 
 ```json
 {
-  "doc_id": "eves6NhQAe",
-  "doc_type": "task" | "comment" | "policy_rule" | "adr",
-  "project_id": "eIWcpeW8aBsdI2L",
-  "task_id": "eves6NhQAe",
-  "chunk_index": 0,
-  "chunk_total": 3,
-  "created_at": "2026-06-01T00:00:00Z",
-  "updated_at": "2026-06-01T00:00:00Z",
-  "text": "..."
-}
-```
-
----
-
-## Integration with Plugin
-
-```js
-// nifty.js — Phase 3 integration
-async function maybeInjectRagContext(toolName, args, context, policyState) {
-  if (!envBoolean("NIFTY_RAG_ENABLED", false, context)) return
-  try {
-    const rag = await ragContextForTool(toolName, args)
-    if (rag.historical_context.length || rag.policy_citations.length) {
-      safeContextMetadata(context, { title: "Nifty RAG context", rag_context: rag, tool: toolName })
+  "historical_context": [
+    {
+      "text": "bounded historical task or comment text",
+      "doc_id": "task-or-comment-id",
+      "doc_type": "task",
+      "project_id": "project-id",
+      "task_id": "task-id",
+      "chunk_index": 0,
+      "chunk_total": 1,
+      "score": 0.9,
+      "source_table": "nifty-tasks",
+      "query_index": 0,
+      "rank": 1
     }
-  } catch {
-    // RAG is best-effort. Failure is silent and never blocks execution.
-  }
+  ],
+  "policy_citations": [
+    {
+      "text": "bounded policy or ADR text",
+      "doc_id": "policy-id:rule-id",
+      "doc_type": "policy_rule",
+      "source_table": "nifty-policy",
+      "rank": 1
+    }
+  ]
 }
 ```
 
-Call site: after Phase 1 (context hydration), before tool execution.
+Diagnostics are excluded from normal Codex context by default to avoid prompt bloat. They can be included with `includeDiagnostics: true` or inspected through `nifty_health_check`.
 
 ---
 
-## Environment Variables (Phase 3)
+## Query Strategy
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NIFTY_RAG_ENABLED` | `false` | Enable RAG context injection |
-| `NIFTY_RAG_INDEX_PATH` | `~/.config/opencode/nifty-rag` | Path to LanceDB index |
-| `NIFTY_RAG_TASK_LIMIT` | `5` | Max task corpus results per query |
-| `NIFTY_RAG_POLICY_LIMIT` | `3` | Max policy corpus results per query |
-| `NIFTY_RAG_TIMEOUT_MS` | `2000` | Per-search timeout in milliseconds |
-| `NIFTY_RAG_WEBHOOK_PORT` | `7779` | HTTP port for the optional re-index webhook server |
-| `NIFTY_RAG_REINDEX_WEBHOOK_SECRET` | *(none)* | Optional HMAC secret for webhook signature validation |
-| `NIFTY_RAG_DEBOUNCE_MS` | `30000` | Debounce window for webhook-triggered task re-indexes |
-| `NIFTY_RAG_REINDEX_CRON` | `true` | Set to `false` to disable nightly task re-index scheduling |
+The runtime builds bounded query fanout instead of relying on a single BM25 query.
 
----
+Fanout queries include:
 
-## Implementation Checklist (Phase 3)
+- Tool label with `nifty_` stripped and underscores converted to words.
+- Exact identifiers: `task_id`, `parent_task_id`, `project_id`, `milestone_id`, `list_id`, `status_id`.
+- Semantic fields: `title`, `name`, `summary`, `description`, `query`, `message`, `content`, `comment`, `text`, `status`, `state`, `branch`.
+- File context: changed file paths and attached file lists.
+- Nested delivery evidence: red proof, green proof, sad path proof, acceptance criteria, implementation notes, metadata, and custom fields.
 
-- [x] `scripts/index-nifty-tasks.mjs` — bulk task/comment indexer using Nifty API pagination
-- [x] `scripts/index-policy-docs.mjs` — policy JSON + markdown chunker
-- [x] `scripts/rag-webhook.mjs` — debounced webhook server for task/comment re-indexing
-- [x] `plugin/rag.mjs` — `searchIndex`, `ragContextForTool`, `buildRagQuery` module
-- [x] `maybeInjectRagContext` call in the lifecycle wrapper before tool execution
-- [x] Tests: RAG failure never blocks tool execution; results are injected into context metadata
-- [x] `NIFTY_RAG_ENABLED` feature flag
-- [ ] Dedicated first-class subtask chunks, if historical subtask recall must be independent from task chunks
-- [ ] Policy-corpus webhook refresh, if policy/ADR changes must update LanceDB automatically
-- [ ] README section: RAG context injection
+The query builder:
 
-**Prerequisites**: Phase 2 deterministic gates fully stable (done). Webhook reachability is required only when running the optional re-index webhook server.
+- Dedupes case-insensitively.
+- Skips secret-like keys such as tokens, passwords, cookies, and authorization headers.
+- Caps each query with `NIFTY_RAG_MAX_QUERY_CHARS`.
+- Caps fanout count with `NIFTY_RAG_QUERY_FANOUT`.
 
 ---
 
-## Design Decisions
+## Search Strategy
 
-**Why best-effort, not hard-fail?**  
-RAG is probabilistic recall. A failed or empty RAG result does not indicate a policy violation — it indicates the index is warm-up, stale, or the query has no historical match. Hard-failing would break agent runs during index bootstrapping and transient network issues.
+For every tool call with RAG enabled:
 
-**Why separate indexes?**  
-Task corpus and policy corpus have different freshness requirements, different chunk strategies, and different relevance ranking. Mixing them degrades recall for policy queries (short, precise) with task noise.
+1. Build fanout queries.
+2. Open `nifty-tasks` and `nifty-policy` through the table cache.
+3. Search both tables concurrently.
+4. Search each table with all fanout queries.
+5. Merge results in deterministic query order.
+6. Dedupe by table, document type, document id, task id, chunk index, and text prefix.
+7. Bound text with `NIFTY_RAG_MAX_RESULT_TEXT_CHARS`.
+8. Return only the configured top results.
 
-**Why LanceDB?**  
-Zero external service dependency. Embedded, file-based, works in dev and CI without infrastructure. The current implementation uses LanceDB full-text search; moving to a managed vector store would require a search adapter rather than only a config change.
+Failure behavior:
+
+- Missing LanceDB package → empty context.
+- Missing table → empty context for that table.
+- Search error → empty context for that query/table.
+- Timeout → empty context for that table.
+- Runtime exception → no tool-blocking exception escapes RAG.
+
+---
+
+## Table Cache
+
+RAG table opens are cached by:
+
+- Open function identity.
+- Index path.
+- Table name.
+
+Default TTL: `300000` ms.
+
+Benefits:
+
+- Avoids reconnect/table-open overhead on every MCP tool call.
+- Keeps table discovery bounded during long Codex sessions.
+- Allows tests to clear cache deterministically through `clearRagTableCache()`.
+
+---
+
+## Indexing Pipeline
+
+### Task And Comment Corpus
+
+Command:
+
+```bash
+npm run rag:index:tasks
+```
+
+Corpus:
+
+- Task name and description.
+- Task comments/messages.
+- Project id, task id, doc type, chunk indexes, timestamps.
+
+Production hardening:
+
+- API timeout: `NIFTY_RAG_API_TIMEOUT_MS`.
+- API retry count: `NIFTY_RAG_API_RETRIES`.
+- Retry delay with exponential backoff: `NIFTY_RAG_API_RETRY_DELAY_MS`.
+- Retries only transient failures: network errors, timeout, HTTP `408`, `425`, `429`, and `5xx`.
+- Does not retry permanent `4xx` errors.
+- Project-scoped incremental updates delete existing project rows before reindexing when LanceDB supports `table.delete`.
+
+### Policy / ADR Corpus
+
+Command:
+
+```bash
+npm run rag:index:policy
+```
+
+Corpus:
+
+- Policy JSON header and rules.
+- Reporting requirements.
+- Automation requirements.
+- ADR/decision markdown.
+- README policy sections.
+
+Policy corpus replacement is idempotent because it is small and commit-driven.
+
+### Webhook Freshness
+
+Command:
+
+```bash
+npm run rag:webhook
+```
+
+Webhook behavior:
+
+- Accepts task/comment/document update events.
+- Validates optional HMAC signature.
+- Debounces reindex operations.
+- Runs scoped project reindex when project id is present.
+- Supports nightly full sync unless disabled.
+
+---
+
+## Health Contract
+
+`nifty_health_check` reports:
+
+- Node runtime and Node 20 readiness.
+- Credentials and cached token state.
+- Policy required/loaded/error state.
+- Workflow alias validation.
+- RAG enabled/required/ready state.
+- RAG index path, limits, timeout, cache TTL, query fanout, result bound.
+- `nifty-tasks` and `nifty-policy` table availability.
+- RAG cache entry count.
+
+Production mode can require RAG readiness:
+
+```bash
+NIFTY_RAG_REQUIRED=true
+```
+
+When required, health `ok` is false unless both RAG tables are available.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Production Guidance |
+|----------|---------|---------------------|
+| `NIFTY_RAG_ENABLED` | `true` | Enabled by default. Set `false` only where historical context lookup should be skipped entirely. Missing LanceDB or tables still fail soft to empty context. |
+| `NIFTY_RAG_REQUIRED` | `false` | Set `true` in managed production health checks. |
+| `NIFTY_RAG_INDEX_PATH` | `~/.config/opencode/nifty-rag` | Put on a persistent local disk. |
+| `NIFTY_RAG_TASK_LIMIT` | `5` | Keep small to control prompt size. |
+| `NIFTY_RAG_POLICY_LIMIT` | `3` | Keep small because policy citations should be precise. |
+| `NIFTY_RAG_TIMEOUT_MS` | `2000` | Per-table runtime deadline. |
+| `NIFTY_RAG_CACHE_TTL_MS` | `300000` | Table-open cache TTL. |
+| `NIFTY_RAG_QUERY_FANOUT` | `4` | Number of query variants per table. |
+| `NIFTY_RAG_MAX_QUERY_CHARS` | `700` | Max chars per fanout query. |
+| `NIFTY_RAG_MAX_RESULT_TEXT_CHARS` | `1200` | Max text chars per retrieved chunk. |
+| `NIFTY_RAG_INCLUDE_DIAGNOSTICS` | `false` | Use only for local troubleshooting. |
+| `NIFTY_RAG_API_TIMEOUT_MS` | `15000` | Indexer Nifty API request timeout. |
+| `NIFTY_RAG_API_RETRIES` | `2` | Indexer transient retry count. |
+| `NIFTY_RAG_API_RETRY_DELAY_MS` | `250` | Base exponential retry delay. |
+| `NIFTY_RAG_COMMENT_CONCURRENCY` | `8` | Comment fetch concurrency for task indexer. |
+| `NIFTY_RAG_WRITE_BATCH_SIZE` | `2000` | LanceDB write batch size. |
+| `NIFTY_RAG_WEBHOOK_PORT` | `7779` | Webhook server port. |
+| `NIFTY_RAG_REINDEX_WEBHOOK_SECRET` | unset | Required for exposed webhook deployments. |
+| `NIFTY_RAG_DEBOUNCE_MS` | `30000` | Reindex debounce window. |
+| `NIFTY_RAG_REINDEX_CRON` | `true` | Set `false` to disable nightly full reindex. |
+
+---
+
+## Three Production Failure Modes And Mitigations
+
+1. **RAG search hangs or LanceDB table open stalls.**
+   Mitigation: per-table timeout through `NIFTY_RAG_TIMEOUT_MS`; failures return empty context and do not block tool execution.
+
+2. **RAG injects too much context and degrades Codex reasoning.**
+   Mitigation: strict limits for query fanout, result count, and max result text length; diagnostics are excluded from normal injected context.
+
+3. **Nifty indexing fails during API throttling or transient outages.**
+   Mitigation: shared retrying HTTP client with timeout, transient status retry policy, exponential delay, and permanent 4xx fail-fast behavior.
+
+---
+
+## Proof Of Stability
+
+The implementation is stable because it has hard resource bounds and clear failure semantics:
+
+- Time: RAG lookups and indexer requests have explicit deadlines.
+- Space: retrieved text and query strings are capped.
+- Concurrency: table searches run concurrently but within configured fanout and per-table limits.
+- Safety: RAG cannot authorize writes and cannot bypass policy gateway decisions.
+- Observability: `nifty_health_check` exposes readiness and diagnostics without polluting the agent context.
+- Regression coverage: tests verify fanout, dedupe, cache reuse, timeout behavior, diagnostics, nonblocking failures, and retry/fail-fast HTTP behavior.

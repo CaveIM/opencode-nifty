@@ -243,9 +243,18 @@ mcp/FULL_SPEC.md
 | `NIFTY_MCP_PROGRESS_TEST_COMMAND` | unset | Optional verification command to run after changed-worktree batches; successful runs are posted as autonomous progress comments. |
 | `NIFTY_MCP_PROGRESS_TEST_TIMEOUT_MS` | `300000` | Timeout for the optional verification command. |
 
-The MCP observer is fully autonomous once a task id is known from a `nifty_*` call such as `nifty_get_task_full_context`, `nifty_update_task`, or `nifty_create_comment`. It persists that active task per MCP session and worktree, resumes it on MCP server restart, snapshots the git worktree, dedupes repeated signatures, and posts a McBotFace task comment for each new meaningful dirty-worktree batch. It also detects a push when the local branch goes from ahead-of-upstream to no longer ahead. If another task card is opened in the same session/worktree, that newer card becomes active and the previous observer is stopped.
+The MCP observer is fully autonomous once a task id is known from a `nifty_*` call such as `nifty_run_task`, `nifty_get_task_full_context`, `nifty_update_task`, or `nifty_create_comment`. It persists that active task per MCP session and worktree, resumes it on MCP server restart, snapshots the git worktree, and dedupes repeated signatures. Dirty-worktree batches are detected but do not create comments by themselves; they only produce a Cave Updater task comment when `NIFTY_MCP_PROGRESS_TEST_COMMAND` passes. Repository sync events also post a Cave Updater comment when the local branch goes from ahead-of-upstream to no longer ahead. If another task card is opened in the same session/worktree, that newer card becomes active and the previous observer is stopped.
 
 ### RAG webhook server (keep index fresh)
+
+The RAG system injects bounded historical task/comment context and policy citations into Nifty tool calls by default (`NIFTY_RAG_ENABLED=true`). It uses LanceDB full-text search with query fanout, table-open caching, result dedupe, timeout bounds, and health diagnostics. RAG is fail-soft context augmentation only; if LanceDB or indexes are unavailable, tools continue without historical context. Set `NIFTY_RAG_ENABLED=false` only when you explicitly want no RAG lookup. Policy gateway and local policy gates remain authoritative.
+
+Pre-populate the index:
+
+```bash
+npm run rag:index:policy   # indexes policy docs, reporting rules, automation rules, and ADRs
+npm run rag:index:tasks    # indexes Nifty task history and comments
+```
 
 The RAG index is kept current by a lightweight webhook server. Start it alongside your development session:
 
@@ -255,12 +264,7 @@ npm run rag:webhook
 
 Point your Nifty workspace webhook at `http://<your-host>:7779/webhook`. The server re-indexes on `task.updated` and `comment.created` events (debounced 30 s) and runs a full nightly sync.
 
-Pre-populate the index:
-
-```bash
-npm run rag:index:policy   # indexes policy docs and ADRs
-npm run rag:index:tasks    # indexes Nifty task history
-```
+Managed production health can require both `nifty-tasks` and `nifty-policy` tables with `NIFTY_RAG_REQUIRED=true`. See `docs/rag-architecture.md` for the full production spec and environment variable contract.
 
 ## Configure Credentials
 
@@ -308,17 +312,40 @@ Automatic full-context behavior:
 2. Context hydration works in OpenCode plugin mode and any MCP client.
 3. Context hydration is best-effort and non-blocking, while delivery gates remain hard-fail.
 
+Canonical task workflow:
+
+- `nifty_run_task` is the single entrypoint when a user asks an AI coding agent to run a Nifty card such as `MBC-495`.
+- It hydrates the task description, comments, child/subtask rows, parent relationship, workflow state, milestones, and project context before implementation work starts.
+- It assigns the parent task card to the authorized user using `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` or the authenticated Nifty user.
+- `nifty_complete_child_task` is the only child-completion workflow. It checks off the child row and posts one idempotent `🤖 Cave Updater` comment with exactly `What was done`, `Evidence / Tests`, and `How to verify`.
+- Workflow operations use local cross-process locks plus remote comment de-dupe so repeated or concurrent calls do not duplicate checkoffs or comments.
+
+Parent task cards vs subtasks hard gate:
+
+- Parent task cards are the authoritative work items for status, delivery, comments, labels, documents, links, archive/delete, and bulk movement.
+- Subtasks are execution checklist rows under parent task cards. They are not valid task-card targets for update comments or lifecycle/status mutations.
+- Task-card-only tools hard-deny when the target task id resolves to a subtask. The error includes the parent task id and tells the agent which parent task card to use instead.
+- The only allowed direct subtask mutations are `nifty_complete_child_task` for production child workflow completion and `nifty_complete_task` for low-level explicit check/uncheck. Subtask checkoff does not require parent-card `close_confirmation`; completing a parent task card still does.
+- `nifty_create_subtask` hard-requires a parent task card id for `parent_task_id`; passing a subtask id as the parent is rejected before mutation.
+- `nifty_get_project_full_context` separates parent `tasks` from child `subtasks`, exposes `subtasks_by_parent`, and includes parent `subtask_summary` counters so agents cannot confuse child rows with top-level task cards.
+
 Delivery gate requirements for Dev Review:
 
-- `delivery_evidence.red_proof`
-- `delivery_evidence.green_proof`
+- `delivery_evidence.red_proof` when changed files include code/config/test/runtime files
+- `delivery_evidence.green_proof` when changed files include code/config/test/runtime files
 - `delivery_evidence.sad_path_proof`
 
 Visual proof requirement:
 
-- If changed files indicate visual impact (CSS/UI/frontend/view/assets), `delivery_evidence.visual_proof` is required.
-- Visual proof URLs are attached to the task comment as external files.
-- If the change is non-visual, visual proof is not required.
+- If changed files include code/config/test/runtime files or indicate direct visual impact (CSS/UI/frontend/view/assets), `delivery_evidence.visual_proof` or `delivery_evidence.visual_proof_file_ids` is required.
+- Visual proof URLs are attached to the task comment as external files, Nifty file IDs are attached as `nifty_files`, and both are referenced in `## How to verify`.
+- If the change is documentation-only/non-code, TDD and visual regression proof are not required.
+
+Task comment evidence gate:
+
+- `nifty_create_comment`, `nifty_update_comment` callers, lifecycle delivery comments, and `nifty_complete_child_task` use the same task-card template.
+- When the local worktree or explicit `changed_files` show code/config/test/runtime changes, task-card comments must include RED proof, GREEN proof, and visual regression proof in `## How to verify`.
+- This is enforced in the MCP/plugin boundary so Codex CLI, OpenCode, Cursor, Windsurf, and other MCP clients cannot bypass it by missing local prompt skills.
 
 Policy environment variables:
 
@@ -331,6 +358,7 @@ Policy environment variables:
 - `NIFTY_AUTOCONTEXT_ENABLED` (default `true`)
 - `NIFTY_AUTOCONTEXT_COMMENT_LIMIT` (default `200`)
 - `NIFTY_AUTOCONTEXT_TASK_LIMIT` (default `200`)
+- `NIFTY_AUTOMATION_ACTIVE_TASK_ID` (optional hard override for the Cave Updater task-card context used by automation hooks; MCP startup also accepts it as a fallback)
 
 ## Configure Workflows
 
@@ -502,6 +530,7 @@ If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the conta
     "green_proof": "npm test",
     "sad_path_proof": "verified invalid input returns expected error",
     "visual_proof": ["https://example.com/screenshot.png"],
+    "visual_proof_file_ids": ["nifty-file-id"],
     "changed_files": ["frontend/src/app/page.tsx"],
     "notes": "All required checks passed"
   }
@@ -521,7 +550,7 @@ Use `nifty_update_plugin` to update the installed plugin from GitHub. If it repo
 For deep task/project understanding by coding agents, use:
 
 - `nifty_get_task_full_context` to load full task details, description, comments, subtasks, project status map, and milestone context.
-- `nifty_get_project_full_context` to load full project context, workflow mapping, status distribution, and document/task snapshots.
+- `nifty_get_project_full_context` to load full project context, workflow mapping, status distribution, document/task snapshots, parent task rows, subtask child rows, and parent subtask counters.
 
 ## Example Prompts
 
@@ -549,7 +578,7 @@ For deep task/project understanding by coding agents, use:
 - `run nifty_archive_task with task_id <id>`
 - `run nifty_link_tasks with task_id <id> and task_ids ["<other-id>"]`
 
-Automated comments created by workflow tools are prefixed with `🤖 McBotFace`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
+Automated comments created by workflow tools are prefixed with `🤖 Cave Updater`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
 
 If `NIFTY_DEFAULT_WORKFLOW` is not set, provide `workflow_alias` explicitly.
 
