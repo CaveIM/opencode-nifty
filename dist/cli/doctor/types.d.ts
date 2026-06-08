@@ -4,6 +4,7 @@ export interface DoctorOptions {
     mode: DoctorMode;
     json?: boolean;
     target?: DoctorTarget;
+    fileBugs?: boolean;
 }
 export interface DoctorIssue {
     title: string;

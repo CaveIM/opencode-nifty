@@ -16,5 +16,6 @@ export { createTaskCreateTool, createTaskGetTool, createTaskList, createTaskUpda
 export { createHashlineEditTool } from "./hashline-edit";
 export { createConsensusTool } from "./consensus";
 export { createProjectBrainTools } from "./project-brain";
+export { createNiftyCreateBugTool } from "./nifty-create-bug";
 export { createTeamSendMessageTool } from "../features/team-mode/tools/messaging";
 export declare function createBackgroundTools(manager: BackgroundManager, client: OpencodeClient): Record<string, ToolDefinition>;

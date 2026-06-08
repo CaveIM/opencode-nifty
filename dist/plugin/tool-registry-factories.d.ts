@@ -2,7 +2,7 @@ import { createTeamApproveShutdownTool, createTeamCreateTool, createTeamDeleteTo
 import { createTeamSendMessageTool } from "../features/team-mode/tools/messaging";
 import { createTeamListTool, createTeamStatusTool } from "../features/team-mode/tools/query";
 import { createTeamTaskCreateTool, createTeamTaskGetTool, createTeamTaskListTool, createTeamTaskUpdateTool } from "../features/team-mode/tools/tasks";
-import { createBackgroundTools, createCallOmoAgent, createConsensusTool, createDelegateTask, createGlobTools, createGrepTools, createHashlineEditTool, createLookAt, createProjectBrainTools, createSessionManagerTools, createSkillMcpTool, createSkillTool, createTaskCreateTool, createTaskGetTool, createTaskList, createTaskUpdateTool, discoverCommandsSync, interactive_bash } from "../tools";
+import { createBackgroundTools, createCallOmoAgent, createConsensusTool, createDelegateTask, createGlobTools, createGrepTools, createHashlineEditTool, createLookAt, createNiftyCreateBugTool, createProjectBrainTools, createSessionManagerTools, createSkillMcpTool, createSkillTool, createTaskCreateTool, createTaskGetTool, createTaskList, createTaskUpdateTool, discoverCommandsSync, interactive_bash } from "../tools";
 export type ToolRegistryFactories = {
     createBackgroundTools: typeof createBackgroundTools;
     createCallOmoAgent: typeof createCallOmoAgent;
@@ -21,6 +21,7 @@ export type ToolRegistryFactories = {
     createTaskUpdateTool: typeof createTaskUpdateTool;
     createHashlineEditTool: typeof createHashlineEditTool;
     createConsensusTool: typeof createConsensusTool;
+    createNiftyCreateBugTool: typeof createNiftyCreateBugTool;
     createProjectBrainTools: typeof createProjectBrainTools;
     createTeamApproveShutdownTool: typeof createTeamApproveShutdownTool;
     createTeamCreateTool: typeof createTeamCreateTool;

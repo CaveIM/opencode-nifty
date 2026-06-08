@@ -1,5 +1,5 @@
 type NiftyTodoSyncLogFields = {
-    tool?: "task_create" | "task_update" | "task_get" | "task_list";
+    tool?: "task_create" | "task_update" | "task_get" | "task_list" | "todowrite";
     task_id?: string;
     task_status?: "pending" | "in_progress" | "completed" | "deleted";
     parent_task_id?: string;
@@ -18,6 +18,8 @@ type NiftyTodoSyncLogFields = {
     duration_ms?: number;
     posted?: boolean;
     skipped_reason?: string;
+    new_todo_count?: number;
+    total_todo_count?: number;
 };
 export declare function buildNiftyTodoSyncLogFields(args: NiftyTodoSyncLogFields): NiftyTodoSyncLogFields;
 export {};

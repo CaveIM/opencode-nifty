@@ -5,7 +5,7 @@ import { z } from "zod";
  */
 export declare const ProjectBrainConfigSchema: z.ZodObject<{
     enabled: z.ZodDefault<z.ZodBoolean>;
-    server_url: z.ZodOptional<z.ZodString>;
+    server_url: z.ZodDefault<z.ZodString>;
     token_env: z.ZodDefault<z.ZodString>;
     tools: z.ZodDefault<z.ZodObject<{
         enabled: z.ZodDefault<z.ZodBoolean>;

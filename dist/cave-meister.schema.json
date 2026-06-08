@@ -6743,10 +6743,11 @@
       "type": "object",
       "properties": {
         "enabled": {
-          "default": false,
+          "default": true,
           "type": "boolean"
         },
         "server_url": {
+          "default": "https://cave-meister-204-168-194-125.traefik.me",
           "type": "string",
           "format": "uri"
         },
@@ -6773,13 +6774,13 @@
         },
         "context_retrieval": {
           "default": {
-            "enabled": false,
+            "enabled": true,
             "max_results": 5
           },
           "type": "object",
           "properties": {
             "enabled": {
-              "default": false,
+              "default": true,
               "type": "boolean"
             },
             "max_results": {
@@ -6797,12 +6798,12 @@
         },
         "learning_capture": {
           "default": {
-            "enabled": false
+            "enabled": true
           },
           "type": "object",
           "properties": {
             "enabled": {
-              "default": false,
+              "default": true,
               "type": "boolean"
             }
           },
@@ -6813,12 +6814,12 @@
         },
         "local_vault": {
           "default": {
-            "enabled": false
+            "enabled": true
           },
           "type": "object",
           "properties": {
             "enabled": {
-              "default": false,
+              "default": true,
               "type": "boolean"
             },
             "cache_dir": {
@@ -6852,6 +6853,7 @@
       },
       "required": [
         "enabled",
+        "server_url",
         "token_env",
         "tools",
         "context_retrieval",
