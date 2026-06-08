@@ -67,25 +67,25 @@ node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } 
 
 node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const pluginPath = "./plugins/nifty.js"; if (!existsSync(path)) { writeFileSync(path, JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: [pluginPath] }, null, 2) + "\n", "utf8"); process.exit(0); } let text = readFileSync(path, "utf8"); if (text.includes(`"${pluginPath}"`)) process.exit(0); const pluginMatch = text.match(/("plugin"\s*:\s*\[)/); if (pluginMatch?.index !== undefined) { const insertAt = pluginMatch.index + pluginMatch[0].length; text = `${text.slice(0, insertAt)}\n    "${pluginPath}",${text.slice(insertAt)}`; writeFileSync(path, text, "utf8"); process.exit(0); } const firstBrace = text.indexOf("{"); if (firstBrace === -1) throw new Error(`${path} is not an object config file.`); const insertion = `\n  "plugin": ["${pluginPath}"],`; text = `${text.slice(0, firstBrace + 1)}${insertion}${text.slice(firstBrace + 1)}`; writeFileSync(path, text, "utf8");' "$TARGET_OPENCODE_CONFIG_FILE"
 
-node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const start = "<!-- opencode-nifty:start -->"; const end = "<!-- opencode-nifty:end -->"; const block = `${start}\n## OpenCode Nifty\n- When the user mentions Nifty, use the OpenCode tools named \`nifty_*\`; do not run shell commands such as \`nifty health check\`.\n- For "Nifty health check", use the OpenCode tool \`nifty_health_check\`.\n- For Nifty auth, use \`nifty_auth_localhost_start\` in containers or \`nifty_auth_localhost_login\` when the browser can reach the callback server directly.\n- For Nifty plugin updates, use \`nifty_update_plugin\`; if it updates, tell the user to restart OpenCode.\n- For recommended lifecycle setup, use \`nifty_recommended_workflow\` and \`nifty_setup_recommended_workflow\`.\n- For shaping a feature idea into a dev-ready task, use \`nifty_shape_task\`; ask exactly its next returned question, one question at a time, until it reports ready.\n- Before creating or preparing shaped tasks, ask the user to answer any open questions; do not write unresolved open questions into Nifty task descriptions.\n- Use \`nifty_create_subtask\` instead of \`nifty_create_task\` when the work is an execution step under an existing parent task; use a normal task for independent backlog or workflow items.\n- Bulk task deletion requires an explicit confirmation phrase such as \`delete 3 tasks\`; ask the user before providing it.\n- Automated Nifty workflow comments should keep the default 🤖 Cave Updater marker unless the user explicitly wants a personal/direct comment.\n${end}`; const current = existsSync(path) ? readFileSync(path, "utf8") : ""; const pattern = new RegExp(`${start}[\\s\\S]*?${end}`); const next = pattern.test(current) ? current.replace(pattern, block) : `${current.trimEnd()}${current.trim() ? "\n\n" : ""}${block}\n`; writeFileSync(path, next.endsWith("\n") ? next : `${next}\n`, "utf8");' "$TARGET_AGENTS_FILE"
+node --input-type=module -e 'import { existsSync, readFileSync, writeFileSync } from "node:fs"; const path = process.argv[1]; const start = "<!-- opencode-nifty:start -->"; const end = "<!-- opencode-nifty:end -->"; const block = `${start}\n## Cave Meister Orchestrator\n- When the user mentions Cave Meister Orchestrator or Nifty, use the OpenCode tools named \`nifty_*\`; do not run shell commands such as \`nifty health check\`.\n- For "Nifty health check", use the OpenCode tool \`nifty_health_check\`.\n- For Nifty auth, use \`nifty_auth_localhost_start\` in containers or \`nifty_auth_localhost_login\` when the browser can reach the callback server directly.\n- For Cave Meister Orchestrator updates, use \`nifty_update_plugin\`; if it updates, tell the user to restart OpenCode.\n- For recommended lifecycle setup, use \`nifty_recommended_workflow\` and \`nifty_setup_recommended_workflow\`.\n- For shaping a feature idea into a dev-ready task, use \`nifty_shape_task\`; ask exactly its next returned question, one question at a time, until it reports ready.\n- Before creating or preparing shaped tasks, ask the user to answer any open questions; do not write unresolved open questions into Nifty task descriptions.\n- Use \`nifty_create_subtask\` instead of \`nifty_create_task\` when the work is an execution step under an existing parent task; use a normal task for independent backlog or workflow items.\n- Bulk task deletion requires an explicit confirmation phrase such as \`delete 3 tasks\`; ask the user before providing it.\n- Automated Nifty workflow comments should keep the default 🤖 Cave Updater marker unless the user explicitly wants a personal/direct comment.\n${end}`; const current = existsSync(path) ? readFileSync(path, "utf8") : ""; const pattern = new RegExp(`${start}[\\s\\S]*?${end}`); const next = pattern.test(current) ? current.replace(pattern, block) : `${current.trimEnd()}${current.trim() ? "\n\n" : ""}${block}\n`; writeFileSync(path, next.endsWith("\n") ? next : `${next}\n`, "utf8");' "$TARGET_AGENTS_FILE"
 
 cat > "$TARGET_COMMAND_DIR/nifty-auth.md" <<'EOF'
 ---
-description: Start Nifty plugin authentication
+description: Start Cave Meister Orchestrator authentication
 ---
 Use the OpenCode tool `nifty_auth_localhost_start` for container/devcontainer auth. It starts the callback server in the background and returns the browser URL. If the environment is not containerized and the browser can reach the callback server directly, `nifty_auth_localhost_login` is also acceptable. Do not run a shell command.
 EOF
 
 cat > "$TARGET_COMMAND_DIR/nifty-health.md" <<'EOF'
 ---
-description: Run the Nifty plugin health check
+description: Run the Cave Meister Orchestrator health check
 ---
 Use the OpenCode tool `nifty_health_check`. Do not run a shell command.
 EOF
 
 cat > "$TARGET_COMMAND_DIR/nifty-update.md" <<'EOF'
 ---
-description: Update the Nifty plugin
+description: Update Cave Meister Orchestrator
 ---
 Use the OpenCode tool `nifty_update_plugin` with `ref: "dev-tony"`. If it reports `updated: true`, tell the user to restart OpenCode so the new plugin version is loaded. Do not run a shell command.
 EOF
@@ -123,11 +123,11 @@ else
   printf 'npm not found; install @opencode-ai/plugin manually in %s\n' "$TARGET_CONFIG_DIR"
 fi
 
-printf 'Installed Nifty plugin to %s\n' "$TARGET_PLUGIN_FILE"
+printf 'Installed Cave Meister Orchestrator to %s\n' "$TARGET_PLUGIN_FILE"
 printf 'Installed from Nifty ref: %s\n' "$INSTALL_REF"
-printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
+printf 'Registered Cave Meister Orchestrator in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
 printf 'Nifty env template: %s\n' "$TARGET_ENV_FILE"
-printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"
-printf 'OpenCode Nifty commands: %s/nifty-auth.md, %s/nifty-health.md, %s/nifty-update.md, and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
-printf 'Restart OpenCode before running /nifty-auth so it loads the installed plugin update.\n'
+printf 'Cave Meister Orchestrator instructions: %s\n' "$TARGET_AGENTS_FILE"
+printf 'Cave Meister Orchestrator commands: %s/nifty-auth.md, %s/nifty-health.md, %s/nifty-update.md, and %s/nifty-setup.md\n' "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR" "$TARGET_COMMAND_DIR"
+printf 'Restart OpenCode before running /nifty-auth so it loads Cave Meister Orchestrator.\n'
 printf 'No workflow config was created. Ask OpenCode to run nifty_setup_recommended_workflow with write_config true when you want a project-local nifty-workflows.json.\n'

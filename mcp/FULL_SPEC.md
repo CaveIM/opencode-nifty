@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Provide universal AI client compatibility for this repository's Nifty plugin by exposing every `nifty_*` tool through a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) stdio server, with no feature reduction and no duplicate business logic.
+Provide universal AI client compatibility for Cave Meister Orchestrator by exposing every `nifty_*` tool through a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) stdio server, with no feature reduction and no duplicate business logic.
 
 The MCP server works with **any MCP-capable AI coding client**: GitHub Copilot, Claude Code, Cursor, Windsurf, OpenCode (MCP mode), Gemini CLI, Kimi Code CLI, Codex, and others. No client-specific code.
 
@@ -19,7 +19,7 @@ Additionally provide automatic context hydration so coding agents get full task 
 
 Included:
 
-- Full export of all OpenCode Nifty tools (`NiftyPlugin().tool`) through MCP.
+- Full export of all Cave Meister Orchestrator tools (`NiftyPlugin().tool`) through MCP.
 - Runtime argument validation using the existing Zod schemas from each tool.
 - JSON Schema generation for all tool inputs for MCP discovery.
 - Client-agnostic execution context adapter (`directory`, `worktree`, `metadata`, `abort`).

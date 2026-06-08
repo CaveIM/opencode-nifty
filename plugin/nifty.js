@@ -710,7 +710,7 @@ async function runInstallScript(script, ref, context = {}) {
     }
     const timeout = setTimeout(() => {
       child.kill("SIGTERM")
-      reject(new Error("Nifty plugin installer timed out."))
+      reject(new Error("Cave Meister Orchestrator installer timed out."))
     }, 120000)
 
     child.stdout.on("data", append)
@@ -726,7 +726,7 @@ async function runInstallScript(script, ref, context = {}) {
         resolve(text)
         return
       }
-      reject(new Error(`Nifty plugin installer failed with exit code ${code}.\n${text}`))
+      reject(new Error(`Cave Meister Orchestrator installer failed with exit code ${code}.\n${text}`))
     })
     child.stdin.end(script)
   })
@@ -4133,7 +4133,7 @@ export const NiftyPlugin = async () => {
 
     tool: withLifecyclePolicy({
       nifty_update_plugin: tool({
-        description: "Updates the installed Nifty plugin from GitHub. In OpenCode mode, updates the installed plugin file. In MCP mode (NIFTY_MCP_ROOT set), also updates mcp/mcp-server.mjs in the cloned repo.",
+        description: "Updates the installed Cave Meister Orchestrator from GitHub. In OpenCode mode, updates the installed plugin file. In MCP mode (NIFTY_MCP_ROOT set), also updates mcp/mcp-server.mjs in the cloned repo.",
         args: {
           ref: tool.schema.string().default("dev-tony").describe("GitHub ref to install, usually dev-tony or a commit SHA"),
           force: tool.schema.boolean().default(false).describe("Run the installer even when the installed plugin already matches the ref"),
@@ -4176,7 +4176,7 @@ export const NiftyPlugin = async () => {
               mcp_updated: false,
               ref,
               latest_commit: latestCommit,
-              message: "No new Nifty plugin or MCP server version is available.",
+              message: "No new Cave Meister Orchestrator or MCP server version is available.",
               restart_required: false,
             })
           }
@@ -4184,7 +4184,7 @@ export const NiftyPlugin = async () => {
           const installScript = await fetchText(latestInstallURL)
           const installer_output = await runInstallScript(installScript, ref, context)
 
-          const messages = ["Nifty plugin updated. Restart OpenCode so it loads the new plugin version."]
+          const messages = ["Cave Meister Orchestrator updated. Restart OpenCode so it loads the new plugin version."]
           if (mcpUpdated) messages.push("MCP server updated. Restart the MCP server process to apply changes.")
           if (mcpUpdateError) messages.push(`MCP server update warning: ${mcpUpdateError}`)
 
@@ -4204,13 +4204,13 @@ export const NiftyPlugin = async () => {
       }),
 
       nifty_auth_help: tool({
-        description: "Shows how to authorize the Nifty plugin",
+        description: "Shows how to authorize Cave Meister Orchestrator",
         args: {},
         async execute(_args, context) {
           const config = getClientConfig(context)
           const cached = await readTokenCache()
           return [
-            "Nifty plugin setup:",
+            "Cave Meister Orchestrator setup:",
             "1. In Nifty, create an API app and collect Client ID, Client Secret, Redirect URL, and Authorize URL.",
             "2. Export these vars before starting OpenCode:",
             "   NIFTY_CLIENT_ID",
