@@ -116,6 +116,14 @@ copy_dir "$SOURCE_ROOT/env" "$TARGET_SUPPORT_DIR/env"
 copy_dir "$SOURCE_ROOT/scripts" "$TARGET_SUPPORT_DIR/scripts"
 rm -f "$LEGACY_NIFTY_PLUGIN_FILE"
 
+# Create package.json next to plugin for version detection
+node --input-type=module -e '
+import { writeFileSync } from "node:fs"
+const path = process.argv[1]
+const version = process.argv[2]
+writeFileSync(path, JSON.stringify({ name: "cave-meister", version }, null, 2) + "\n", "utf8")
+' "$TARGET_PLUGIN_DIR/package.json" "$OPENCODE_PLUGIN_VERSION"
+
 node --input-type=module -e '
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 const path = process.argv[1]
