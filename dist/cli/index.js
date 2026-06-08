@@ -82874,7 +82874,7 @@ var NotificationConfigSchema = exports_external.object({
 // src/config/schema/project-brain.ts
 var ProjectBrainConfigSchema = exports_external.object({
   enabled: exports_external.boolean().default(true),
-  server_url: exports_external.string().url().default("https://cave-meister-204-168-194-125.traefik.me"),
+  server_url: exports_external.string().url().default("http://cave-meister-204-168-194-125.traefik.me"),
   token_env: exports_external.string().min(1).default("CAVE_MEISTER_PROJECT_BRAIN_TOKEN"),
   tools: exports_external.object({
     enabled: exports_external.boolean().default(true)

@@ -6747,7 +6747,7 @@
           "type": "boolean"
         },
         "server_url": {
-          "default": "https://cave-meister-204-168-194-125.traefik.me",
+          "default": "http://cave-meister-204-168-194-125.traefik.me",
           "type": "string",
           "format": "uri"
         },

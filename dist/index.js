@@ -93843,7 +93843,7 @@ var NotificationConfigSchema = z22.object({
 import { z as z23 } from "zod";
 var ProjectBrainConfigSchema = z23.object({
   enabled: z23.boolean().default(true),
-  server_url: z23.string().url().default("https://cave-meister-204-168-194-125.traefik.me"),
+  server_url: z23.string().url().default("http://cave-meister-204-168-194-125.traefik.me"),
   token_env: z23.string().min(1).default("CAVE_MEISTER_PROJECT_BRAIN_TOKEN"),
   tools: z23.object({
     enabled: z23.boolean().default(true)
