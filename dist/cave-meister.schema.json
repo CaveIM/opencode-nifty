@@ -6849,6 +6849,34 @@
           "type": "integer",
           "minimum": 1000,
           "maximum": 50000
+        },
+        "always_on": {
+          "default": true,
+          "type": "boolean"
+        },
+        "default_scope": {
+          "default": {
+            "team_id": "default",
+            "project_id": "default"
+          },
+          "type": "object",
+          "properties": {
+            "team_id": {
+              "default": "default",
+              "type": "string",
+              "minLength": 1
+            },
+            "project_id": {
+              "default": "default",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "team_id",
+            "project_id"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -6861,7 +6889,9 @@
         "local_vault",
         "request_timeout_ms",
         "max_results",
-        "max_context_chars"
+        "max_context_chars",
+        "always_on",
+        "default_scope"
       ],
       "additionalProperties": false
     },

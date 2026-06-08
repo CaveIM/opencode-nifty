@@ -24,5 +24,10 @@ export declare const ProjectBrainConfigSchema: z.ZodObject<{
     request_timeout_ms: z.ZodDefault<z.ZodNumber>;
     max_results: z.ZodDefault<z.ZodNumber>;
     max_context_chars: z.ZodDefault<z.ZodNumber>;
+    always_on: z.ZodDefault<z.ZodBoolean>;
+    default_scope: z.ZodDefault<z.ZodObject<{
+        team_id: z.ZodDefault<z.ZodString>;
+        project_id: z.ZodDefault<z.ZodString>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export type ProjectBrainConfig = z.infer<typeof ProjectBrainConfigSchema>;

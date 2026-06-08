@@ -82892,7 +82892,12 @@ var ProjectBrainConfigSchema = exports_external.object({
   }).default({ enabled: true }),
   request_timeout_ms: exports_external.number().int().min(1000).max(60000).default(30000),
   max_results: exports_external.number().int().min(1).max(100).default(50),
-  max_context_chars: exports_external.number().int().min(1000).max(50000).default(6000)
+  max_context_chars: exports_external.number().int().min(1000).max(50000).default(6000),
+  always_on: exports_external.boolean().default(true),
+  default_scope: exports_external.object({
+    team_id: exports_external.string().min(1).default("default"),
+    project_id: exports_external.string().min(1).default("default")
+  }).default({ team_id: "default", project_id: "default" })
 });
 // src/mcp/types.ts
 var McpNameSchema = exports_external.enum(["websearch", "context7", "grep_app", "lsp", "ast_grep"]);

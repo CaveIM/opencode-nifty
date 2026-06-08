@@ -61437,24 +61437,24 @@ var init_dist = __esm(() => {
 // src/tools/nifty-create-bug.ts
 var exports_nifty_create_bug = {};
 __export(exports_nifty_create_bug, {
-  findMappingForRepo: () => findMappingForRepo,
+  findMappingForRepo: () => findMappingForRepo2,
   defaultLoadRepoMapping: () => defaultLoadRepoMapping,
   defaultGetGitHubToken: () => defaultGetGitHubToken,
   defaultGetGitHubRepoFromGitConfig: () => defaultGetGitHubRepoFromGitConfig,
   defaultCreateGitHubIssue: () => defaultCreateGitHubIssue,
   createNiftyCreateBugTool: () => createNiftyCreateBugTool
 });
-import { existsSync as existsSync92, readFileSync as readFileSync66 } from "fs";
+import { existsSync as existsSync93, readFileSync as readFileSync67 } from "fs";
 import { homedir as homedir20 } from "os";
-import { join as join101 } from "path";
+import { join as join102 } from "path";
 function defaultGetGitHubToken() {
   const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (envToken)
     return envToken;
-  const ghHostsPath = join101(homedir20(), ".config", "gh", "hosts.yml");
-  if (existsSync92(ghHostsPath)) {
+  const ghHostsPath = join102(homedir20(), ".config", "gh", "hosts.yml");
+  if (existsSync93(ghHostsPath)) {
     try {
-      const content = readFileSync66(ghHostsPath, "utf8");
+      const content = readFileSync67(ghHostsPath, "utf8");
       const tokenMatch = content.match(/oauth_token:\s*(.+)/);
       if (tokenMatch)
         return tokenMatch[1].trim();
@@ -61488,10 +61488,10 @@ async function defaultCreateGitHubIssue(params) {
 }
 function defaultGetGitHubRepoFromGitConfig(cwd) {
   try {
-    const gitConfigPath = join101(cwd, ".git", "config");
-    if (!existsSync92(gitConfigPath))
+    const gitConfigPath = join102(cwd, ".git", "config");
+    if (!existsSync93(gitConfigPath))
       return null;
-    const config = readFileSync66(gitConfigPath, "utf8");
+    const config = readFileSync67(gitConfigPath, "utf8");
     const match = config.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/m);
     if (!match)
       return null;
@@ -61504,16 +61504,16 @@ function defaultGetGitHubRepoFromGitConfig(cwd) {
   }
 }
 function defaultLoadRepoMapping(cwd) {
-  const configPath = join101(cwd, ".opencode", "nifty-repo-mapping.json");
-  if (!existsSync92(configPath))
+  const configPath = join102(cwd, ".opencode", "nifty-repo-mapping.json");
+  if (!existsSync93(configPath))
     return null;
   try {
-    return JSON.parse(readFileSync66(configPath, "utf8"));
+    return JSON.parse(readFileSync67(configPath, "utf8"));
   } catch {
     return null;
   }
 }
-function findMappingForRepo(config, owner, repo) {
+function findMappingForRepo2(config, owner, repo) {
   if (!config?.mappings?.length)
     return null;
   const fullRepoName = `${owner}/${repo}`;
@@ -61543,7 +61543,7 @@ function createNiftyCreateBugTool(deps = {}) {
         throw new Error("Could not detect GitHub repository. Ensure you're in a git repo with a GitHub remote.");
       }
       const mappingConfig = loadRepoMapping(cwd);
-      const mapping = findMappingForRepo(mappingConfig, repoInfo.owner, repoInfo.repo);
+      const mapping = findMappingForRepo2(mappingConfig, repoInfo.owner, repoInfo.repo);
       if (!mapping) {
         throw new Error(`No Nifty project mapping found for ${repoInfo.owner}/${repoInfo.repo}. ` + `Create .opencode/nifty-repo-mapping.json with project details.`);
       }
@@ -93861,7 +93861,12 @@ var ProjectBrainConfigSchema = z23.object({
   }).default({ enabled: true }),
   request_timeout_ms: z23.number().int().min(1000).max(60000).default(30000),
   max_results: z23.number().int().min(1).max(100).default(50),
-  max_context_chars: z23.number().int().min(1000).max(50000).default(6000)
+  max_context_chars: z23.number().int().min(1000).max(50000).default(6000),
+  always_on: z23.boolean().default(true),
+  default_scope: z23.object({
+    team_id: z23.string().min(1).default("default"),
+    project_id: z23.string().min(1).default("default")
+  }).default({ team_id: "default", project_id: "default" })
 });
 // src/config/schema/cave-meister-config.ts
 import { z as z38 } from "zod";
@@ -108284,6 +108289,107 @@ function createProjectBrainVault(options) {
     }
   };
 }
+// src/features/project-brain/scope-detector.ts
+init_logger();
+import { existsSync as existsSync82, readFileSync as readFileSync61 } from "fs";
+import { join as join89 } from "path";
+function defaultReadGitConfig(cwd) {
+  try {
+    const gitConfigPath = join89(cwd, ".git", "config");
+    if (!existsSync82(gitConfigPath))
+      return null;
+    return readFileSync61(gitConfigPath, "utf8");
+  } catch {
+    return null;
+  }
+}
+function defaultReadRepoMapping(cwd) {
+  const configPath = join89(cwd, ".opencode", "nifty-repo-mapping.json");
+  if (!existsSync82(configPath))
+    return null;
+  try {
+    return JSON.parse(readFileSync61(configPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function extractGitHubRepo(gitConfig) {
+  const match = gitConfig.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/m);
+  if (!match)
+    return null;
+  return {
+    owner: match[1],
+    repo: match[2].replace(/\.git$/, "")
+  };
+}
+function findMappingForRepo(mapping, owner, repo) {
+  if (!mapping?.mappings?.length)
+    return null;
+  const fullRepoName = `${owner}/${repo}`;
+  return mapping.mappings.find((m) => m.github_repo === fullRepoName) || null;
+}
+function createScopeDetector(deps) {
+  const resolvedDeps = {
+    readGitConfig: deps?.readGitConfig ?? defaultReadGitConfig,
+    readRepoMapping: deps?.readRepoMapping ?? defaultReadRepoMapping,
+    log: deps?.log ?? log
+  };
+  function detect(cwd, defaultScope) {
+    const gitConfig = resolvedDeps.readGitConfig(cwd);
+    if (!gitConfig) {
+      resolvedDeps.log("[scope-detector] No .git/config found", { cwd });
+      return { scope: defaultScope ?? null, source: defaultScope ? "default" : null };
+    }
+    const repoInfo = extractGitHubRepo(gitConfig);
+    if (!repoInfo) {
+      resolvedDeps.log("[scope-detector] No GitHub remote found in git config");
+      return { scope: defaultScope ?? null, source: defaultScope ? "default" : null };
+    }
+    const githubRepo = `${repoInfo.owner}/${repoInfo.repo}`;
+    resolvedDeps.log("[scope-detector] Found GitHub repo", { github_repo: githubRepo });
+    const mapping = resolvedDeps.readRepoMapping(cwd);
+    const repoMapping = findMappingForRepo(mapping, repoInfo.owner, repoInfo.repo);
+    if (repoMapping) {
+      const scope = {
+        team_id: repoMapping.nifty_team_id ?? "default",
+        project_id: repoMapping.nifty_project_id
+      };
+      resolvedDeps.log("[scope-detector] Found repo mapping", {
+        github_repo: githubRepo,
+        nifty_project_id: repoMapping.nifty_project_id,
+        team_id: scope.team_id
+      });
+      return {
+        scope,
+        source: "repo-mapping",
+        github_repo: githubRepo,
+        nifty_project_id: repoMapping.nifty_project_id
+      };
+    }
+    if (defaultScope) {
+      resolvedDeps.log("[scope-detector] Using default scope", {
+        github_repo: githubRepo,
+        team_id: defaultScope.team_id,
+        project_id: defaultScope.project_id
+      });
+      return {
+        scope: defaultScope,
+        source: "default",
+        github_repo: githubRepo
+      };
+    }
+    resolvedDeps.log("[scope-detector] No scope found", { github_repo: githubRepo });
+    return { scope: null, source: null, github_repo: githubRepo };
+  }
+  return {
+    ...{ scope: null, source: null },
+    detect
+  };
+}
+// src/features/project-brain/nifty-indexer.ts
+init_logger();
+// src/features/project-brain/github-indexer.ts
+init_logger();
 // src/hooks/project-brain/hook.ts
 init_shared();
 var XML_SCOPE_MARKER_PATTERN = /<project_brain_scope\b([^>]*)\/\s*>/i;
@@ -108452,6 +108558,22 @@ function createProjectBrainHook(args) {
       return vault;
     }
   }
+  let cachedScope = null;
+  let scopeCacheKey = null;
+  function getCachedScope(directory, defaultScope) {
+    const cacheKey = `${directory}:${defaultScope.team_id}:${defaultScope.project_id}`;
+    if (cachedScope && scopeCacheKey === cacheKey) {
+      return cachedScope;
+    }
+    const detector6 = createScopeDetector();
+    const detected = detector6.detect(directory, defaultScope);
+    if (detected.scope) {
+      cachedScope = detected.scope;
+      scopeCacheKey = cacheKey;
+      return detected.scope;
+    }
+    return defaultScope;
+  }
   return {
     "experimental.chat.messages.transform": async (_input, output) => {
       if (!shouldCreateHook(config) || config?.context_retrieval.enabled !== true) {
@@ -108462,7 +108584,24 @@ function createProjectBrainHook(args) {
         return;
       }
       const scopeMarker = parseScopeMarker(latestUser.text);
-      if (!scopeMarker) {
+      let scope = null;
+      let query = latestUser.text;
+      if (scopeMarker) {
+        scope = scopeMarker.scope;
+        query = scopeMarker.query;
+      } else if (config?.always_on) {
+        const defaultScope = {
+          team_id: config.default_scope.team_id,
+          project_id: config.default_scope.project_id
+        };
+        const ctx = args.ctx;
+        if (ctx.directory) {
+          scope = getCachedScope(ctx.directory, defaultScope);
+        } else {
+          scope = defaultScope;
+        }
+      }
+      if (!scope) {
         return;
       }
       const searchClient = getClient();
@@ -108471,8 +108610,8 @@ function createProjectBrainHook(args) {
       }
       try {
         const result = await searchClient.search({
-          scope: scopeMarker.scope,
-          query: scopeMarker.query,
+          scope,
+          query,
           max_results: config.context_retrieval.max_results
         });
         const formatted = deps.formatSearchResult(result);
@@ -108482,12 +108621,12 @@ function createProjectBrainHook(args) {
         }
         collector.register(latestUser.sessionID, {
           source: "project-brain",
-          id: createContextId(scopeMarker.scope, result),
+          id: createContextId(scope, result),
           content,
           priority: "high",
           metadata: {
-            team_id: scopeMarker.scope.team_id,
-            project_id: scopeMarker.scope.project_id,
+            team_id: scope.team_id,
+            project_id: scope.project_id,
             total: result.total,
             ...result.audit_id ? { audit_id: result.audit_id } : {}
           }
@@ -108496,8 +108635,8 @@ function createProjectBrainHook(args) {
         deps.log("[project-brain] Failed to retrieve Project Brain context", {
           error,
           sessionID: latestUser.sessionID,
-          teamID: scopeMarker.scope.team_id,
-          projectID: scopeMarker.scope.project_id
+          teamID: scope.team_id,
+          projectID: scope.project_id
         });
       }
     },
@@ -108728,21 +108867,21 @@ import { resolve as resolve23 } from "path";
 
 // src/shared/ripgrep-cli.ts
 import { spawnSync as spawnSync2 } from "child_process";
-import { existsSync as existsSync83 } from "fs";
-import { dirname as dirname29, join as join90 } from "path";
+import { existsSync as existsSync84 } from "fs";
+import { dirname as dirname29, join as join91 } from "path";
 
 // src/tools/grep/downloader.ts
 init_shared();
 init_plugin_identity();
 init_binary_downloader();
-import { existsSync as existsSync82, readdirSync as readdirSync22 } from "fs";
-import { join as join89 } from "path";
+import { existsSync as existsSync83, readdirSync as readdirSync22 } from "fs";
+import { join as join90 } from "path";
 function findFileRecursive(dir, filename) {
   try {
     const entries = readdirSync22(dir, { withFileTypes: true, recursive: true });
     for (const entry of entries) {
       if (entry.isFile() && entry.name === filename) {
-        return join89(entry.parentPath ?? dir, entry.name);
+        return join90(entry.parentPath ?? dir, entry.name);
       }
     }
   } catch (error) {
@@ -108766,11 +108905,11 @@ function getPlatformKey() {
 }
 function getInstallDir() {
   const homeDir = process.env.HOME || process.env.USERPROFILE || ".";
-  return join89(homeDir, ".cache", CACHE_DIR_NAME, "bin");
+  return join90(homeDir, ".cache", CACHE_DIR_NAME, "bin");
 }
 function getRgPath() {
   const isWindows2 = process.platform === "win32";
-  return join89(getInstallDir(), isWindows2 ? "rg.exe" : "rg");
+  return join90(getInstallDir(), isWindows2 ? "rg.exe" : "rg");
 }
 async function extractTarGz2(archivePath, destDir) {
   const platformKey = getPlatformKey();
@@ -108787,7 +108926,7 @@ async function extractZip2(archivePath, destDir) {
   const binaryName = process.platform === "win32" ? "rg.exe" : "rg";
   const foundPath = findFileRecursive(destDir, binaryName);
   if (foundPath) {
-    const destPath = join89(destDir, binaryName);
+    const destPath = join90(destDir, binaryName);
     if (foundPath !== destPath) {
       const { renameSync: renameSync6 } = await import("fs");
       renameSync6(foundPath, destPath);
@@ -108802,13 +108941,13 @@ async function downloadAndInstallRipgrep() {
   }
   const installDir = getInstallDir();
   const rgPath = getRgPath();
-  if (existsSync82(rgPath)) {
+  if (existsSync83(rgPath)) {
     return rgPath;
   }
   ensureCacheDir(installDir);
   const filename = `ripgrep-${RG_VERSION}-${config.platform}.${config.extension}`;
   const url = `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${filename}`;
-  const archivePath = join89(installDir, filename);
+  const archivePath = join90(installDir, filename);
   try {
     await downloadArchive(url, archivePath);
     if (config.extension === "tar.gz") {
@@ -108817,7 +108956,7 @@ async function downloadAndInstallRipgrep() {
       await extractZip2(archivePath, installDir);
     }
     ensureExecutable(rgPath);
-    if (!existsSync82(rgPath)) {
+    if (!existsSync83(rgPath)) {
       throw new Error("ripgrep binary not found after extraction");
     }
     return rgPath;
@@ -108833,7 +108972,7 @@ async function downloadAndInstallRipgrep() {
 }
 function getInstalledRipgrepPath() {
   const rgPath = getRgPath();
-  return existsSync82(rgPath) ? rgPath : null;
+  return existsSync83(rgPath) ? rgPath : null;
 }
 
 // src/shared/ripgrep-cli.ts
@@ -108874,15 +109013,15 @@ function getOpenCodeBundledRg() {
   const isWindows2 = process.platform === "win32";
   const rgName = isWindows2 ? "rg.exe" : "rg";
   const candidates = [
-    join90(getOpenCodeCacheDir(), "bin", rgName),
-    join90(getDataDir(), "opencode", "bin", rgName),
-    join90(execDir, rgName),
-    join90(execDir, "bin", rgName),
-    join90(execDir, "..", "bin", rgName),
-    join90(execDir, "..", "libexec", rgName)
+    join91(getOpenCodeCacheDir(), "bin", rgName),
+    join91(getDataDir(), "opencode", "bin", rgName),
+    join91(execDir, rgName),
+    join91(execDir, "bin", rgName),
+    join91(execDir, "..", "bin", rgName),
+    join91(execDir, "..", "libexec", rgName)
   ];
   for (const candidate of candidates) {
-    if (existsSync83(candidate)) {
+    if (existsSync84(candidate)) {
       return candidate;
     }
   }
@@ -110009,9 +110148,9 @@ init_tool();
 // src/tools/session-manager/constants.ts
 init_shared();
 init_shared();
-import { join as join91 } from "path";
-var TODO_DIR2 = join91(getClaudeConfigDir(), "todos");
-var TRANSCRIPT_DIR2 = join91(getClaudeConfigDir(), "transcripts");
+import { join as join92 } from "path";
+var TODO_DIR2 = join92(getClaudeConfigDir(), "todos");
+var TRANSCRIPT_DIR2 = join92(getClaudeConfigDir(), "transcripts");
 var SESSION_LIST_DESCRIPTION = `List all OpenCode sessions with optional filtering.
 
 Returns a list of available session IDs with metadata including message count, date range, and agents used.
@@ -110088,9 +110227,9 @@ init_opencode_storage_detection();
 init_shared();
 
 // src/tools/session-manager/file-storage.ts
-import { existsSync as existsSync84 } from "fs";
+import { existsSync as existsSync85 } from "fs";
 import { readdir as readdir5, readFile as readFile9 } from "fs/promises";
-import { join as join92 } from "path";
+import { join as join93 } from "path";
 init_opencode_message_dir();
 function ignoreFileStorageError(error) {
   if (error instanceof Error)
@@ -110098,7 +110237,7 @@ function ignoreFileStorageError(error) {
   throw error;
 }
 async function getFileMainSessions(directory) {
-  if (!existsSync84(SESSION_STORAGE))
+  if (!existsSync85(SESSION_STORAGE))
     return [];
   const sessions = [];
   try {
@@ -110106,13 +110245,13 @@ async function getFileMainSessions(directory) {
     for (const projectDir of projectDirs) {
       if (!projectDir.isDirectory())
         continue;
-      const projectPath = join92(SESSION_STORAGE, projectDir.name);
+      const projectPath = join93(SESSION_STORAGE, projectDir.name);
       const sessionFiles = await readdir5(projectPath);
       for (const file of sessionFiles) {
         if (!file.endsWith(".json"))
           continue;
         try {
-          const content = await readFile9(join92(projectPath, file), "utf-8");
+          const content = await readFile9(join93(projectPath, file), "utf-8");
           const meta = JSON.parse(content);
           if (meta.parentID)
             continue;
@@ -110132,7 +110271,7 @@ async function getFileMainSessions(directory) {
   return sessions.sort((a, b) => b.time.updated - a.time.updated);
 }
 async function getFileAllSessions() {
-  if (!existsSync84(MESSAGE_STORAGE))
+  if (!existsSync85(MESSAGE_STORAGE))
     return [];
   const sessions = [];
   async function scanDirectory(dir) {
@@ -110141,7 +110280,7 @@ async function getFileAllSessions() {
       for (const entry of entries) {
         if (!entry.isDirectory())
           continue;
-        const sessionPath = join92(dir, entry.name);
+        const sessionPath = join93(dir, entry.name);
         const files = await readdir5(sessionPath);
         if (files.some((file) => file.endsWith(".json"))) {
           sessions.push(entry.name);
@@ -110162,7 +110301,7 @@ async function fileSessionExists(sessionID) {
 }
 async function getFileSessionMessages(sessionID) {
   const messageDir = getMessageDir(sessionID);
-  if (!messageDir || !existsSync84(messageDir))
+  if (!messageDir || !existsSync85(messageDir))
     return [];
   const messages = [];
   try {
@@ -110171,7 +110310,7 @@ async function getFileSessionMessages(sessionID) {
       if (!file.endsWith(".json"))
         continue;
       try {
-        const content = await readFile9(join92(messageDir, file), "utf-8");
+        const content = await readFile9(join93(messageDir, file), "utf-8");
         const meta = JSON.parse(content);
         const parts = await readParts2(meta.id);
         messages.push({
@@ -110199,8 +110338,8 @@ async function getFileSessionMessages(sessionID) {
   });
 }
 async function readParts2(messageID) {
-  const partDir = join92(PART_STORAGE, messageID);
-  if (!existsSync84(partDir))
+  const partDir = join93(PART_STORAGE, messageID);
+  if (!existsSync85(partDir))
     return [];
   const parts = [];
   try {
@@ -110209,7 +110348,7 @@ async function readParts2(messageID) {
       if (!file.endsWith(".json"))
         continue;
       try {
-        const content = await readFile9(join92(partDir, file), "utf-8");
+        const content = await readFile9(join93(partDir, file), "utf-8");
         parts.push(JSON.parse(content));
       } catch (error) {
         ignoreFileStorageError(error);
@@ -110223,14 +110362,14 @@ async function readParts2(messageID) {
   return parts.sort((a, b) => a.id.localeCompare(b.id));
 }
 async function getFileSessionTodos(sessionID) {
-  if (!existsSync84(TODO_DIR2))
+  if (!existsSync85(TODO_DIR2))
     return [];
   try {
     const allFiles = await readdir5(TODO_DIR2);
     const todoFiles = allFiles.filter((file) => file === `${sessionID}.json`);
     for (const file of todoFiles) {
       try {
-        const content = await readFile9(join92(TODO_DIR2, file), "utf-8");
+        const content = await readFile9(join93(TODO_DIR2, file), "utf-8");
         const data = JSON.parse(content);
         if (!Array.isArray(data))
           continue;
@@ -110252,10 +110391,10 @@ async function getFileSessionTodos(sessionID) {
   return [];
 }
 async function getFileSessionTranscript(sessionID) {
-  if (!existsSync84(TRANSCRIPT_DIR2))
+  if (!existsSync85(TRANSCRIPT_DIR2))
     return 0;
-  const transcriptFile = join92(TRANSCRIPT_DIR2, `${sessionID}.jsonl`);
-  if (!existsSync84(transcriptFile))
+  const transcriptFile = join93(TRANSCRIPT_DIR2, `${sessionID}.jsonl`);
+  if (!existsSync85(transcriptFile))
     return 0;
   try {
     const content = await readFile9(transcriptFile, "utf-8");
@@ -112178,25 +112317,25 @@ init_session_tools_store();
 init_file_utils2();
 init_shared();
 init_opencode_config_dir();
-import { existsSync as existsSync87, readdirSync as readdirSync23 } from "fs";
-import { join as join93 } from "path";
+import { existsSync as existsSync88, readdirSync as readdirSync23 } from "fs";
+import { join as join94 } from "path";
 
 // src/features/claude-code-agent-loader/agent-definitions-loader.ts
 init_frontmatter2();
 init_logger();
-import { existsSync as existsSync86, readFileSync as readFileSync62 } from "fs";
+import { existsSync as existsSync87, readFileSync as readFileSync63 } from "fs";
 import { basename as basename12, extname as extname3 } from "path";
 
 // src/features/claude-code-agent-loader/json-agent-loader.ts
 init_jsonc_parser2();
 init_claude_model_mapper();
-import { existsSync as existsSync85, readFileSync as readFileSync61 } from "fs";
+import { existsSync as existsSync86, readFileSync as readFileSync62 } from "fs";
 function parseJsonAgentFile(filePath, scope) {
   try {
-    if (!existsSync85(filePath)) {
+    if (!existsSync86(filePath)) {
       return null;
     }
-    const content = readFileSync61(filePath, "utf-8");
+    const content = readFileSync62(filePath, "utf-8");
     const { data } = parseJsoncSafe(content);
     if (!data) {
       return null;
@@ -112235,10 +112374,10 @@ function parseJsonAgentFile(filePath, scope) {
 init_claude_model_mapper();
 function parseMarkdownAgentFile(filePath, scope, anthropicProvider) {
   try {
-    if (!existsSync86(filePath)) {
+    if (!existsSync87(filePath)) {
       return null;
     }
-    const content = readFileSync62(filePath, "utf-8");
+    const content = readFileSync63(filePath, "utf-8");
     const { data, body } = parseFrontmatter(content);
     const fileName = basename12(filePath);
     const agentName = fileName.replace(/\.md$/i, "");
@@ -112272,7 +112411,7 @@ function parseMarkdownAgentFile(filePath, scope, anthropicProvider) {
 function loadAgentDefinitions(paths, scope, anthropicProvider) {
   const result = Object.create(null);
   for (const filePath of paths) {
-    if (!existsSync86(filePath)) {
+    if (!existsSync87(filePath)) {
       log(`[agent-definitions-loader] File not found, skipping: ${filePath}`);
       continue;
     }
@@ -112297,7 +112436,7 @@ function loadAgentDefinitions(paths, scope, anthropicProvider) {
 
 // src/features/claude-code-agent-loader/loader.ts
 function loadAgentsFromDir(agentsDir, scope, anthropicProvider) {
-  if (!existsSync87(agentsDir)) {
+  if (!existsSync88(agentsDir)) {
     return [];
   }
   const entries = readdirSync23(agentsDir, { withFileTypes: true });
@@ -112305,7 +112444,7 @@ function loadAgentsFromDir(agentsDir, scope, anthropicProvider) {
   for (const entry of entries) {
     if (!isMarkdownFile(entry))
       continue;
-    const agentPath = join93(agentsDir, entry.name);
+    const agentPath = join94(agentsDir, entry.name);
     const agent = parseMarkdownAgentFile(agentPath, scope, anthropicProvider);
     if (agent) {
       agents.push(agent);
@@ -112314,7 +112453,7 @@ function loadAgentsFromDir(agentsDir, scope, anthropicProvider) {
   return agents;
 }
 function loadUserAgents(anthropicProvider) {
-  const userAgentsDir = join93(getClaudeConfigDir(), "agents");
+  const userAgentsDir = join94(getClaudeConfigDir(), "agents");
   const agents = loadAgentsFromDir(userAgentsDir, "user", anthropicProvider);
   const result = Object.create(null);
   for (const agent of agents) {
@@ -112323,7 +112462,7 @@ function loadUserAgents(anthropicProvider) {
   return result;
 }
 function loadProjectAgents(directory, anthropicProvider) {
-  const projectAgentsDir = join93(directory ?? process.cwd(), ".claude", "agents");
+  const projectAgentsDir = join94(directory ?? process.cwd(), ".claude", "agents");
   const agents = loadAgentsFromDir(projectAgentsDir, "project", anthropicProvider);
   const result = Object.create(null);
   for (const agent of agents) {
@@ -112335,7 +112474,7 @@ function loadOpencodeGlobalAgents() {
   const result = Object.create(null);
   const configDirs = getOpenCodeConfigDirs({ binary: "opencode" });
   for (const configDir of configDirs) {
-    const opencodeAgentsDir = join93(configDir, "agents");
+    const opencodeAgentsDir = join94(configDir, "agents");
     const agents = loadAgentsFromDir(opencodeAgentsDir, "opencode");
     for (const agent of agents) {
       if (!(agent.name in result)) {
@@ -112346,7 +112485,7 @@ function loadOpencodeGlobalAgents() {
   return result;
 }
 function loadOpencodeProjectAgents(directory) {
-  const opencodeProjectDir = join93(directory ?? process.cwd(), ".opencode", "agents");
+  const opencodeProjectDir = join94(directory ?? process.cwd(), ".opencode", "agents");
   const agents = loadAgentsFromDir(opencodeProjectDir, "opencode-project");
   const result = Object.create(null);
   for (const agent of agents) {
@@ -113104,9 +113243,9 @@ import { pathToFileURL } from "url";
 // src/tools/look-at/image-converter.ts
 init_shared();
 import * as childProcess2 from "child_process";
-import { existsSync as existsSync89, mkdtempSync, readFileSync as readFileSync64, rmSync as rmSync4, unlinkSync as unlinkSync14, writeFileSync as writeFileSync19 } from "fs";
+import { existsSync as existsSync90, mkdtempSync, readFileSync as readFileSync65, rmSync as rmSync4, unlinkSync as unlinkSync14, writeFileSync as writeFileSync19 } from "fs";
 import { tmpdir as tmpdir7 } from "os";
-import { dirname as dirname33, join as join95 } from "path";
+import { dirname as dirname33, join as join96 } from "path";
 var SUPPORTED_FORMATS = new Set([
   "image/jpeg",
   "image/png",
@@ -113136,7 +113275,7 @@ var UNSUPPORTED_FORMATS = new Set([
 var CONVERSION_TIMEOUT_MS = 30000;
 function cleanupTemporaryFileAfterFailure(filePath) {
   try {
-    if (existsSync89(filePath)) {
+    if (existsSync90(filePath)) {
       unlinkSync14(filePath);
     }
   } catch (cleanupError) {
@@ -113154,11 +113293,11 @@ function needsConversion(mimeType) {
   return mimeType.startsWith("image/");
 }
 function convertImageToJpeg(inputPath, mimeType) {
-  if (!existsSync89(inputPath)) {
+  if (!existsSync90(inputPath)) {
     throw new Error(`File not found: ${inputPath}`);
   }
-  const tempDir = mkdtempSync(join95(tmpdir7(), "opencode-img-"));
-  const outputPath = join95(tempDir, "converted.jpg");
+  const tempDir = mkdtempSync(join96(tmpdir7(), "opencode-img-"));
+  const outputPath = join96(tempDir, "converted.jpg");
   log(`[image-converter] Converting ${mimeType} to JPEG: ${inputPath}`);
   try {
     if (process.platform === "darwin") {
@@ -113168,7 +113307,7 @@ function convertImageToJpeg(inputPath, mimeType) {
           encoding: "utf-8",
           timeout: CONVERSION_TIMEOUT_MS
         });
-        if (existsSync89(outputPath)) {
+        if (existsSync90(outputPath)) {
           log(`[image-converter] Converted using sips: ${outputPath}`);
           return outputPath;
         }
@@ -113184,7 +113323,7 @@ function convertImageToJpeg(inputPath, mimeType) {
         encoding: "utf-8",
         timeout: CONVERSION_TIMEOUT_MS
       });
-      if (existsSync89(outputPath)) {
+      if (existsSync90(outputPath)) {
         log(`[image-converter] Converted using ImageMagick: ${outputPath}`);
         return outputPath;
       }
@@ -113208,11 +113347,11 @@ function convertImageToJpeg(inputPath, mimeType) {
 function cleanupConvertedImage(filePath) {
   try {
     const tempDirectory = dirname33(filePath);
-    if (existsSync89(filePath)) {
+    if (existsSync90(filePath)) {
       unlinkSync14(filePath);
       log(`[image-converter] Cleaned up temporary file: ${filePath}`);
     }
-    if (existsSync89(tempDirectory)) {
+    if (existsSync90(tempDirectory)) {
       rmSync4(tempDirectory, { recursive: true, force: true });
       log(`[image-converter] Cleaned up temporary directory: ${tempDirectory}`);
     }
@@ -113222,9 +113361,9 @@ function cleanupConvertedImage(filePath) {
   }
 }
 function convertBase64ImageToJpeg(base64Data, mimeType) {
-  const tempDir = mkdtempSync(join95(tmpdir7(), "opencode-b64-"));
+  const tempDir = mkdtempSync(join96(tmpdir7(), "opencode-b64-"));
   const inputExt = mimeType.split("/")[1] || "bin";
-  const inputPath = join95(tempDir, `input.${inputExt}`);
+  const inputPath = join96(tempDir, `input.${inputExt}`);
   const tempFiles = [inputPath];
   try {
     const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, "");
@@ -113233,7 +113372,7 @@ function convertBase64ImageToJpeg(base64Data, mimeType) {
     log(`[image-converter] Converting Base64 ${mimeType} to JPEG`);
     const outputPath = convertImageToJpeg(inputPath, mimeType);
     tempFiles.push(outputPath);
-    const convertedBuffer = readFileSync64(outputPath);
+    const convertedBuffer = readFileSync65(outputPath);
     const convertedBase64 = convertedBuffer.toString("base64");
     log(`[image-converter] Base64 conversion successful`);
     return { base64: convertedBase64, tempFiles };
@@ -117079,7 +117218,7 @@ function isExplicitSyncRun(runInBackground) {
 init_constants();
 // src/tools/task/task-create.ts
 init_tool();
-import { join as join97 } from "path";
+import { join as join98 } from "path";
 
 // src/tools/task/types.ts
 import { z as z40 } from "zod";
@@ -117135,8 +117274,8 @@ var TaskDeleteInputSchema = z40.object({
 
 // src/features/claude-tasks/storage.ts
 init_opencode_config_dir();
-import { join as join96, dirname as dirname34, basename as basename14, isAbsolute as isAbsolute17 } from "path";
-import { existsSync as existsSync90, mkdirSync as mkdirSync18, readFileSync as readFileSync65, writeFileSync as writeFileSync20, renameSync as renameSync6, unlinkSync as unlinkSync15, readdirSync as readdirSync24 } from "fs";
+import { join as join97, dirname as dirname34, basename as basename14, isAbsolute as isAbsolute17 } from "path";
+import { existsSync as existsSync91, mkdirSync as mkdirSync18, readFileSync as readFileSync66, writeFileSync as writeFileSync20, renameSync as renameSync6, unlinkSync as unlinkSync15, readdirSync as readdirSync24 } from "fs";
 import { randomUUID as randomUUID5 } from "crypto";
 function ignoreClaudeTaskStorageError(error) {
   if (error instanceof Error)
@@ -117147,11 +117286,11 @@ function getTaskDir(config = {}) {
   const tasksConfig = config.sisyphus?.tasks;
   const storagePath = tasksConfig?.storage_path;
   if (storagePath) {
-    return isAbsolute17(storagePath) ? storagePath : join96(process.cwd(), storagePath);
+    return isAbsolute17(storagePath) ? storagePath : join97(process.cwd(), storagePath);
   }
   const configDir = getOpenCodeConfigDir({ binary: "opencode" });
   const listId = resolveTaskListId(config);
-  return join96(configDir, "tasks", listId);
+  return join97(configDir, "tasks", listId);
 }
 function sanitizePathSegment(value) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-") || "default";
@@ -117169,16 +117308,16 @@ function resolveTaskListId(config = {}) {
   return sanitizePathSegment(basename14(process.cwd()));
 }
 function ensureDir(dirPath) {
-  if (!existsSync90(dirPath)) {
+  if (!existsSync91(dirPath)) {
     mkdirSync18(dirPath, { recursive: true });
   }
 }
 function readJsonSafe(filePath, schema) {
   try {
-    if (!existsSync90(filePath)) {
+    if (!existsSync91(filePath)) {
       return null;
     }
-    const content = readFileSync65(filePath, "utf-8");
+    const content = readFileSync66(filePath, "utf-8");
     const parsed = JSON.parse(content);
     const result = schema.safeParse(parsed);
     if (!result.success) {
@@ -117199,7 +117338,7 @@ function writeJsonAtomic(filePath, data) {
     renameSync6(tempPath, filePath);
   } catch (error) {
     try {
-      if (existsSync90(tempPath)) {
+      if (existsSync91(tempPath)) {
         unlinkSync15(tempPath);
       }
     } catch (cleanupError) {
@@ -117213,7 +117352,7 @@ function generateTaskId() {
   return `T-${randomUUID5()}`;
 }
 function acquireLock2(dirPath) {
-  const lockPath = join96(dirPath, ".lock");
+  const lockPath = join97(dirPath, ".lock");
   const lockId = randomUUID5();
   const createLock = (timestamp) => {
     writeFileSync20(lockPath, JSON.stringify({ id: lockId, timestamp }), {
@@ -117223,7 +117362,7 @@ function acquireLock2(dirPath) {
   };
   const isStale = () => {
     try {
-      const lockContent = readFileSync65(lockPath, "utf-8");
+      const lockContent = readFileSync66(lockPath, "utf-8");
       const lockData = JSON.parse(lockContent);
       const lockAge = Date.now() - lockData.timestamp;
       return lockAge > STALE_LOCK_THRESHOLD_MS;
@@ -117264,9 +117403,9 @@ function acquireLock2(dirPath) {
     acquired: true,
     release: () => {
       try {
-        if (!existsSync90(lockPath))
+        if (!existsSync91(lockPath))
           return;
-        const lockContent = readFileSync65(lockPath, "utf-8");
+        const lockContent = readFileSync66(lockPath, "utf-8");
         const lockData = JSON.parse(lockContent);
         if (lockData.id !== lockId)
           return;
@@ -117431,7 +117570,7 @@ async function handleCreate(args, config, ctx, context) {
         threadID: context.sessionID
       };
       const validatedTask = TaskObjectSchema.parse(task);
-      writeJsonAtomic(join97(taskDir, `${taskId}.json`), validatedTask);
+      writeJsonAtomic(join98(taskDir, `${taskId}.json`), validatedTask);
       await syncTaskTodoUpdate(ctx, validatedTask, context.sessionID);
       return JSON.stringify({
         task: {
@@ -117454,7 +117593,7 @@ async function handleCreate(args, config, ctx, context) {
 }
 // src/tools/task/task-get.ts
 init_tool();
-import { join as join98 } from "path";
+import { join as join99 } from "path";
 var TASK_ID_PATTERN = /^T-[A-Za-z0-9-]+$/;
 function parseTaskId(id) {
   if (!TASK_ID_PATTERN.test(id))
@@ -117479,7 +117618,7 @@ Returns null if the task does not exist or the file is invalid.`,
           return JSON.stringify({ error: "invalid_task_id" });
         }
         const taskDir = getTaskDir(config);
-        const taskPath = join98(taskDir, `${taskId}.json`);
+        const taskPath = join99(taskDir, `${taskId}.json`);
         const task = readJsonSafe(taskPath, TaskObjectSchema);
         return JSON.stringify({ task: task ?? null });
       } catch (error) {
@@ -117493,8 +117632,8 @@ Returns null if the task does not exist or the file is invalid.`,
 }
 // src/tools/task/task-list.ts
 init_tool();
-import { join as join99 } from "path";
-import { existsSync as existsSync91, readdirSync as readdirSync25 } from "fs";
+import { join as join100 } from "path";
+import { existsSync as existsSync92, readdirSync as readdirSync25 } from "fs";
 function createTaskList(config) {
   return tool({
     description: `List all active tasks with summary information.
@@ -117505,7 +117644,7 @@ Returns summary format: id, subject, status, owner, blockedBy (not full descript
     args: {},
     execute: async () => {
       const taskDir = getTaskDir(config);
-      if (!existsSync91(taskDir)) {
+      if (!existsSync92(taskDir)) {
         return JSON.stringify({ tasks: [] });
       }
       const files = readdirSync25(taskDir).filter((f) => f.endsWith(".json") && f.startsWith("T-")).map((f) => f.replace(".json", ""));
@@ -117514,7 +117653,7 @@ Returns summary format: id, subject, status, owner, blockedBy (not full descript
       }
       const allTasks = [];
       for (const fileId of files) {
-        const task = readJsonSafe(join99(taskDir, `${fileId}.json`), TaskObjectSchema);
+        const task = readJsonSafe(join100(taskDir, `${fileId}.json`), TaskObjectSchema);
         if (task) {
           allTasks.push(task);
         }
@@ -117543,7 +117682,7 @@ Returns summary format: id, subject, status, owner, blockedBy (not full descript
 }
 // src/tools/task/task-update.ts
 init_tool();
-import { join as join100 } from "path";
+import { join as join101 } from "path";
 var TASK_ID_PATTERN2 = /^T-[A-Za-z0-9-]+$/;
 function parseTaskId2(id) {
   if (!TASK_ID_PATTERN2.test(id))
@@ -117591,7 +117730,7 @@ async function handleUpdate(args, config, ctx, context) {
       return JSON.stringify({ error: "task_lock_unavailable" });
     }
     try {
-      const taskPath = join100(taskDir, `${taskId}.json`);
+      const taskPath = join101(taskDir, `${taskId}.json`);
       const task = readJsonSafe(taskPath, TaskObjectSchema);
       if (!task) {
         return JSON.stringify({ error: "task_not_found" });
@@ -119888,7 +120027,7 @@ function createHooks(args) {
   };
 }
 // src/features/background-agent/manager.ts
-import { join as join103 } from "path";
+import { join as join104 } from "path";
 init_shared();
 init_agent_display_names();
 init_event_session_id();
@@ -120169,8 +120308,8 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 }
 
 // src/features/background-agent/compaction-aware-message-resolver.ts
-import { readdirSync as readdirSync26, readFileSync as readFileSync67 } from "fs";
-import { join as join102 } from "path";
+import { readdirSync as readdirSync26, readFileSync as readFileSync68 } from "fs";
+import { join as join103 } from "path";
 init_compaction_marker();
 init_compaction_marker();
 function hasFullAgentAndModel(message) {
@@ -120251,7 +120390,7 @@ function findNearestMessageExcludingCompaction(messageDir, sessionID) {
     const messages = [];
     for (const file of files) {
       try {
-        const content = readFileSync67(join102(messageDir, file), "utf-8");
+        const content = readFileSync68(join103(messageDir, file), "utf-8");
         const parsed = JSON.parse(content);
         if (hasCompactionPartInStorage(parsed.id) || isCompactionAgent(parsed.agent)) {
           continue;
@@ -124701,7 +124840,7 @@ The task was re-queued on a fallback model after a retryable failure.
           parentSessionID: task.parentSessionId
         });
       }
-      const messageDir = join103(MESSAGE_STORAGE, task.parentSessionId);
+      const messageDir = join104(MESSAGE_STORAGE, task.parentSessionId);
       const currentMessage = messageDir ? findNearestMessageExcludingCompaction(messageDir, task.parentSessionId) : null;
       agent = currentMessage?.agent ?? task.parentAgent;
       model = currentMessage?.model?.providerID && currentMessage?.model?.modelID ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID } : undefined;
@@ -125044,11 +125183,11 @@ The task was re-queued on a fallback model after a retryable failure.
 }
 // src/features/mcp-oauth/storage.ts
 init_shared();
-import { chmodSync as chmodSync3, existsSync as existsSync93, mkdirSync as mkdirSync19, readFileSync as readFileSync68, renameSync as renameSync7, unlinkSync as unlinkSync16, writeFileSync as writeFileSync21 } from "fs";
-import { dirname as dirname35, join as join104 } from "path";
+import { chmodSync as chmodSync3, existsSync as existsSync94, mkdirSync as mkdirSync19, readFileSync as readFileSync69, renameSync as renameSync7, unlinkSync as unlinkSync16, writeFileSync as writeFileSync21 } from "fs";
+import { dirname as dirname35, join as join105 } from "path";
 var STORAGE_FILE_NAME = "mcp-oauth.json";
 function getMcpOauthStoragePath() {
-  return join104(getOpenCodeConfigDir({ binary: "opencode" }), STORAGE_FILE_NAME);
+  return join105(getOpenCodeConfigDir({ binary: "opencode" }), STORAGE_FILE_NAME);
 }
 function normalizeHost(serverHost) {
   let host = serverHost.trim();
@@ -125087,11 +125226,11 @@ function buildKey(serverHost, resource) {
 }
 function readStore() {
   const filePath = getMcpOauthStoragePath();
-  if (!existsSync93(filePath)) {
+  if (!existsSync94(filePath)) {
     return null;
   }
   try {
-    const content = readFileSync68(filePath, "utf-8");
+    const content = readFileSync69(filePath, "utf-8");
     return JSON.parse(content);
   } catch (readError) {
     if (!(readError instanceof Error))
@@ -125103,7 +125242,7 @@ function writeStore(store2) {
   const filePath = getMcpOauthStoragePath();
   try {
     const dir = dirname35(filePath);
-    if (!existsSync93(dir)) {
+    if (!existsSync94(dir)) {
       mkdirSync19(dir, { recursive: true });
     }
     const tempPath = `${filePath}.tmp.${Date.now()}`;
@@ -132837,7 +132976,7 @@ async function isTmuxAvailable() {
 import {
   appendFileSync as appendFileSync6,
   chmodSync as chmodSync4,
-  existsSync as existsSync95,
+  existsSync as existsSync96,
   renameSync as renameSync8,
   statSync as statSync12,
   unlinkSync as unlinkSync17,
@@ -132845,31 +132984,31 @@ import {
 } from "fs";
 
 // src/openclaw/reply-listener-paths.ts
-import { existsSync as existsSync94, mkdirSync as mkdirSync20 } from "fs";
+import { existsSync as existsSync95, mkdirSync as mkdirSync20 } from "fs";
 import { homedir as homedir21 } from "os";
-import { join as join105 } from "path";
+import { join as join106 } from "path";
 var REPLY_LISTENER_SECURE_FILE_MODE = 384;
 function resolveReplyListenerHomeDir() {
   return process.env.HOME ?? process.env.USERPROFILE ?? homedir21();
 }
 function getReplyListenerStateDir() {
-  return join105(resolveReplyListenerHomeDir(), ".omo", "openclaw", "state");
+  return join106(resolveReplyListenerHomeDir(), ".omo", "openclaw", "state");
 }
 function getReplyListenerPidFilePath() {
-  return join105(getReplyListenerStateDir(), "reply-listener.pid");
+  return join106(getReplyListenerStateDir(), "reply-listener.pid");
 }
 function getReplyListenerStateFilePath() {
-  return join105(getReplyListenerStateDir(), "reply-listener-state.json");
+  return join106(getReplyListenerStateDir(), "reply-listener-state.json");
 }
 function getReplyListenerConfigFilePath() {
-  return join105(getReplyListenerStateDir(), "reply-listener-config.json");
+  return join106(getReplyListenerStateDir(), "reply-listener-config.json");
 }
 function getReplyListenerLogFilePath() {
-  return join105(getReplyListenerStateDir(), "reply-listener.log");
+  return join106(getReplyListenerStateDir(), "reply-listener.log");
 }
 function ensureReplyListenerStateDir() {
   const stateDir = getReplyListenerStateDir();
-  if (!existsSync94(stateDir)) {
+  if (!existsSync95(stateDir)) {
     mkdirSync20(stateDir, { recursive: true, mode: 448 });
   }
 }
@@ -132892,13 +133031,13 @@ function writeSecureReplyListenerFile(filePath, content) {
 }
 function rotateReplyListenerLogIfNeeded(logPath) {
   try {
-    if (!existsSync95(logPath))
+    if (!existsSync96(logPath))
       return;
     const stats = statSync12(logPath);
     if (stats.size <= MAX_REPLY_LISTENER_LOG_SIZE_BYTES)
       return;
     const backupPath = `${logPath}.old`;
-    if (existsSync95(backupPath)) {
+    if (existsSync96(backupPath)) {
       unlinkSync17(backupPath);
     }
     renameSync8(logPath, backupPath);
@@ -132925,7 +133064,7 @@ import { constants as constants21, closeSync as closeSync4, openSync as openSync
 
 // src/openclaw/session-registry-paths.ts
 init_data_path();
-import { join as join106 } from "path";
+import { join as join107 } from "path";
 var SECURE_FILE_MODE = 384;
 var MAX_AGE_MS = 24 * 60 * 60 * 1000;
 var LOCK_TIMEOUT_MS = 2000;
@@ -132936,11 +133075,11 @@ var cachedRegistryPaths = null;
 function resolveRegistryPaths() {
   if (cachedRegistryPaths !== null)
     return cachedRegistryPaths;
-  const openClawStorageDir = join106(getOpenCodeStorageDir(), "openclaw");
+  const openClawStorageDir = join107(getOpenCodeStorageDir(), "openclaw");
   cachedRegistryPaths = {
     openClawStorageDir,
-    registryPath: join106(openClawStorageDir, "reply-session-registry.jsonl"),
-    registryLockPath: join106(openClawStorageDir, "reply-session-registry.lock")
+    registryPath: join107(openClawStorageDir, "reply-session-registry.jsonl"),
+    registryLockPath: join107(openClawStorageDir, "reply-session-registry.lock")
   };
   return cachedRegistryPaths;
 }
@@ -132952,11 +133091,11 @@ function getRegistryLockPath() {
 }
 
 // src/openclaw/session-registry-lock.ts
-import { constants as constants20, closeSync as closeSync3, existsSync as existsSync97, openSync as openSync3, readFileSync as readFileSync70, statSync as statSync13, unlinkSync as unlinkSync18, writeSync } from "fs";
+import { constants as constants20, closeSync as closeSync3, existsSync as existsSync98, openSync as openSync3, readFileSync as readFileSync71, statSync as statSync13, unlinkSync as unlinkSync18, writeSync } from "fs";
 import { randomUUID as randomUUID8 } from "crypto";
 
 // src/openclaw/session-registry-storage.ts
-import { existsSync as existsSync96, mkdirSync as mkdirSync21, readFileSync as readFileSync69, writeFileSync as writeFileSync23 } from "fs";
+import { existsSync as existsSync97, mkdirSync as mkdirSync21, readFileSync as readFileSync70, writeFileSync as writeFileSync23 } from "fs";
 import { dirname as dirname36 } from "path";
 function isSessionMapping(value) {
   if (typeof value !== "object" || value === null)
@@ -132979,16 +133118,16 @@ function isSessionMapping(value) {
 }
 function ensureRegistryDir() {
   const registryDir = dirname36(getRegistryPath());
-  if (!existsSync96(registryDir)) {
+  if (!existsSync97(registryDir)) {
     mkdirSync21(registryDir, { recursive: true, mode: 448 });
   }
 }
 function readAllMappingsUnsafe() {
   const registryPath = getRegistryPath();
-  if (!existsSync96(registryPath))
+  if (!existsSync97(registryPath))
     return [];
   try {
-    const content = readFileSync69(registryPath, "utf-8");
+    const content = readFileSync70(registryPath, "utf-8");
     return content.split(`
 `).filter((line) => line.trim()).map((line) => {
       try {
@@ -133039,9 +133178,9 @@ function isPidAlive2(pid) {
 function readLockSnapshot() {
   try {
     const registryLockPath = getRegistryLockPath();
-    if (!existsSync97(registryLockPath))
+    if (!existsSync98(registryLockPath))
       return null;
-    const raw = readFileSync70(registryLockPath, "utf-8");
+    const raw = readFileSync71(registryLockPath, "utf-8");
     const trimmed = raw.trim();
     if (!trimmed)
       return { raw, pid: null, token: null };
@@ -133070,9 +133209,9 @@ function readLockSnapshot() {
 function removeLockIfUnchanged(snapshot) {
   try {
     const registryLockPath = getRegistryLockPath();
-    if (!existsSync97(registryLockPath))
+    if (!existsSync98(registryLockPath))
       return false;
-    const currentRaw = readFileSync70(registryLockPath, "utf-8");
+    const currentRaw = readFileSync71(registryLockPath, "utf-8");
     if (currentRaw !== snapshot.raw)
       return false;
     unlinkSync18(registryLockPath);
@@ -133242,7 +133381,7 @@ class ReplyListenerRateLimiter {
 }
 
 // src/openclaw/reply-listener-state.ts
-import { existsSync as existsSync98, readFileSync as readFileSync71, unlinkSync as unlinkSync19 } from "fs";
+import { existsSync as existsSync99, readFileSync as readFileSync72, unlinkSync as unlinkSync19 } from "fs";
 var REPLY_LISTENER_STARTUP_TOKEN_ENV = "CAVE_MEISTER_OPENCLAW_REPLY_LISTENER_STARTUP_TOKEN";
 function ignoreReplyListenerStateReadError(error) {
   if (error instanceof Error)
@@ -133309,9 +133448,9 @@ function createPendingReplyListenerState(startupToken) {
 function readReplyListenerDaemonState() {
   try {
     const stateFilePath = getReplyListenerStateFilePath();
-    if (!existsSync98(stateFilePath))
+    if (!existsSync99(stateFilePath))
       return null;
-    return normalizeReplyListenerState(JSON.parse(readFileSync71(stateFilePath, "utf-8")));
+    return normalizeReplyListenerState(JSON.parse(readFileSync72(stateFilePath, "utf-8")));
   } catch (error) {
     ignoreReplyListenerStateReadError(error);
     return null;
@@ -133327,9 +133466,9 @@ function writeReplyListenerDaemonState(state3) {
 function readReplyListenerDaemonConfig() {
   try {
     const configFilePath = getReplyListenerConfigFilePath();
-    if (!existsSync98(configFilePath))
+    if (!existsSync99(configFilePath))
       return null;
-    return JSON.parse(readFileSync71(configFilePath, "utf-8"));
+    return JSON.parse(readFileSync72(configFilePath, "utf-8"));
   } catch (error) {
     ignoreReplyListenerStateReadError(error);
     return null;
@@ -133341,9 +133480,9 @@ function writeReplyListenerDaemonConfig(config) {
 function readReplyListenerPid() {
   try {
     const pidFilePath = getReplyListenerPidFilePath();
-    if (!existsSync98(pidFilePath))
+    if (!existsSync99(pidFilePath))
       return null;
-    const pid = Number.parseInt(readFileSync71(pidFilePath, "utf-8").trim(), 10);
+    const pid = Number.parseInt(readFileSync72(pidFilePath, "utf-8").trim(), 10);
     return Number.isNaN(pid) ? null : pid;
   } catch (error) {
     ignoreReplyListenerStateReadError(error);
@@ -133355,7 +133494,7 @@ function writeReplyListenerPid(pid) {
 }
 function removeReplyListenerPid() {
   const pidFilePath = getReplyListenerPidFilePath();
-  if (existsSync98(pidFilePath)) {
+  if (existsSync99(pidFilePath)) {
     unlinkSync19(pidFilePath);
   }
 }
@@ -133383,7 +133522,7 @@ function getReplyListenerRuntimeSignature(config) {
 // src/openclaw/reply-listener-poll-loop.ts
 var PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 // src/openclaw/reply-listener-start.ts
-import { dirname as dirname37, join as join107 } from "path";
+import { dirname as dirname37, join as join108 } from "path";
 import { fileURLToPath as fileURLToPath6 } from "url";
 
 // src/openclaw/reply-listener-spawn.ts
@@ -133391,7 +133530,7 @@ init_bun_spawn_shim();
 
 // src/openclaw/reply-listener-process.ts
 init_bun_spawn_shim();
-import { readFileSync as readFileSync72 } from "fs";
+import { readFileSync as readFileSync73 } from "fs";
 var REPLY_LISTENER_DAEMON_IDENTITY_MARKER = "--openclaw-reply-listener-daemon";
 var REPLY_LISTENER_DAEMON_ENV_ALLOWLIST = [
   "PATH",
@@ -133452,7 +133591,7 @@ function isReplyListenerProcessRunning(pid) {
 async function isReplyListenerDaemonProcess(pid) {
   try {
     if (process.platform === "linux") {
-      const cmdline = readFileSync72(`/proc/${pid}/cmdline`, "utf-8");
+      const cmdline = readFileSync73(`/proc/${pid}/cmdline`, "utf-8");
       return cmdline.includes(REPLY_LISTENER_DAEMON_IDENTITY_MARKER);
     }
     const processInfo = spawn2(["ps", "-p", String(pid), "-o", "args="], {
@@ -133619,7 +133758,7 @@ function createStartFailureResult(message, state3) {
 }
 function resolveReplyListenerDaemonScript(currentFileUrl) {
   const currentFilePath = fileURLToPath6(currentFileUrl);
-  return currentFilePath.endsWith(".ts") ? join107(dirname37(currentFilePath), "daemon.ts") : join107(dirname37(currentFilePath), "daemon.js");
+  return currentFilePath.endsWith(".ts") ? join108(dirname37(currentFilePath), "daemon.ts") : join108(dirname37(currentFilePath), "daemon.js");
 }
 async function startReplyListener(config) {
   const normalizedConfig = getNormalizedReplyListenerConfig(config);
@@ -134013,21 +134152,21 @@ init_transformer();
 init_logger();
 init_scope_filter2();
 init_bun_file_shim();
-import { existsSync as existsSync99, readFileSync as readFileSync73 } from "fs";
-import { join as join108 } from "path";
+import { existsSync as existsSync100, readFileSync as readFileSync74 } from "fs";
+import { join as join109 } from "path";
 import { homedir as homedir22 } from "os";
 function getMcpConfigPaths() {
   const claudeConfigDir = getClaudeConfigDir();
   const cwd = process.cwd();
   return [
-    { path: join108(homedir22(), ".claude.json"), scope: "user" },
-    { path: join108(claudeConfigDir, ".mcp.json"), scope: "user" },
-    { path: join108(cwd, ".mcp.json"), scope: "project" },
-    { path: join108(cwd, ".claude", ".mcp.json"), scope: "local" }
+    { path: join109(homedir22(), ".claude.json"), scope: "user" },
+    { path: join109(claudeConfigDir, ".mcp.json"), scope: "user" },
+    { path: join109(cwd, ".mcp.json"), scope: "project" },
+    { path: join109(cwd, ".claude", ".mcp.json"), scope: "local" }
   ];
 }
 async function loadMcpConfigFile(filePath) {
-  if (!existsSync99(filePath)) {
+  if (!existsSync100(filePath)) {
     return null;
   }
   try {
@@ -134047,10 +134186,10 @@ function getSystemMcpServerNames() {
   const paths = getMcpConfigPaths();
   const cwd = process.cwd();
   for (const { path: path22 } of paths) {
-    if (!existsSync99(path22))
+    if (!existsSync100(path22))
       continue;
     try {
-      const content = readFileSync73(path22, "utf-8");
+      const content = readFileSync74(path22, "utf-8");
       const config = JSON.parse(content);
       if (!config?.mcpServers)
         continue;
@@ -139767,14 +139906,14 @@ createTonyAgent.mode = MODE9;
 // src/agents/builtin-agents/resolve-file-uri.ts
 init_contains_path2();
 init_logger();
-import { existsSync as existsSync100, readFileSync as readFileSync74 } from "fs";
+import { existsSync as existsSync101, readFileSync as readFileSync75 } from "fs";
 import { homedir as homedir23 } from "os";
-import { isAbsolute as isAbsolute18, join as join109, resolve as resolve26 } from "path";
+import { isAbsolute as isAbsolute18, join as join110, resolve as resolve26 } from "path";
 var ALLOWED_HOME_SUBDIRS = [
-  join109(homedir23(), ".config", "opencode"),
-  join109(homedir23(), ".config", "oh-my-openagent"),
-  join109(homedir23(), ".omo"),
-  join109(homedir23(), ".opencode")
+  join110(homedir23(), ".config", "opencode"),
+  join110(homedir23(), ".config", "oh-my-openagent"),
+  join110(homedir23(), ".omo"),
+  join110(homedir23(), ".opencode")
 ];
 function isWithinAllowedPaths(filePath, projectRoot) {
   if (isWithinProject(filePath, projectRoot))
@@ -139810,11 +139949,11 @@ function resolvePromptAppend(promptAppend, configDir) {
     });
     return `[WARNING: Path rejected: ${promptAppend} (resolved outside project root ${projectRoot} and allowed home directories; file:// prompts must reside within the project directory, ~/.config/opencode/, ~/.config/oh-my-openagent/, ~/.omo/, or ~/.opencode/)]`;
   }
-  if (!existsSync100(filePath)) {
+  if (!existsSync101(filePath)) {
     return `[WARNING: Could not resolve file URI: ${promptAppend}]`;
   }
   try {
-    return readFileSync74(filePath, "utf8");
+    return readFileSync75(filePath, "utf8");
   } catch (error) {
     if (!(error instanceof Error)) {
       throw error;
@@ -142173,7 +142312,7 @@ init_file_utils2();
 init_shared();
 init_logger();
 import { promises as fs23 } from "fs";
-import { join as join110, basename as basename16 } from "path";
+import { join as join111, basename as basename16 } from "path";
 
 // src/features/claude-code-command-loader/loader-cache.ts
 var commandLoaderCache = new Map;
@@ -142221,7 +142360,7 @@ async function loadCommandsFromDir(commandsDir, scope, visited = new Set, prefix
         continue;
       if (entry.name.startsWith("."))
         continue;
-      const subDirPath = join110(commandsDir, entry.name);
+      const subDirPath = join111(commandsDir, entry.name);
       const subPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
       const subCommands = await loadCommandsFromDir(subDirPath, scope, visited, subPrefix);
       commands2.push(...subCommands);
@@ -142229,7 +142368,7 @@ async function loadCommandsFromDir(commandsDir, scope, visited = new Set, prefix
     }
     if (!isMarkdownFile(entry))
       continue;
-    const commandPath = join110(commandsDir, entry.name);
+    const commandPath = join111(commandsDir, entry.name);
     const baseCommandName = basename16(entry.name, ".md");
     const commandName = prefix ? `${prefix}/${baseCommandName}` : baseCommandName;
     try {
@@ -142292,12 +142431,12 @@ function commandsToRecord(commands2) {
   return result;
 }
 async function loadUserCommands() {
-  const userCommandsDir = join110(getClaudeConfigDir(), "commands");
+  const userCommandsDir = join111(getClaudeConfigDir(), "commands");
   const commands2 = await loadCommandsFromDir(userCommandsDir, "user");
   return commandsToRecord(commands2);
 }
 async function loadProjectCommands(directory) {
-  const projectCommandsDir = join110(directory ?? process.cwd(), ".claude", "commands");
+  const projectCommandsDir = join111(directory ?? process.cwd(), ".claude", "commands");
   const commands2 = await loadCommandsFromDir(projectCommandsDir, "project");
   return commandsToRecord(commands2);
 }
@@ -142448,7 +142587,7 @@ var grep_app = {
 };
 
 // src/mcp/ast-grep.ts
-import { existsSync as existsSync101 } from "fs";
+import { existsSync as existsSync102 } from "fs";
 import { dirname as dirname38, resolve as resolve27 } from "path";
 import { fileURLToPath as fileURLToPath7 } from "url";
 
@@ -142554,7 +142693,7 @@ function createFallbackCandidate(resolveExecutable) {
   return { command: [runtime6.command, path22, "mcp"], path: path22, exists: runtime6.available, runtimeAvailable: runtime6.available };
 }
 function resolveAstGrepCommand(options = {}) {
-  const pathExists = options.exists ?? existsSync101;
+  const pathExists = options.exists ?? existsSync102;
   const resolveExecutable = options.resolveExecutable ?? resolveRuntimeExecutable;
   const candidates = [];
   const seenPaths = new Set;
@@ -142590,7 +142729,7 @@ function createAstGrepMcpConfig(options = {}) {
 }
 
 // src/mcp/lsp.ts
-import { existsSync as existsSync102 } from "fs";
+import { existsSync as existsSync103 } from "fs";
 import { dirname as dirname39, resolve as resolve28 } from "path";
 import { fileURLToPath as fileURLToPath8 } from "url";
 var PACKAGE_REL2 = "packages/lsp-tools-mcp";
@@ -142676,7 +142815,7 @@ function createBootstrapCandidate(root, pathExists, resolveExecutable) {
   };
 }
 function resolveLspCommand(options = {}) {
-  const pathExists = options.exists ?? existsSync102;
+  const pathExists = options.exists ?? existsSync103;
   const resolveExecutable = options.resolveExecutable ?? resolveRuntimeExecutable;
   const candidates = [];
   const seenPaths = new Set;
@@ -146021,8 +146160,8 @@ init_agent_display_names();
 // src/plugin/ultrawork-db-model-override.ts
 init_data_path();
 init_shared();
-import { join as join111 } from "path";
-import { existsSync as existsSync103 } from "fs";
+import { join as join112 } from "path";
+import { existsSync as existsSync104 } from "fs";
 async function importBunSqlite() {
   if (typeof globalThis.Bun === "undefined") {
     return null;
@@ -146038,7 +146177,7 @@ async function importBunSqlite() {
   }
 }
 function getDbPath() {
-  return join111(getDataDir(), "opencode", "opencode.db");
+  return join112(getDataDir(), "opencode", "opencode.db");
 }
 var MAX_MICROTASK_RETRIES = 10;
 function logCaughtDbError(message, metadata, error) {
@@ -146118,7 +146257,7 @@ function scheduleDeferredModelOverride(messageId, targetModel, variant) {
       return;
     }
     const dbPath = getDbPath();
-    if (!existsSync103(dbPath)) {
+    if (!existsSync104(dbPath)) {
       log("[ultrawork-db-override] DB not found, skipping deferred override");
       return;
     }
@@ -149293,8 +149432,8 @@ init_opencode_server_auth();
 // src/tools/nifty/nifty-plugin.js
 init_dist();
 import { homedir as homedir25 } from "os";
-import { basename as basename19, dirname as dirname41, extname as extname5, isAbsolute as isAbsolute19, join as join113, resolve as resolve29 } from "path";
-import { appendFileSync as appendFileSync7, closeSync as closeSync5, existsSync as existsSync106, mkdirSync as mkdirSync22, openSync as openSync5, readFileSync as readFileSync76 } from "fs";
+import { basename as basename19, dirname as dirname41, extname as extname5, isAbsolute as isAbsolute19, join as join114, resolve as resolve29 } from "path";
+import { appendFileSync as appendFileSync7, closeSync as closeSync5, existsSync as existsSync107, mkdirSync as mkdirSync22, openSync as openSync5, readFileSync as readFileSync77 } from "fs";
 import { chmod as chmod2, mkdir as mkdir10, readFile as readFile14, writeFile as writeFile2 } from "fs/promises";
 import { spawn as spawn5 } from "child_process";
 import { createServer as createServer3 } from "http";
@@ -149302,8 +149441,8 @@ import { randomBytes as randomBytes3 } from "crypto";
 import { fileURLToPath as fileURLToPath9 } from "url";
 var API_BASE_URL = "https://openapi.niftypm.com";
 var NIFTY_REPO_RAW_BASE = "https://raw.githubusercontent.com/CaveIM/opencode-nifty";
-var TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join113(homedir25(), ".config", "opencode", "nifty-auth.json");
-var AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join113(homedir25(), ".config", "opencode", "nifty-auth-server.log");
+var TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join114(homedir25(), ".config", "opencode", "nifty-auth.json");
+var AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join114(homedir25(), ".config", "opencode", "nifty-auth-server.log");
 var AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node";
 var TOKEN_SKEW_MS = 60 * 1000;
 var BOT_COMMENT_PREFIX = "\uD83E\uDD16";
@@ -149401,12 +149540,12 @@ function parseEnvFile(content) {
   return values;
 }
 function envFileValues(context = {}) {
-  const candidates = [context.directory, context.worktree, process.cwd()].filter(Boolean).map((directory) => join113(directory, ".nifty.env"));
+  const candidates = [context.directory, context.worktree, process.cwd()].filter(Boolean).map((directory) => join114(directory, ".nifty.env"));
   for (const path31 of [...new Set(candidates)]) {
-    if (!existsSync106(path31))
+    if (!existsSync107(path31))
       continue;
     try {
-      return parseEnvFile(readFileSync76(path31, "utf8"));
+      return parseEnvFile(readFileSync77(path31, "utf8"));
     } catch {
       return {};
     }
@@ -149575,7 +149714,7 @@ async function fetchLatestCommit(ref) {
   }
 }
 function currentPluginSource() {
-  return readFileSync76(fileURLToPath9(import.meta.url), "utf8");
+  return readFileSync77(fileURLToPath9(import.meta.url), "utf8");
 }
 function samePluginSource(current, latest) {
   return String(current).trim() === String(latest).trim();
@@ -149908,13 +150047,13 @@ function configPath(context = {}) {
   if (context.config_path)
     return context.config_path;
   const directory = context.directory || context.worktree || process.cwd();
-  return join113(directory, "nifty-workflows.json");
+  return join114(directory, "nifty-workflows.json");
 }
 function projectWorkflowConfigPath(context = {}, explicitPath) {
   if (explicitPath)
     return explicitPath;
   const directory = context.directory || context.worktree || process.cwd();
-  return join113(directory, "nifty-workflows.json");
+  return join114(directory, "nifty-workflows.json");
 }
 function workflowContext(context = {}, explicitPath) {
   return explicitPath ? { ...context, config_path: explicitPath } : context;
