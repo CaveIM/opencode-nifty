@@ -4135,11 +4135,11 @@ export const NiftyPlugin = async () => {
       nifty_update_plugin: tool({
         description: "Updates the installed Nifty plugin from GitHub. In OpenCode mode, updates the installed plugin file. In MCP mode (NIFTY_MCP_ROOT set), also updates mcp/mcp-server.mjs in the cloned repo.",
         args: {
-          ref: tool.schema.string().default("main").describe("GitHub ref to install, usually main or a commit SHA"),
+          ref: tool.schema.string().default("dev-tony").describe("GitHub ref to install, usually dev-tony or a commit SHA"),
           force: tool.schema.boolean().default(false).describe("Run the installer even when the installed plugin already matches the ref"),
         },
         async execute(args, context) {
-          const ref = args.ref || "main"
+          const ref = args.ref || "dev-tony"
           const latestPluginURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/plugin/nifty.js`
           const latestInstallURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/scripts/install.sh`
           const latestMcpServerURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/mcp/mcp-server.mjs`

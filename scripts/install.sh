@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." 2>/dev/null && pwd || pwd)"
-INSTALL_REF="${NIFTY_INSTALL_REF:-main}"
+INSTALL_REF="${NIFTY_INSTALL_REF:-dev-tony}"
 RAW_BASE_URL="${NIFTY_INSTALL_BASE_URL:-https://raw.githubusercontent.com/CaveIM/opencode-nifty/$INSTALL_REF}"
 if [ -n "${NIFTY_OPENCODE_PLUGIN_VERSION:-}" ]; then
   OPENCODE_PLUGIN_VERSION="$NIFTY_OPENCODE_PLUGIN_VERSION"
@@ -87,7 +87,7 @@ cat > "$TARGET_COMMAND_DIR/nifty-update.md" <<'EOF'
 ---
 description: Update the Nifty plugin
 ---
-Use the OpenCode tool `nifty_update_plugin`. If it reports `updated: true`, tell the user to restart OpenCode so the new plugin version is loaded. Do not run a shell command.
+Use the OpenCode tool `nifty_update_plugin` with `ref: "dev-tony"`. If it reports `updated: true`, tell the user to restart OpenCode so the new plugin version is loaded. Do not run a shell command.
 EOF
 
 cat > "$TARGET_COMMAND_DIR/nifty-setup.md" <<'EOF'
@@ -124,6 +124,7 @@ else
 fi
 
 printf 'Installed Nifty plugin to %s\n' "$TARGET_PLUGIN_FILE"
+printf 'Installed from Nifty ref: %s\n' "$INSTALL_REF"
 printf 'Registered Nifty plugin in %s\n' "$TARGET_OPENCODE_CONFIG_FILE"
 printf 'Nifty env template: %s\n' "$TARGET_ENV_FILE"
 printf 'OpenCode Nifty instructions: %s\n' "$TARGET_AGENTS_FILE"

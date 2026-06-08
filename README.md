@@ -72,8 +72,10 @@ Important boundaries:
 Use this while the team build lives on the `dev-tony` branch.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | NIFTY_INSTALL_REF=dev-tony bash
+curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | bash
 ```
+
+That command is intentionally pinned to `dev-tony`: the `dev-tony` branch installer defaults to `NIFTY_INSTALL_REF=dev-tony`, so it downloads `plugin/nifty.js` from the same branch even when run through `curl | bash`.
 
 The installer:
 
@@ -83,6 +85,12 @@ The installer:
 - writes OpenCode guidance into `~/.config/opencode/AGENTS.md`,
 - installs slash commands `/nifty-auth`, `/nifty-health`, `/nifty-update`, and `/nifty-setup`,
 - creates a non-overwriting `.nifty.env` template in the directory where you run the installer.
+
+If you need a project-local OpenCode config, keep the same one-liner and set `OPENCODE_CONFIG_DIR`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | OPENCODE_CONFIG_DIR=/workspace/.opencode bash
+```
 
 Restart OpenCode after installing so it loads the plugin.
 
