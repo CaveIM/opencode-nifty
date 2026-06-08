@@ -93596,16 +93596,16 @@ var ProjectBrainConfigSchema = z23.object({
     enabled: z23.boolean().default(true)
   }).default({ enabled: true }),
   context_retrieval: z23.object({
-    enabled: z23.boolean().default(false),
+    enabled: z23.boolean().default(true),
     max_results: z23.number().int().min(1).max(20).default(5)
-  }).default({ enabled: false, max_results: 5 }),
+  }).default({ enabled: true, max_results: 5 }),
   learning_capture: z23.object({
-    enabled: z23.boolean().default(false)
-  }).default({ enabled: false }),
+    enabled: z23.boolean().default(true)
+  }).default({ enabled: true }),
   local_vault: z23.object({
-    enabled: z23.boolean().default(false),
+    enabled: z23.boolean().default(true),
     cache_dir: z23.string().min(1).optional()
-  }).default({ enabled: false }),
+  }).default({ enabled: true }),
   request_timeout_ms: z23.number().int().min(1000).max(60000).default(30000),
   max_results: z23.number().int().min(1).max(100).default(50),
   max_context_chars: z23.number().int().min(1000).max(50000).default(6000)
