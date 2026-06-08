@@ -37,6 +37,30 @@ Fast install after this repo is public:
 curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | bash
 ```
 
+Install the current team build from the `dev-tony` branch:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | NIFTY_INSTALL_REF=dev-tony bash
+```
+
+This installs the plugin into `~/.config/opencode` by default, copies `plugin/nifty.js` into OpenCode's plugin directory, registers it in your OpenCode config, writes the Nifty guidance and slash commands, and creates a non-overwriting `.nifty.env` template in the directory where you run the installer. Restart OpenCode after installing so it loads the new plugin.
+
+Clone-based install from `dev-tony`:
+
+```bash
+git clone --branch dev-tony --single-branch git@github.com:CaveIM/opencode-nifty.git
+cd opencode-nifty
+./scripts/install.sh
+```
+
+Update an existing `dev-tony` clone and reinstall:
+
+```bash
+git checkout dev-tony
+git pull --ff-only origin dev-tony
+./scripts/update.sh
+```
+
 Or clone this repo into the machine or devcontainer that runs OpenCode, then run the installer:
 
 ```bash
