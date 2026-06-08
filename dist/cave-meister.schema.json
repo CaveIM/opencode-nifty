@@ -6865,6 +6865,15 @@
       ],
       "additionalProperties": false
     },
+    "error_auto_filer": {
+      "type": "object",
+      "properties": {
+        "file_bugs": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
     "_migrations": {
       "type": "array",
       "items": {

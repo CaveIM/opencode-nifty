@@ -63,4 +63,5 @@ export declare function createCoreHooks(args: {
     anthropicEffort: ReturnType<typeof import("../../hooks/anthropic-effort").createAnthropicEffortHook> | null;
     runtimeFallback: ReturnType<typeof import("../../hooks").createRuntimeFallbackHook> | null;
     legacyPluginToast: ReturnType<typeof import("../../hooks").createLegacyPluginToastHook> | null;
+    errorAutoFiler: ReturnType<typeof import("../../hooks/error-auto-filer").createErrorAutoFilerHook> | null;
 };

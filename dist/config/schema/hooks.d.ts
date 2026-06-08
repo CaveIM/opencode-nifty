@@ -58,5 +58,6 @@ export declare const HookNameSchema: z.ZodEnum<{
     "plan-format-validator": "plan-format-validator";
     "legacy-plugin-toast": "legacy-plugin-toast";
     "project-brain": "project-brain";
+    "error-auto-filer": "error-auto-filer";
 }>;
 export type HookName = z.infer<typeof HookNameSchema>;

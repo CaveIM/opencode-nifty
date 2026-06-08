@@ -4,6 +4,7 @@ import type { ModelFallbackControllerAccessor } from "../../hooks/model-fallback
 import type { ModelCacheState } from "../../plugin-state";
 import type { PluginContext } from "../types";
 import { createSessionRecoveryHook, createSessionNotification, createThinkModeHook, createModelFallbackHook, createAnthropicContextWindowLimitRecoveryHook, createAutoUpdateCheckerHook, createAgentUsageReminderHook, createNonInteractiveEnvHook, createInteractiveBashSessionHook, createRalphLoopHook, createEditErrorRecoveryHook, createDelegateTaskRetryHook, createTaskResumeInfoHook, createStartWorkHook, createPrometheusMdOnlyHook, createSisyphusJuniorNotepadHook, createNoSisyphusGptHook, createNoHephaestusNonGptHook, createHephaestusAgentsMdInjectorHook, createQuestionLabelTruncatorHook, createPreemptiveCompactionHook, createRuntimeFallbackHook, createLegacyPluginToastHook } from "../../hooks";
+import { createErrorAutoFilerHook } from "../../hooks/error-auto-filer";
 import { createAnthropicEffortHook } from "../../hooks/anthropic-effort";
 export type SessionHooks = {
     preemptiveCompaction: ReturnType<typeof createPreemptiveCompactionHook> | null;
@@ -30,6 +31,7 @@ export type SessionHooks = {
     anthropicEffort: ReturnType<typeof createAnthropicEffortHook> | null;
     runtimeFallback: ReturnType<typeof createRuntimeFallbackHook> | null;
     legacyPluginToast: ReturnType<typeof createLegacyPluginToastHook> | null;
+    errorAutoFiler: ReturnType<typeof createErrorAutoFilerHook> | null;
 };
 export declare function createSessionHooks(args: {
     ctx: PluginContext;

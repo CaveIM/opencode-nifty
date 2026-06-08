@@ -82847,7 +82847,8 @@ var HookNameSchema = exports_external.enum([
   "fsync-skip-warning",
   "plan-format-validator",
   "legacy-plugin-toast",
-  "project-brain"
+  "project-brain",
+  "error-auto-filer"
 ]);
 // src/config/schema/i18n.ts
 var I18nConfigSchema = exports_external.object({
@@ -82987,6 +82988,11 @@ var ConsensusConfigSchema = exports_external.object({
   post_test_gate: PostTestGateConfigSchema.optional()
 });
 
+// src/config/schema/error-auto-filer.ts
+var ErrorAutoFilerConfigSchema = exports_external.object({
+  file_bugs: exports_external.boolean().optional()
+}).optional();
+
 // src/config/schema/skills.ts
 var SkillSourceSchema = exports_external.union([
   exports_external.string(),
@@ -83120,6 +83126,7 @@ var OhMyOpenCodeConfigSchema = exports_external.object({
   start_work: StartWorkConfigSchema.optional(),
   default_mode: DefaultModeConfigSchema.optional(),
   project_brain: ProjectBrainConfigSchema.optional(),
+  error_auto_filer: ErrorAutoFilerConfigSchema.optional(),
   _migrations: exports_external.array(exports_external.string()).optional()
 });
 // src/shared/disabled-providers.ts

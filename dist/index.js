@@ -61420,6 +61420,191 @@ var init_storage = __esm(() => {
   init_constants4();
 });
 
+// node_modules/.bun/@opencode-ai+plugin@1.15.13/node_modules/@opencode-ai/plugin/dist/tool.js
+import { z as z39 } from "zod";
+function tool(input) {
+  return input;
+}
+var init_tool = __esm(() => {
+  tool.schema = z39;
+});
+
+// node_modules/.bun/@opencode-ai+plugin@1.15.13/node_modules/@opencode-ai/plugin/dist/index.js
+var init_dist = __esm(() => {
+  init_tool();
+});
+
+// src/tools/nifty-create-bug.ts
+var exports_nifty_create_bug = {};
+__export(exports_nifty_create_bug, {
+  findMappingForRepo: () => findMappingForRepo,
+  defaultLoadRepoMapping: () => defaultLoadRepoMapping,
+  defaultGetGitHubToken: () => defaultGetGitHubToken,
+  defaultGetGitHubRepoFromGitConfig: () => defaultGetGitHubRepoFromGitConfig,
+  defaultCreateGitHubIssue: () => defaultCreateGitHubIssue,
+  createNiftyCreateBugTool: () => createNiftyCreateBugTool
+});
+import { existsSync as existsSync92, readFileSync as readFileSync66 } from "fs";
+import { homedir as homedir20 } from "os";
+import { join as join101 } from "path";
+function defaultGetGitHubToken() {
+  const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (envToken)
+    return envToken;
+  const ghHostsPath = join101(homedir20(), ".config", "gh", "hosts.yml");
+  if (existsSync92(ghHostsPath)) {
+    try {
+      const content = readFileSync66(ghHostsPath, "utf8");
+      const tokenMatch = content.match(/oauth_token:\s*(.+)/);
+      if (tokenMatch)
+        return tokenMatch[1].trim();
+    } catch {}
+  }
+  return null;
+}
+async function defaultCreateGitHubIssue(params) {
+  const token = defaultGetGitHubToken();
+  if (!token) {
+    throw new Error("GitHub token not found. Set GITHUB_TOKEN env var or authenticate with gh CLI.");
+  }
+  const response = await fetch(`${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/issues`, {
+    method: "POST",
+    headers: {
+      Authorization: `token ${token}`,
+      Accept: "application/vnd.github.v3+json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      title: params.title,
+      body: params.body,
+      labels: params.labels || ["bug", "ai-detected"]
+    })
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`GitHub API error ${response.status}: ${error}`);
+  }
+  return response.json();
+}
+function defaultGetGitHubRepoFromGitConfig(cwd) {
+  try {
+    const gitConfigPath = join101(cwd, ".git", "config");
+    if (!existsSync92(gitConfigPath))
+      return null;
+    const config = readFileSync66(gitConfigPath, "utf8");
+    const match = config.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/m);
+    if (!match)
+      return null;
+    return {
+      owner: match[1],
+      repo: match[2].replace(/\.git$/, "")
+    };
+  } catch {
+    return null;
+  }
+}
+function defaultLoadRepoMapping(cwd) {
+  const configPath = join101(cwd, ".opencode", "nifty-repo-mapping.json");
+  if (!existsSync92(configPath))
+    return null;
+  try {
+    return JSON.parse(readFileSync66(configPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function findMappingForRepo(config, owner, repo) {
+  if (!config?.mappings?.length)
+    return null;
+  const fullRepoName = `${owner}/${repo}`;
+  return config.mappings.find((m) => m.github_repo === fullRepoName) || null;
+}
+function createNiftyCreateBugTool(deps = {}) {
+  const {
+    getGitHubToken = defaultGetGitHubToken,
+    createGitHubIssue = defaultCreateGitHubIssue,
+    getGitHubRepoFromGitConfig = defaultGetGitHubRepoFromGitConfig,
+    loadRepoMapping = defaultLoadRepoMapping
+  } = deps;
+  return tool({
+    description: "Automatically creates a GitHub issue and linked Nifty task for a bug or error. Detects the GitHub repo from git config and uses repo-to-project mapping to find the correct Nifty project.",
+    args: {
+      title: tool.schema.string().describe("Bug title/summary"),
+      description: tool.schema.string().describe("Detailed bug description"),
+      error_message: tool.schema.string().optional().describe("Error message if available"),
+      stack_trace: tool.schema.string().optional().describe("Stack trace if available"),
+      context: tool.schema.string().optional().describe("Additional context about what was being done when the error occurred"),
+      labels: tool.schema.array(tool.schema.string()).optional().describe("GitHub labels (default: ['bug', 'ai-detected'])")
+    },
+    async execute(args, ctx) {
+      const cwd = ctx?.directory || process.cwd();
+      const repoInfo = getGitHubRepoFromGitConfig(cwd);
+      if (!repoInfo) {
+        throw new Error("Could not detect GitHub repository. Ensure you're in a git repo with a GitHub remote.");
+      }
+      const mappingConfig = loadRepoMapping(cwd);
+      const mapping = findMappingForRepo(mappingConfig, repoInfo.owner, repoInfo.repo);
+      if (!mapping) {
+        throw new Error(`No Nifty project mapping found for ${repoInfo.owner}/${repoInfo.repo}. ` + `Create .opencode/nifty-repo-mapping.json with project details.`);
+      }
+      const token = getGitHubToken();
+      if (!token) {
+        throw new Error("GitHub token not found. Set GITHUB_TOKEN env var or authenticate with gh CLI.");
+      }
+      const issueBody = [
+        "## Description",
+        args.description,
+        "",
+        args.error_message ? `## Error Message
+\`\`\`
+${args.error_message}
+\`\`\`
+` : "",
+        args.stack_trace ? `## Stack Trace
+\`\`\`
+${args.stack_trace}
+\`\`\`
+` : "",
+        args.context ? `## Context
+${args.context}
+` : "",
+        "---",
+        "*This issue was automatically created by the Cave Meister AI agent.*"
+      ].filter(Boolean).join(`
+`);
+      const githubIssue = await createGitHubIssue({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        title: args.title,
+        body: issueBody,
+        labels: args.labels || ["bug", "ai-detected"]
+      });
+      return JSON.stringify({
+        success: true,
+        github_issue: {
+          number: githubIssue.number,
+          url: githubIssue.html_url,
+          title: githubIssue.title
+        },
+        nifty_task_instructions: {
+          message: `Create a Nifty task with:`,
+          suggested_name: `[BUG] ${args.title}`,
+          suggested_description: `GitHub Issue: ${githubIssue.html_url}
+
+${args.description}`,
+          project_id: mapping.nifty_project_id,
+          assignee_id: mapping.default_assignee_id
+        },
+        message: `Created GitHub issue #${githubIssue.number}. Use nifty_create_task to create the linked Nifty task.`
+      }, null, 2);
+    }
+  });
+}
+var GITHUB_API_BASE = "https://api.github.com";
+var init_nifty_create_bug = __esm(() => {
+  init_dist();
+});
+
 // node_modules/.bun/ajv@8.20.0/node_modules/ajv/dist/compile/codegen/code.js
 var require_code = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
@@ -93626,7 +93811,8 @@ var HookNameSchema = z18.enum([
   "fsync-skip-warning",
   "plan-format-validator",
   "legacy-plugin-toast",
-  "project-brain"
+  "project-brain",
+  "error-auto-filer"
 ]);
 // src/config/schema/i18n.ts
 import { z as z19 } from "zod";
@@ -93678,7 +93864,7 @@ var ProjectBrainConfigSchema = z23.object({
   max_context_chars: z23.number().int().min(1000).max(50000).default(6000)
 });
 // src/config/schema/cave-meister-config.ts
-import { z as z37 } from "zod";
+import { z as z38 } from "zod";
 
 // src/mcp/types.ts
 import { z as z24 } from "zod";
@@ -93782,124 +93968,130 @@ var ConsensusConfigSchema = z30.object({
   post_test_gate: PostTestGateConfigSchema.optional()
 });
 
-// src/config/schema/skills.ts
+// src/config/schema/error-auto-filer.ts
 import { z as z31 } from "zod";
-var SkillSourceSchema = z31.union([
-  z31.string(),
-  z31.object({
-    path: z31.string(),
-    recursive: z31.boolean().optional(),
-    glob: z31.string().optional()
+var ErrorAutoFilerConfigSchema = z31.object({
+  file_bugs: z31.boolean().optional()
+}).optional();
+
+// src/config/schema/skills.ts
+import { z as z32 } from "zod";
+var SkillSourceSchema = z32.union([
+  z32.string(),
+  z32.object({
+    path: z32.string(),
+    recursive: z32.boolean().optional(),
+    glob: z32.string().optional()
   })
 ]);
-var SkillDefinitionSchema = z31.object({
-  description: z31.string().optional(),
-  template: z31.string().optional(),
-  from: z31.string().optional(),
-  model: z31.string().optional(),
-  agent: z31.string().optional(),
-  subtask: z31.boolean().optional(),
-  "argument-hint": z31.string().optional(),
-  license: z31.string().optional(),
-  compatibility: z31.string().optional(),
-  metadata: z31.record(z31.string(), z31.unknown()).optional(),
-  "allowed-tools": z31.array(z31.string()).optional(),
-  disable: z31.boolean().optional()
+var SkillDefinitionSchema = z32.object({
+  description: z32.string().optional(),
+  template: z32.string().optional(),
+  from: z32.string().optional(),
+  model: z32.string().optional(),
+  agent: z32.string().optional(),
+  subtask: z32.boolean().optional(),
+  "argument-hint": z32.string().optional(),
+  license: z32.string().optional(),
+  compatibility: z32.string().optional(),
+  metadata: z32.record(z32.string(), z32.unknown()).optional(),
+  "allowed-tools": z32.array(z32.string()).optional(),
+  disable: z32.boolean().optional()
 });
-var SkillEntrySchema = z31.union([z31.boolean(), SkillDefinitionSchema]);
-var SkillsConfigSchema = z31.union([
-  z31.array(z31.string()),
-  z31.object({
-    sources: z31.array(SkillSourceSchema).optional(),
-    enable: z31.array(z31.string()).optional(),
-    disable: z31.array(z31.string()).optional()
+var SkillEntrySchema = z32.union([z32.boolean(), SkillDefinitionSchema]);
+var SkillsConfigSchema = z32.union([
+  z32.array(z32.string()),
+  z32.object({
+    sources: z32.array(SkillSourceSchema).optional(),
+    enable: z32.array(z32.string()).optional(),
+    disable: z32.array(z32.string()).optional()
   }).catchall(SkillEntrySchema)
 ]);
 
 // src/config/schema/sisyphus.ts
-import { z as z32 } from "zod";
-var SisyphusTasksConfigSchema = z32.object({
-  storage_path: z32.string().optional(),
-  task_list_id: z32.string().optional(),
-  claude_code_compat: z32.boolean().default(false)
+import { z as z33 } from "zod";
+var SisyphusTasksConfigSchema = z33.object({
+  storage_path: z33.string().optional(),
+  task_list_id: z33.string().optional(),
+  claude_code_compat: z33.boolean().default(false)
 });
-var SisyphusConfigSchema = z32.object({
+var SisyphusConfigSchema = z33.object({
   tasks: SisyphusTasksConfigSchema.optional()
 });
 
 // src/config/schema/sisyphus-agent.ts
-import { z as z33 } from "zod";
-var SisyphusAgentConfigSchema = z33.object({
-  disabled: z33.boolean().optional(),
-  default_builder_enabled: z33.boolean().optional(),
-  planner_enabled: z33.boolean().optional(),
-  replace_plan: z33.boolean().optional(),
-  tdd: z33.boolean().default(true).optional()
+import { z as z34 } from "zod";
+var SisyphusAgentConfigSchema = z34.object({
+  disabled: z34.boolean().optional(),
+  default_builder_enabled: z34.boolean().optional(),
+  planner_enabled: z34.boolean().optional(),
+  replace_plan: z34.boolean().optional(),
+  tdd: z34.boolean().default(true).optional()
 });
 
 // src/config/schema/tmux.ts
-import { z as z34 } from "zod";
-var TmuxLayoutSchema = z34.enum([
+import { z as z35 } from "zod";
+var TmuxLayoutSchema = z35.enum([
   "main-horizontal",
   "main-vertical",
   "tiled",
   "even-horizontal",
   "even-vertical"
 ]);
-var TmuxIsolationSchema = z34.enum([
+var TmuxIsolationSchema = z35.enum([
   "inline",
   "window",
   "session"
 ]);
-var TmuxConfigSchema = z34.object({
-  enabled: z34.boolean().default(false),
+var TmuxConfigSchema = z35.object({
+  enabled: z35.boolean().default(false),
   layout: TmuxLayoutSchema.default("main-vertical"),
-  main_pane_size: z34.number().min(20).max(80).default(60),
-  main_pane_min_width: z34.number().min(40).default(120),
-  agent_pane_min_width: z34.number().min(20).default(40),
+  main_pane_size: z35.number().min(20).max(80).default(60),
+  main_pane_min_width: z35.number().min(40).default(120),
+  agent_pane_min_width: z35.number().min(20).default(40),
   isolation: TmuxIsolationSchema.default("inline")
 });
 
 // src/config/schema/start-work.ts
-import { z as z35 } from "zod";
-var StartWorkConfigSchema = z35.object({
-  auto_commit: z35.boolean().default(true)
+import { z as z36 } from "zod";
+var StartWorkConfigSchema = z36.object({
+  auto_commit: z36.boolean().default(true)
 });
 
 // src/config/schema/websearch.ts
-import { z as z36 } from "zod";
-var WebsearchProviderSchema = z36.enum(["exa", "tavily"]);
-var WebsearchConfigSchema = z36.object({
+import { z as z37 } from "zod";
+var WebsearchProviderSchema = z37.enum(["exa", "tavily"]);
+var WebsearchConfigSchema = z37.object({
   provider: WebsearchProviderSchema.optional()
 });
 
 // src/config/schema/cave-meister-config.ts
-var OhMyOpenCodeConfigSchema = z37.object({
-  $schema: z37.string().optional(),
-  new_task_system_enabled: z37.boolean().optional(),
-  default_run_agent: z37.string().optional(),
-  agent_order: z37.array(z37.string().max(128)).max(64).optional(),
+var OhMyOpenCodeConfigSchema = z38.object({
+  $schema: z38.string().optional(),
+  new_task_system_enabled: z38.boolean().optional(),
+  default_run_agent: z38.string().optional(),
+  agent_order: z38.array(z38.string().max(128)).max(64).optional(),
   agent_definitions: AgentDefinitionsConfigSchema,
-  disabled_mcps: z37.array(AnyMcpNameSchema).optional(),
-  disabled_agents: z37.array(z37.string()).optional(),
-  disabled_skills: z37.array(BuiltinSkillNameSchema).optional(),
-  disabled_hooks: z37.array(z37.string()).optional(),
-  disabled_commands: z37.array(BuiltinCommandNameSchema).optional(),
-  disabled_tools: z37.array(z37.string()).optional(),
-  disabled_providers: z37.array(z37.string()).optional(),
-  mcp_env_allowlist: z37.array(z37.string()).optional(),
-  hashline_edit: z37.boolean().optional(),
-  model_fallback: z37.boolean().optional(),
+  disabled_mcps: z38.array(AnyMcpNameSchema).optional(),
+  disabled_agents: z38.array(z38.string()).optional(),
+  disabled_skills: z38.array(BuiltinSkillNameSchema).optional(),
+  disabled_hooks: z38.array(z38.string()).optional(),
+  disabled_commands: z38.array(BuiltinCommandNameSchema).optional(),
+  disabled_tools: z38.array(z38.string()).optional(),
+  disabled_providers: z38.array(z38.string()).optional(),
+  mcp_env_allowlist: z38.array(z38.string()).optional(),
+  hashline_edit: z38.boolean().optional(),
+  model_fallback: z38.boolean().optional(),
   agents: AgentOverridesSchema.optional(),
   categories: CategoriesConfigSchema.optional(),
   claude_code: ClaudeCodeConfigSchema.optional(),
   sisyphus_agent: SisyphusAgentConfigSchema.optional(),
   comment_checker: CommentCheckerConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
-  auto_update: z37.boolean().optional(),
+  auto_update: z38.boolean().optional(),
   skills: SkillsConfigSchema.optional(),
   ralph_loop: RalphLoopConfigSchema.optional(),
-  runtime_fallback: z37.union([z37.boolean(), RuntimeFallbackConfigSchema]).optional(),
+  runtime_fallback: z38.union([z38.boolean(), RuntimeFallbackConfigSchema]).optional(),
   background_task: BackgroundTaskConfigSchema.optional(),
   notification: NotificationConfigSchema.optional(),
   model_capabilities: ModelCapabilitiesConfigSchema.optional(),
@@ -93921,7 +94113,8 @@ var OhMyOpenCodeConfigSchema = z37.object({
   start_work: StartWorkConfigSchema.optional(),
   default_mode: DefaultModeConfigSchema.optional(),
   project_brain: ProjectBrainConfigSchema.optional(),
-  _migrations: z37.array(z37.string()).optional()
+  error_auto_filer: ErrorAutoFilerConfigSchema.optional(),
+  _migrations: z38.array(z38.string()).optional()
 });
 // src/features/opencode-skill-loader/git-master-template-injection.ts
 var BASH_CODE_BLOCK_PATTERN = /```bash\r?\n([\s\S]*?)```/g;
@@ -108349,6 +108542,88 @@ function createProjectBrainHook(args) {
     }
   };
 }
+// src/hooks/error-auto-filer/hook.ts
+init_logger();
+init_event_session_id();
+var HOOK_NAME12 = "error-auto-filer";
+function createErrorAutoFilerHook(deps) {
+  const { createBugTool, config, directory } = deps;
+  const filedSessions = new Set;
+  const handleSessionError = async (props) => {
+    if (!config.fileBugs) {
+      return;
+    }
+    const sessionID = resolveSessionEventID(props);
+    if (!sessionID) {
+      log(`[${HOOK_NAME12}] session.error without sessionID, skipping`);
+      return;
+    }
+    if (filedSessions.has(sessionID)) {
+      log(`[${HOOK_NAME12}] Already filed for session ${sessionID}, skipping`);
+      return;
+    }
+    const error = props?.error;
+    const errorMessage = extractErrorMessage(error);
+    try {
+      const title = errorMessage ? `[Cave Meister] ${errorMessage.slice(0, 120)}` : "[Cave Meister] Unknown error";
+      const description = [
+        "## Cave Meister Runtime Error",
+        "",
+        `**Session:** ${sessionID}`,
+        `**Error:** ${errorMessage}`,
+        "",
+        "---",
+        "*This issue was automatically created by the Cave Meister error auto-filer hook.*"
+      ].join(`
+`);
+      const result = await createBugTool({
+        title,
+        description,
+        error_message: errorMessage,
+        labels: ["bug", "ai-detected", "runtime-error"]
+      });
+      if (result?.success) {
+        filedSessions.add(sessionID);
+        log(`[${HOOK_NAME12}] Filed bug for session ${sessionID}`, {
+          github_issue: result.github_issue?.number
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log(`[${HOOK_NAME12}] Failed to file bug: ${message}`);
+    }
+  };
+  const eventHandler = async ({ event }) => {
+    if (event.type === "session.error") {
+      const props = event.properties;
+      await handleSessionError(props);
+    }
+  };
+  const dispose = () => {
+    filedSessions.clear();
+  };
+  return {
+    event: eventHandler,
+    dispose
+  };
+}
+function extractErrorMessage(error) {
+  if (typeof error === "string")
+    return error;
+  if (error && typeof error === "object") {
+    const record = error;
+    if (typeof record.message === "string")
+      return record.message;
+    if (typeof record.error === "string")
+      return record.error;
+    if (record.error && typeof record.error === "object") {
+      const inner = record.error;
+      if (typeof inner.message === "string")
+        return inner.message;
+    }
+  }
+  return "Unknown error";
+}
 // src/hooks/anthropic-effort/hook.ts
 init_shared();
 var OPUS_PATTERN = /claude-.*opus/i;
@@ -108448,14 +108723,8 @@ init_shared();
 init_safe_create_hook();
 
 // src/tools/grep/tools.ts
+init_tool();
 import { resolve as resolve23 } from "path";
-
-// node_modules/.bun/@opencode-ai+plugin@1.15.13/node_modules/@opencode-ai/plugin/dist/tool.js
-import { z as z38 } from "zod";
-function tool(input) {
-  return input;
-}
-tool.schema = z38;
 
 // src/shared/ripgrep-cli.ts
 import { spawnSync as spawnSync2 } from "child_process";
@@ -109047,6 +109316,7 @@ function createGrepTools(ctx) {
   return { grep };
 }
 // src/tools/glob/tools.ts
+init_tool();
 import { resolve as resolve25 } from "path";
 
 // src/tools/glob/cli.ts
@@ -109265,7 +109535,9 @@ Use this when a task matches an available skill's or command's description.
 - The tool will return detailed instructions with your context applied.
 `;
 // src/tools/skill/tools.ts
+init_dist();
 import { dirname as dirname31 } from "path";
+
 // src/tools/skill/session-skill-cache.ts
 var seenSessionIDs = new Set;
 function shouldInvalidateSkillCacheForSession(sessionID) {
@@ -109385,6 +109657,7 @@ ${availableItems.join(`
 }
 
 // src/plugin/normalize-tool-arg-schemas.ts
+init_dist();
 function stripRootJsonSchemaFields(jsonSchema) {
   const { $schema: _schema, ...rest } = jsonSchema;
   return rest;
@@ -109730,6 +110003,9 @@ function createSkillTool(options) {
   });
 }
 var skill = createSkillTool({ directory: process.cwd() });
+// src/tools/session-manager/tools.ts
+init_tool();
+
 // src/tools/session-manager/constants.ts
 init_shared();
 init_shared();
@@ -110581,6 +110857,7 @@ function createSessionManagerTools(ctx, deps = {}) {
   return { session_list, session_read, session_search, session_info };
 }
 // src/tools/interactive-bash/tools.ts
+init_tool();
 init_logger();
 // src/tools/interactive-bash/constants.ts
 var DEFAULT_TIMEOUT_MS4 = 60000;
@@ -110875,6 +111152,9 @@ var BUILTIN_MCP_TOOL_HINTS = {
   websearch: ["websearch_web_search_exa"],
   grep_app: ["grep_app_searchGitHub"]
 };
+// src/tools/skill-mcp/tools.ts
+init_dist();
+
 // src/tools/skill-mcp/parse-skill-mcp-arguments.ts
 function parseSkillMcpArguments(argsJson) {
   if (!argsJson)
@@ -111044,6 +111324,9 @@ function createSkillMcpTool(options) {
     }
   });
 }
+// src/tools/background-task/create-background-task.ts
+init_dist();
+
 // src/tools/background-task/constants.ts
 var BACKGROUND_OUTPUT_DESCRIPTION = `Get output from background task. Use full_session=true to fetch session messages with filters. System notifies on completion, so block=true rarely needed. - Timeout values are in milliseconds (ms), NOT seconds.
 
@@ -111062,6 +111345,7 @@ function delay4(ms) {
 // src/tools/background-task/message-dir.ts
 init_opencode_message_dir();
 // src/tools/background-task/create-background-output.ts
+init_dist();
 init_logger();
 
 // src/tools/background-task/session-messages.ts
@@ -111368,7 +111652,7 @@ function extractErrorName2(error) {
     return error.name;
   return;
 }
-function extractErrorMessage(error) {
+function extractErrorMessage2(error) {
   if (!error)
     return;
   if (typeof error === "string")
@@ -111500,7 +111784,7 @@ Session ID: ${task.sessionId}
     const timeB = getTimeString(b.info?.time);
     return timeA.localeCompare(timeB);
   });
-  const sessionError = sortedMessages.filter((message) => message.info?.role === "assistant" && message.info?.error).map((message) => extractErrorMessage(message.info?.error)).find((message) => typeof message === "string" && message.length > 0);
+  const sessionError = sortedMessages.filter((message) => message.info?.role === "assistant" && message.info?.error).map((message) => extractErrorMessage2(message.info?.error)).find((message) => typeof message === "string" && message.length > 0);
   if (sessionError) {
     return `Task Result
 
@@ -111760,6 +112044,7 @@ function createBackgroundOutput(manager, client) {
   });
 }
 // src/tools/background-task/create-background-cancel.ts
+init_dist();
 function createBackgroundCancel(manager, _client) {
   return tool({
     description: BACKGROUND_CANCEL_DESCRIPTION,
@@ -111867,6 +112152,7 @@ Other built-in agents, custom agents, and task categories are intentionally not 
 
 Pass \`session_id=<id>\` to continue previous agent with full context. Nested subagent depth is tracked automatically and blocked past the configured limit. Prompts MUST be in English. Use \`background_output\` for async results.`;
 // src/tools/call-omo-agent/tools.ts
+init_dist();
 init_model_requirements2();
 init_agent_display_names();
 init_model_resolver2();
@@ -112779,6 +113065,7 @@ function createCallOmoAgent(ctx, backgroundManager, disabledAgents = [], agentOv
 var MULTIMODAL_LOOKER_AGENT = "anwyko";
 var LOOK_AT_DESCRIPTION = `Extract basic information from media files (PDFs, images, diagrams) when a quick summary suffices over precise reading. Good for simple text-based content extraction without using the Read tool. NEVER use for visual precision, aesthetic evaluation, or exact accuracy - use Read tool instead for those cases.`;
 // src/tools/look-at/tools.ts
+init_dist();
 init_shared();
 
 // src/tools/look-at/look-at-arguments.ts
@@ -113632,6 +113919,7 @@ function createLookAt(ctx) {
   });
 }
 // src/tools/delegate-task/tools.ts
+init_dist();
 init_logger();
 
 // src/tools/delegate-task/prompt-builder.ts
@@ -114162,7 +114450,7 @@ function getTerminalSessionError(messages) {
   if (!lastAssistant?.info || !("error" in lastAssistant.info)) {
     return null;
   }
-  const errorMessage = extractErrorMessage(lastAssistant.info.error);
+  const errorMessage = extractErrorMessage2(lastAssistant.info.error);
   return errorMessage && errorMessage.length > 0 ? errorMessage : "Session error";
 }
 function isSessionComplete(messages) {
@@ -116790,58 +117078,59 @@ function isExplicitSyncRun(runInBackground) {
 // src/tools/delegate-task/index.ts
 init_constants();
 // src/tools/task/task-create.ts
+init_tool();
 import { join as join97 } from "path";
 
 // src/tools/task/types.ts
-import { z as z39 } from "zod";
-var TaskStatusSchema = z39.enum(["pending", "in_progress", "completed", "deleted"]);
-var TaskObjectSchema = z39.object({
-  id: z39.string(),
-  subject: z39.string(),
-  description: z39.string(),
+import { z as z40 } from "zod";
+var TaskStatusSchema = z40.enum(["pending", "in_progress", "completed", "deleted"]);
+var TaskObjectSchema = z40.object({
+  id: z40.string(),
+  subject: z40.string(),
+  description: z40.string(),
   status: TaskStatusSchema,
-  activeForm: z39.string().optional(),
-  blocks: z39.array(z39.string()).default([]),
-  blockedBy: z39.array(z39.string()).default([]),
-  owner: z39.string().optional(),
-  metadata: z39.record(z39.string(), z39.unknown()).optional(),
-  repoURL: z39.string().optional(),
-  parentID: z39.string().optional(),
-  threadID: z39.string()
+  activeForm: z40.string().optional(),
+  blocks: z40.array(z40.string()).default([]),
+  blockedBy: z40.array(z40.string()).default([]),
+  owner: z40.string().optional(),
+  metadata: z40.record(z40.string(), z40.unknown()).optional(),
+  repoURL: z40.string().optional(),
+  parentID: z40.string().optional(),
+  threadID: z40.string()
 }).strict();
-var TaskCreateInputSchema = z39.object({
-  subject: z39.string(),
-  description: z39.string().optional(),
-  activeForm: z39.string().optional(),
-  blocks: z39.array(z39.string()).optional(),
-  blockedBy: z39.array(z39.string()).optional(),
-  owner: z39.string().optional(),
-  metadata: z39.record(z39.string(), z39.unknown()).optional(),
-  repoURL: z39.string().optional(),
-  parentID: z39.string().optional()
+var TaskCreateInputSchema = z40.object({
+  subject: z40.string(),
+  description: z40.string().optional(),
+  activeForm: z40.string().optional(),
+  blocks: z40.array(z40.string()).optional(),
+  blockedBy: z40.array(z40.string()).optional(),
+  owner: z40.string().optional(),
+  metadata: z40.record(z40.string(), z40.unknown()).optional(),
+  repoURL: z40.string().optional(),
+  parentID: z40.string().optional()
 });
-var TaskListInputSchema = z39.object({
+var TaskListInputSchema = z40.object({
   status: TaskStatusSchema.optional(),
-  parentID: z39.string().optional()
+  parentID: z40.string().optional()
 });
-var TaskGetInputSchema = z39.object({
-  id: z39.string()
+var TaskGetInputSchema = z40.object({
+  id: z40.string()
 });
-var TaskUpdateInputSchema = z39.object({
-  id: z39.string(),
-  subject: z39.string().optional(),
-  description: z39.string().optional(),
+var TaskUpdateInputSchema = z40.object({
+  id: z40.string(),
+  subject: z40.string().optional(),
+  description: z40.string().optional(),
   status: TaskStatusSchema.optional(),
-  activeForm: z39.string().optional(),
-  addBlocks: z39.array(z39.string()).optional(),
-  addBlockedBy: z39.array(z39.string()).optional(),
-  owner: z39.string().optional(),
-  metadata: z39.record(z39.string(), z39.unknown()).optional(),
-  repoURL: z39.string().optional(),
-  parentID: z39.string().optional()
+  activeForm: z40.string().optional(),
+  addBlocks: z40.array(z40.string()).optional(),
+  addBlockedBy: z40.array(z40.string()).optional(),
+  owner: z40.string().optional(),
+  metadata: z40.record(z40.string(), z40.unknown()).optional(),
+  repoURL: z40.string().optional(),
+  parentID: z40.string().optional()
 });
-var TaskDeleteInputSchema = z39.object({
-  id: z39.string()
+var TaskDeleteInputSchema = z40.object({
+  id: z40.string()
 });
 
 // src/features/claude-tasks/storage.ts
@@ -117164,6 +117453,7 @@ async function handleCreate(args, config, ctx, context) {
   }
 }
 // src/tools/task/task-get.ts
+init_tool();
 import { join as join98 } from "path";
 var TASK_ID_PATTERN = /^T-[A-Za-z0-9-]+$/;
 function parseTaskId(id) {
@@ -117202,6 +117492,7 @@ Returns null if the task does not exist or the file is invalid.`,
   });
 }
 // src/tools/task/task-list.ts
+init_tool();
 import { join as join99 } from "path";
 import { existsSync as existsSync91, readdirSync as readdirSync25 } from "fs";
 function createTaskList(config) {
@@ -117251,6 +117542,7 @@ Returns summary format: id, subject, status, owner, blockedBy (not full descript
   });
 }
 // src/tools/task/task-update.ts
+init_tool();
 import { join as join100 } from "path";
 var TASK_ID_PATTERN2 = /^T-[A-Za-z0-9-]+$/;
 function parseTaskId2(id) {
@@ -117352,6 +117644,9 @@ async function handleUpdate(args, config, ctx, context) {
     return JSON.stringify({ error: "internal_error" });
   }
 }
+// src/tools/hashline-edit/tools.ts
+init_tool();
+
 // src/tools/hashline-edit/hashline-edit-executor.ts
 init_bun_file_shim();
 // src/tools/hashline-edit/formatter-trigger.ts
@@ -117683,6 +117978,9 @@ function createHashlineEditTool(ctx) {
     execute: async (args, context) => executeHashlineEditTool(args, context, ctx)
   });
 }
+// src/tools/consensus/tool.ts
+init_dist();
+
 // src/features/consensus/types.ts
 function isUsableVoterPosition(voter) {
   return voter.status === "ok" && voter.text.trim().length > 0;
@@ -118195,6 +118493,7 @@ function buildSynthesizerGuidance(okVoterCount, advisoryOnly) {
 5. Never silently pick one position when others contradict it - that throws away the diversity signal`;
 }
 // src/tools/project-brain/tools.ts
+init_dist();
 init_logger();
 var MISSING_SERVER_URL_ERROR = "Project Brain is enabled, but project_brain.server_url is missing. Configure project_brain.server_url before using Project Brain tools.";
 var defaultProjectBrainToolDeps = {
@@ -118346,168 +118645,14 @@ function createProjectBrainTools(pluginConfig, ctx, deps = {}) {
     project_brain_status
   };
 }
-// src/tools/nifty-create-bug.ts
-import { existsSync as existsSync92, readFileSync as readFileSync66 } from "fs";
-import { homedir as homedir20 } from "os";
-import { join as join101 } from "path";
-var GITHUB_API_BASE = "https://api.github.com";
-function defaultGetGitHubToken() {
-  const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-  if (envToken)
-    return envToken;
-  const ghHostsPath = join101(homedir20(), ".config", "gh", "hosts.yml");
-  if (existsSync92(ghHostsPath)) {
-    try {
-      const content = readFileSync66(ghHostsPath, "utf8");
-      const tokenMatch = content.match(/oauth_token:\s*(.+)/);
-      if (tokenMatch)
-        return tokenMatch[1].trim();
-    } catch {}
-  }
-  return null;
-}
-async function defaultCreateGitHubIssue(params) {
-  const token = defaultGetGitHubToken();
-  if (!token) {
-    throw new Error("GitHub token not found. Set GITHUB_TOKEN env var or authenticate with gh CLI.");
-  }
-  const response = await fetch(`${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/issues`, {
-    method: "POST",
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github.v3+json",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      title: params.title,
-      body: params.body,
-      labels: params.labels || ["bug", "ai-detected"]
-    })
-  });
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`GitHub API error ${response.status}: ${error}`);
-  }
-  return response.json();
-}
-function defaultGetGitHubRepoFromGitConfig(cwd) {
-  try {
-    const gitConfigPath = join101(cwd, ".git", "config");
-    if (!existsSync92(gitConfigPath))
-      return null;
-    const config = readFileSync66(gitConfigPath, "utf8");
-    const match = config.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/m);
-    if (!match)
-      return null;
-    return {
-      owner: match[1],
-      repo: match[2].replace(/\.git$/, "")
-    };
-  } catch {
-    return null;
-  }
-}
-function defaultLoadRepoMapping(cwd) {
-  const configPath = join101(cwd, ".opencode", "nifty-repo-mapping.json");
-  if (!existsSync92(configPath))
-    return null;
-  try {
-    return JSON.parse(readFileSync66(configPath, "utf8"));
-  } catch {
-    return null;
-  }
-}
-function findMappingForRepo(config, owner, repo) {
-  if (!config?.mappings?.length)
-    return null;
-  const fullRepoName = `${owner}/${repo}`;
-  return config.mappings.find((m) => m.github_repo === fullRepoName) || null;
-}
-function createNiftyCreateBugTool(deps = {}) {
-  const {
-    getGitHubToken = defaultGetGitHubToken,
-    createGitHubIssue = defaultCreateGitHubIssue,
-    getGitHubRepoFromGitConfig = defaultGetGitHubRepoFromGitConfig,
-    loadRepoMapping = defaultLoadRepoMapping
-  } = deps;
-  return tool({
-    description: "Automatically creates a GitHub issue and linked Nifty task for a bug or error. Detects the GitHub repo from git config and uses repo-to-project mapping to find the correct Nifty project.",
-    args: {
-      title: tool.schema.string().describe("Bug title/summary"),
-      description: tool.schema.string().describe("Detailed bug description"),
-      error_message: tool.schema.string().optional().describe("Error message if available"),
-      stack_trace: tool.schema.string().optional().describe("Stack trace if available"),
-      context: tool.schema.string().optional().describe("Additional context about what was being done when the error occurred"),
-      labels: tool.schema.array(tool.schema.string()).optional().describe("GitHub labels (default: ['bug', 'ai-detected'])")
-    },
-    async execute(args, ctx) {
-      const cwd = ctx?.directory || process.cwd();
-      const repoInfo = getGitHubRepoFromGitConfig(cwd);
-      if (!repoInfo) {
-        throw new Error("Could not detect GitHub repository. Ensure you're in a git repo with a GitHub remote.");
-      }
-      const mappingConfig = loadRepoMapping(cwd);
-      const mapping = findMappingForRepo(mappingConfig, repoInfo.owner, repoInfo.repo);
-      if (!mapping) {
-        throw new Error(`No Nifty project mapping found for ${repoInfo.owner}/${repoInfo.repo}. ` + `Create .opencode/nifty-repo-mapping.json with project details.`);
-      }
-      const token = getGitHubToken();
-      if (!token) {
-        throw new Error("GitHub token not found. Set GITHUB_TOKEN env var or authenticate with gh CLI.");
-      }
-      const issueBody = [
-        "## Description",
-        args.description,
-        "",
-        args.error_message ? `## Error Message
-\`\`\`
-${args.error_message}
-\`\`\`
-` : "",
-        args.stack_trace ? `## Stack Trace
-\`\`\`
-${args.stack_trace}
-\`\`\`
-` : "",
-        args.context ? `## Context
-${args.context}
-` : "",
-        "---",
-        "*This issue was automatically created by the Cave Meister AI agent.*"
-      ].filter(Boolean).join(`
-`);
-      const githubIssue = await createGitHubIssue({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        title: args.title,
-        body: issueBody,
-        labels: args.labels || ["bug", "ai-detected"]
-      });
-      return JSON.stringify({
-        success: true,
-        github_issue: {
-          number: githubIssue.number,
-          url: githubIssue.html_url,
-          title: githubIssue.title
-        },
-        nifty_task_instructions: {
-          message: `Create a Nifty task with:`,
-          suggested_name: `[BUG] ${args.title}`,
-          suggested_description: `GitHub Issue: ${githubIssue.html_url}
+// src/tools/index.ts
+init_nifty_create_bug();
 
-${args.description}`,
-          project_id: mapping.nifty_project_id,
-          assignee_id: mapping.default_assignee_id
-        },
-        message: `Created GitHub issue #${githubIssue.number}. Use nifty_create_task to create the linked Nifty task.`
-      }, null, 2);
-    }
-  });
-}
 // src/features/team-mode/tools/messaging.ts
-import { randomUUID as randomUUID6 } from "crypto";
+init_tool();
 init_logger();
-import { z as z40 } from "zod";
+import { randomUUID as randomUUID6 } from "crypto";
+import { z as z41 } from "zod";
 
 // src/features/team-mode/team-mailbox/send.ts
 init_paths();
@@ -119021,18 +119166,18 @@ function buildMessageLogFields(args) {
     ...args.duration_ms !== undefined ? { duration_ms: args.duration_ms } : {}
   };
 }
-var TeamReferenceArgsSchema = z40.object({
-  path: z40.string().min(1),
-  description: z40.string().optional()
+var TeamReferenceArgsSchema = z41.object({
+  path: z41.string().min(1),
+  description: z41.string().optional()
 });
-var TeamSendMessageArgsSchema = z40.object({
-  teamRunId: z40.string().min(1),
-  to: z40.string().min(1),
-  body: z40.string(),
-  kind: z40.enum(MESSAGE_TOOL_KINDS).optional(),
-  correlationId: z40.uuid().optional(),
-  summary: z40.string().optional(),
-  references: z40.array(TeamReferenceArgsSchema).optional()
+var TeamSendMessageArgsSchema = z41.object({
+  teamRunId: z41.string().min(1),
+  to: z41.string().min(1),
+  body: z41.string(),
+  kind: z41.enum(MESSAGE_TOOL_KINDS).optional(),
+  correlationId: z41.uuid().optional(),
+  summary: z41.string().optional(),
+  references: z41.array(TeamReferenceArgsSchema).optional()
 });
 function createTeamSendMessageTool(config, client, deps = defaultTeamSendMessageToolDeps) {
   return tool({
@@ -119253,6 +119398,16 @@ function createSessionHooks(args) {
     pluginConfig
   })) : null;
   const legacyPluginToast = isHookEnabled("legacy-plugin-toast") ? safeHook("legacy-plugin-toast", () => createLegacyPluginToastHook(ctx)) : null;
+  const errorAutoFiler = isHookEnabled("error-auto-filer") ? safeHook("error-auto-filer", () => createErrorAutoFilerHook({
+    createBugTool: async (args2) => {
+      const { createNiftyCreateBugTool: createNiftyCreateBugTool2 } = await Promise.resolve().then(() => (init_nifty_create_bug(), exports_nifty_create_bug));
+      const tool3 = createNiftyCreateBugTool2();
+      const result = await tool3.execute(args2, { directory: ctx.directory });
+      return typeof result === "string" ? JSON.parse(result) : result;
+    },
+    config: { fileBugs: pluginConfig.error_auto_filer?.file_bugs ?? true },
+    directory: ctx.directory
+  })) : null;
   return {
     preemptiveCompaction,
     sessionRecovery,
@@ -119277,7 +119432,8 @@ function createSessionHooks(args) {
     taskResumeInfo,
     anthropicEffort,
     runtimeFallback,
-    legacyPluginToast
+    legacyPluginToast,
+    errorAutoFiler
   };
 }
 
@@ -121639,7 +121795,7 @@ function removeTaskToastTracking(taskId) {
 
 // src/features/background-agent/session-existence.ts
 var MIN_SESSION_GONE_POLLS = 3;
-function extractErrorMessage2(error) {
+function extractErrorMessage3(error) {
   if (typeof error === "string") {
     return error;
   }
@@ -121658,7 +121814,7 @@ function isSessionNotFoundError(error) {
   if (extractErrorStatus(error) === 404) {
     return true;
   }
-  const message = extractErrorMessage2(error)?.toLowerCase();
+  const message = extractErrorMessage3(error)?.toLowerCase();
   if (!message) {
     return false;
   }
@@ -123222,7 +123378,7 @@ The fallback retry session is now created and can be inspected directly.
       if (existingTask) {
         const errorInfo = {
           name: extractErrorName2(error),
-          message: extractErrorMessage(error),
+          message: extractErrorMessage2(error),
           statusCode: extractErrorStatusCode(error)
         };
         if (await this.tryFallbackRetry(existingTask, errorInfo, "promptAsync.launch")) {
@@ -123561,7 +123717,7 @@ The fallback retry session is now created and can be inspected directly.
       log("[background-agent] resume prompt error:", error);
       const errorInfo = {
         name: extractErrorName2(error),
-        message: extractErrorMessage(error),
+        message: extractErrorMessage2(error),
         statusCode: extractErrorStatusCode(error)
       };
       if (await this.tryFallbackRetry(existingTask, errorInfo, "promptAsync.resume")) {
@@ -123730,7 +123886,7 @@ The fallback retry session is now created and can be inspected directly.
         return;
       const errorInfo = {
         name: extractErrorName2(assistantError),
-        message: extractErrorMessage(assistantError),
+        message: extractErrorMessage2(assistantError),
         statusCode: extractErrorStatusCode(assistantError)
       };
       this.tryFallbackRetry(task, errorInfo, "message.updated").catch((error) => {
@@ -125633,63 +125789,63 @@ function getLiteralValue(schema) {
 }
 
 // node_modules/.bun/@modelcontextprotocol+sdk@1.29.0/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
-import * as z41 from "zod/v4";
+import * as z42 from "zod/v4";
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 var JSONRPC_VERSION = "2.0";
-var AssertObjectSchema = z41.custom((v) => v !== null && (typeof v === "object" || typeof v === "function"));
-var ProgressTokenSchema = z41.union([z41.string(), z41.number().int()]);
-var CursorSchema = z41.string();
-var TaskCreationParamsSchema = z41.looseObject({
-  ttl: z41.number().optional(),
-  pollInterval: z41.number().optional()
+var AssertObjectSchema = z42.custom((v) => v !== null && (typeof v === "object" || typeof v === "function"));
+var ProgressTokenSchema = z42.union([z42.string(), z42.number().int()]);
+var CursorSchema = z42.string();
+var TaskCreationParamsSchema = z42.looseObject({
+  ttl: z42.number().optional(),
+  pollInterval: z42.number().optional()
 });
-var TaskMetadataSchema = z41.object({
-  ttl: z41.number().optional()
+var TaskMetadataSchema = z42.object({
+  ttl: z42.number().optional()
 });
-var RelatedTaskMetadataSchema = z41.object({
-  taskId: z41.string()
+var RelatedTaskMetadataSchema = z42.object({
+  taskId: z42.string()
 });
-var RequestMetaSchema = z41.looseObject({
+var RequestMetaSchema = z42.looseObject({
   progressToken: ProgressTokenSchema.optional(),
   [RELATED_TASK_META_KEY]: RelatedTaskMetadataSchema.optional()
 });
-var BaseRequestParamsSchema = z41.object({
+var BaseRequestParamsSchema = z42.object({
   _meta: RequestMetaSchema.optional()
 });
 var TaskAugmentedRequestParamsSchema = BaseRequestParamsSchema.extend({
   task: TaskMetadataSchema.optional()
 });
 var isTaskAugmentedRequestParams = (value) => TaskAugmentedRequestParamsSchema.safeParse(value).success;
-var RequestSchema = z41.object({
-  method: z41.string(),
+var RequestSchema = z42.object({
+  method: z42.string(),
   params: BaseRequestParamsSchema.loose().optional()
 });
-var NotificationsParamsSchema = z41.object({
+var NotificationsParamsSchema = z42.object({
   _meta: RequestMetaSchema.optional()
 });
-var NotificationSchema = z41.object({
-  method: z41.string(),
+var NotificationSchema = z42.object({
+  method: z42.string(),
   params: NotificationsParamsSchema.loose().optional()
 });
-var ResultSchema = z41.looseObject({
+var ResultSchema = z42.looseObject({
   _meta: RequestMetaSchema.optional()
 });
-var RequestIdSchema = z41.union([z41.string(), z41.number().int()]);
-var JSONRPCRequestSchema = z41.object({
-  jsonrpc: z41.literal(JSONRPC_VERSION),
+var RequestIdSchema = z42.union([z42.string(), z42.number().int()]);
+var JSONRPCRequestSchema = z42.object({
+  jsonrpc: z42.literal(JSONRPC_VERSION),
   id: RequestIdSchema,
   ...RequestSchema.shape
 }).strict();
 var isJSONRPCRequest = (value) => JSONRPCRequestSchema.safeParse(value).success;
-var JSONRPCNotificationSchema = z41.object({
-  jsonrpc: z41.literal(JSONRPC_VERSION),
+var JSONRPCNotificationSchema = z42.object({
+  jsonrpc: z42.literal(JSONRPC_VERSION),
   ...NotificationSchema.shape
 }).strict();
 var isJSONRPCNotification = (value) => JSONRPCNotificationSchema.safeParse(value).success;
-var JSONRPCResultResponseSchema = z41.object({
-  jsonrpc: z41.literal(JSONRPC_VERSION),
+var JSONRPCResultResponseSchema = z42.object({
+  jsonrpc: z42.literal(JSONRPC_VERSION),
   id: RequestIdSchema,
   result: ResultSchema
 }).strict();
@@ -125705,153 +125861,153 @@ var ErrorCode;
   ErrorCode2[ErrorCode2["InternalError"] = -32603] = "InternalError";
   ErrorCode2[ErrorCode2["UrlElicitationRequired"] = -32042] = "UrlElicitationRequired";
 })(ErrorCode || (ErrorCode = {}));
-var JSONRPCErrorResponseSchema = z41.object({
-  jsonrpc: z41.literal(JSONRPC_VERSION),
+var JSONRPCErrorResponseSchema = z42.object({
+  jsonrpc: z42.literal(JSONRPC_VERSION),
   id: RequestIdSchema.optional(),
-  error: z41.object({
-    code: z41.number().int(),
-    message: z41.string(),
-    data: z41.unknown().optional()
+  error: z42.object({
+    code: z42.number().int(),
+    message: z42.string(),
+    data: z42.unknown().optional()
   })
 }).strict();
 var isJSONRPCErrorResponse = (value) => JSONRPCErrorResponseSchema.safeParse(value).success;
-var JSONRPCMessageSchema = z41.union([
+var JSONRPCMessageSchema = z42.union([
   JSONRPCRequestSchema,
   JSONRPCNotificationSchema,
   JSONRPCResultResponseSchema,
   JSONRPCErrorResponseSchema
 ]);
-var JSONRPCResponseSchema = z41.union([JSONRPCResultResponseSchema, JSONRPCErrorResponseSchema]);
+var JSONRPCResponseSchema = z42.union([JSONRPCResultResponseSchema, JSONRPCErrorResponseSchema]);
 var EmptyResultSchema = ResultSchema.strict();
 var CancelledNotificationParamsSchema = NotificationsParamsSchema.extend({
   requestId: RequestIdSchema.optional(),
-  reason: z41.string().optional()
+  reason: z42.string().optional()
 });
 var CancelledNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/cancelled"),
+  method: z42.literal("notifications/cancelled"),
   params: CancelledNotificationParamsSchema
 });
-var IconSchema = z41.object({
-  src: z41.string(),
-  mimeType: z41.string().optional(),
-  sizes: z41.array(z41.string()).optional(),
-  theme: z41.enum(["light", "dark"]).optional()
+var IconSchema = z42.object({
+  src: z42.string(),
+  mimeType: z42.string().optional(),
+  sizes: z42.array(z42.string()).optional(),
+  theme: z42.enum(["light", "dark"]).optional()
 });
-var IconsSchema = z41.object({
-  icons: z41.array(IconSchema).optional()
+var IconsSchema = z42.object({
+  icons: z42.array(IconSchema).optional()
 });
-var BaseMetadataSchema = z41.object({
-  name: z41.string(),
-  title: z41.string().optional()
+var BaseMetadataSchema = z42.object({
+  name: z42.string(),
+  title: z42.string().optional()
 });
 var ImplementationSchema = BaseMetadataSchema.extend({
   ...BaseMetadataSchema.shape,
   ...IconsSchema.shape,
-  version: z41.string(),
-  websiteUrl: z41.string().optional(),
-  description: z41.string().optional()
+  version: z42.string(),
+  websiteUrl: z42.string().optional(),
+  description: z42.string().optional()
 });
-var FormElicitationCapabilitySchema = z41.intersection(z41.object({
-  applyDefaults: z41.boolean().optional()
-}), z41.record(z41.string(), z41.unknown()));
-var ElicitationCapabilitySchema = z41.preprocess((value) => {
+var FormElicitationCapabilitySchema = z42.intersection(z42.object({
+  applyDefaults: z42.boolean().optional()
+}), z42.record(z42.string(), z42.unknown()));
+var ElicitationCapabilitySchema = z42.preprocess((value) => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     if (Object.keys(value).length === 0) {
       return { form: {} };
     }
   }
   return value;
-}, z41.intersection(z41.object({
+}, z42.intersection(z42.object({
   form: FormElicitationCapabilitySchema.optional(),
   url: AssertObjectSchema.optional()
-}), z41.record(z41.string(), z41.unknown()).optional()));
-var ClientTasksCapabilitySchema = z41.looseObject({
+}), z42.record(z42.string(), z42.unknown()).optional()));
+var ClientTasksCapabilitySchema = z42.looseObject({
   list: AssertObjectSchema.optional(),
   cancel: AssertObjectSchema.optional(),
-  requests: z41.looseObject({
-    sampling: z41.looseObject({
+  requests: z42.looseObject({
+    sampling: z42.looseObject({
       createMessage: AssertObjectSchema.optional()
     }).optional(),
-    elicitation: z41.looseObject({
+    elicitation: z42.looseObject({
       create: AssertObjectSchema.optional()
     }).optional()
   }).optional()
 });
-var ServerTasksCapabilitySchema = z41.looseObject({
+var ServerTasksCapabilitySchema = z42.looseObject({
   list: AssertObjectSchema.optional(),
   cancel: AssertObjectSchema.optional(),
-  requests: z41.looseObject({
-    tools: z41.looseObject({
+  requests: z42.looseObject({
+    tools: z42.looseObject({
       call: AssertObjectSchema.optional()
     }).optional()
   }).optional()
 });
-var ClientCapabilitiesSchema = z41.object({
-  experimental: z41.record(z41.string(), AssertObjectSchema).optional(),
-  sampling: z41.object({
+var ClientCapabilitiesSchema = z42.object({
+  experimental: z42.record(z42.string(), AssertObjectSchema).optional(),
+  sampling: z42.object({
     context: AssertObjectSchema.optional(),
     tools: AssertObjectSchema.optional()
   }).optional(),
   elicitation: ElicitationCapabilitySchema.optional(),
-  roots: z41.object({
-    listChanged: z41.boolean().optional()
+  roots: z42.object({
+    listChanged: z42.boolean().optional()
   }).optional(),
   tasks: ClientTasksCapabilitySchema.optional(),
-  extensions: z41.record(z41.string(), AssertObjectSchema).optional()
+  extensions: z42.record(z42.string(), AssertObjectSchema).optional()
 });
 var InitializeRequestParamsSchema = BaseRequestParamsSchema.extend({
-  protocolVersion: z41.string(),
+  protocolVersion: z42.string(),
   capabilities: ClientCapabilitiesSchema,
   clientInfo: ImplementationSchema
 });
 var InitializeRequestSchema = RequestSchema.extend({
-  method: z41.literal("initialize"),
+  method: z42.literal("initialize"),
   params: InitializeRequestParamsSchema
 });
-var ServerCapabilitiesSchema = z41.object({
-  experimental: z41.record(z41.string(), AssertObjectSchema).optional(),
+var ServerCapabilitiesSchema = z42.object({
+  experimental: z42.record(z42.string(), AssertObjectSchema).optional(),
   logging: AssertObjectSchema.optional(),
   completions: AssertObjectSchema.optional(),
-  prompts: z41.object({
-    listChanged: z41.boolean().optional()
+  prompts: z42.object({
+    listChanged: z42.boolean().optional()
   }).optional(),
-  resources: z41.object({
-    subscribe: z41.boolean().optional(),
-    listChanged: z41.boolean().optional()
+  resources: z42.object({
+    subscribe: z42.boolean().optional(),
+    listChanged: z42.boolean().optional()
   }).optional(),
-  tools: z41.object({
-    listChanged: z41.boolean().optional()
+  tools: z42.object({
+    listChanged: z42.boolean().optional()
   }).optional(),
   tasks: ServerTasksCapabilitySchema.optional(),
-  extensions: z41.record(z41.string(), AssertObjectSchema).optional()
+  extensions: z42.record(z42.string(), AssertObjectSchema).optional()
 });
 var InitializeResultSchema = ResultSchema.extend({
-  protocolVersion: z41.string(),
+  protocolVersion: z42.string(),
   capabilities: ServerCapabilitiesSchema,
   serverInfo: ImplementationSchema,
-  instructions: z41.string().optional()
+  instructions: z42.string().optional()
 });
 var InitializedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/initialized"),
+  method: z42.literal("notifications/initialized"),
   params: NotificationsParamsSchema.optional()
 });
 var isInitializedNotification = (value) => InitializedNotificationSchema.safeParse(value).success;
 var PingRequestSchema = RequestSchema.extend({
-  method: z41.literal("ping"),
+  method: z42.literal("ping"),
   params: BaseRequestParamsSchema.optional()
 });
-var ProgressSchema = z41.object({
-  progress: z41.number(),
-  total: z41.optional(z41.number()),
-  message: z41.optional(z41.string())
+var ProgressSchema = z42.object({
+  progress: z42.number(),
+  total: z42.optional(z42.number()),
+  message: z42.optional(z42.string())
 });
-var ProgressNotificationParamsSchema = z41.object({
+var ProgressNotificationParamsSchema = z42.object({
   ...NotificationsParamsSchema.shape,
   ...ProgressSchema.shape,
   progressToken: ProgressTokenSchema
 });
 var ProgressNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/progress"),
+  method: z42.literal("notifications/progress"),
   params: ProgressNotificationParamsSchema
 });
 var PaginatedRequestParamsSchema = BaseRequestParamsSchema.extend({
@@ -125863,60 +126019,60 @@ var PaginatedRequestSchema = RequestSchema.extend({
 var PaginatedResultSchema = ResultSchema.extend({
   nextCursor: CursorSchema.optional()
 });
-var TaskStatusSchema2 = z41.enum(["working", "input_required", "completed", "failed", "cancelled"]);
-var TaskSchema2 = z41.object({
-  taskId: z41.string(),
+var TaskStatusSchema2 = z42.enum(["working", "input_required", "completed", "failed", "cancelled"]);
+var TaskSchema2 = z42.object({
+  taskId: z42.string(),
   status: TaskStatusSchema2,
-  ttl: z41.union([z41.number(), z41.null()]),
-  createdAt: z41.string(),
-  lastUpdatedAt: z41.string(),
-  pollInterval: z41.optional(z41.number()),
-  statusMessage: z41.optional(z41.string())
+  ttl: z42.union([z42.number(), z42.null()]),
+  createdAt: z42.string(),
+  lastUpdatedAt: z42.string(),
+  pollInterval: z42.optional(z42.number()),
+  statusMessage: z42.optional(z42.string())
 });
 var CreateTaskResultSchema = ResultSchema.extend({
   task: TaskSchema2
 });
 var TaskStatusNotificationParamsSchema = NotificationsParamsSchema.merge(TaskSchema2);
 var TaskStatusNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/tasks/status"),
+  method: z42.literal("notifications/tasks/status"),
   params: TaskStatusNotificationParamsSchema
 });
 var GetTaskRequestSchema = RequestSchema.extend({
-  method: z41.literal("tasks/get"),
+  method: z42.literal("tasks/get"),
   params: BaseRequestParamsSchema.extend({
-    taskId: z41.string()
+    taskId: z42.string()
   })
 });
 var GetTaskResultSchema = ResultSchema.merge(TaskSchema2);
 var GetTaskPayloadRequestSchema = RequestSchema.extend({
-  method: z41.literal("tasks/result"),
+  method: z42.literal("tasks/result"),
   params: BaseRequestParamsSchema.extend({
-    taskId: z41.string()
+    taskId: z42.string()
   })
 });
 var GetTaskPayloadResultSchema = ResultSchema.loose();
 var ListTasksRequestSchema = PaginatedRequestSchema.extend({
-  method: z41.literal("tasks/list")
+  method: z42.literal("tasks/list")
 });
 var ListTasksResultSchema = PaginatedResultSchema.extend({
-  tasks: z41.array(TaskSchema2)
+  tasks: z42.array(TaskSchema2)
 });
 var CancelTaskRequestSchema = RequestSchema.extend({
-  method: z41.literal("tasks/cancel"),
+  method: z42.literal("tasks/cancel"),
   params: BaseRequestParamsSchema.extend({
-    taskId: z41.string()
+    taskId: z42.string()
   })
 });
 var CancelTaskResultSchema = ResultSchema.merge(TaskSchema2);
-var ResourceContentsSchema = z41.object({
-  uri: z41.string(),
-  mimeType: z41.optional(z41.string()),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+var ResourceContentsSchema = z42.object({
+  uri: z42.string(),
+  mimeType: z42.optional(z42.string()),
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
 var TextResourceContentsSchema = ResourceContentsSchema.extend({
-  text: z41.string()
+  text: z42.string()
 });
-var Base64Schema = z41.string().refine((val) => {
+var Base64Schema = z42.string().refine((val) => {
   try {
     atob(val);
     return true;
@@ -125927,447 +126083,447 @@ var Base64Schema = z41.string().refine((val) => {
 var BlobResourceContentsSchema = ResourceContentsSchema.extend({
   blob: Base64Schema
 });
-var RoleSchema = z41.enum(["user", "assistant"]);
-var AnnotationsSchema = z41.object({
-  audience: z41.array(RoleSchema).optional(),
-  priority: z41.number().min(0).max(1).optional(),
-  lastModified: z41.iso.datetime({ offset: true }).optional()
+var RoleSchema = z42.enum(["user", "assistant"]);
+var AnnotationsSchema = z42.object({
+  audience: z42.array(RoleSchema).optional(),
+  priority: z42.number().min(0).max(1).optional(),
+  lastModified: z42.iso.datetime({ offset: true }).optional()
 });
-var ResourceSchema = z41.object({
+var ResourceSchema = z42.object({
   ...BaseMetadataSchema.shape,
   ...IconsSchema.shape,
-  uri: z41.string(),
-  description: z41.optional(z41.string()),
-  mimeType: z41.optional(z41.string()),
-  size: z41.optional(z41.number()),
+  uri: z42.string(),
+  description: z42.optional(z42.string()),
+  mimeType: z42.optional(z42.string()),
+  size: z42.optional(z42.number()),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.optional(z41.looseObject({}))
+  _meta: z42.optional(z42.looseObject({}))
 });
-var ResourceTemplateSchema = z41.object({
+var ResourceTemplateSchema = z42.object({
   ...BaseMetadataSchema.shape,
   ...IconsSchema.shape,
-  uriTemplate: z41.string(),
-  description: z41.optional(z41.string()),
-  mimeType: z41.optional(z41.string()),
+  uriTemplate: z42.string(),
+  description: z42.optional(z42.string()),
+  mimeType: z42.optional(z42.string()),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.optional(z41.looseObject({}))
+  _meta: z42.optional(z42.looseObject({}))
 });
 var ListResourcesRequestSchema = PaginatedRequestSchema.extend({
-  method: z41.literal("resources/list")
+  method: z42.literal("resources/list")
 });
 var ListResourcesResultSchema = PaginatedResultSchema.extend({
-  resources: z41.array(ResourceSchema)
+  resources: z42.array(ResourceSchema)
 });
 var ListResourceTemplatesRequestSchema = PaginatedRequestSchema.extend({
-  method: z41.literal("resources/templates/list")
+  method: z42.literal("resources/templates/list")
 });
 var ListResourceTemplatesResultSchema = PaginatedResultSchema.extend({
-  resourceTemplates: z41.array(ResourceTemplateSchema)
+  resourceTemplates: z42.array(ResourceTemplateSchema)
 });
 var ResourceRequestParamsSchema = BaseRequestParamsSchema.extend({
-  uri: z41.string()
+  uri: z42.string()
 });
 var ReadResourceRequestParamsSchema = ResourceRequestParamsSchema;
 var ReadResourceRequestSchema = RequestSchema.extend({
-  method: z41.literal("resources/read"),
+  method: z42.literal("resources/read"),
   params: ReadResourceRequestParamsSchema
 });
 var ReadResourceResultSchema = ResultSchema.extend({
-  contents: z41.array(z41.union([TextResourceContentsSchema, BlobResourceContentsSchema]))
+  contents: z42.array(z42.union([TextResourceContentsSchema, BlobResourceContentsSchema]))
 });
 var ResourceListChangedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/resources/list_changed"),
+  method: z42.literal("notifications/resources/list_changed"),
   params: NotificationsParamsSchema.optional()
 });
 var SubscribeRequestParamsSchema = ResourceRequestParamsSchema;
 var SubscribeRequestSchema = RequestSchema.extend({
-  method: z41.literal("resources/subscribe"),
+  method: z42.literal("resources/subscribe"),
   params: SubscribeRequestParamsSchema
 });
 var UnsubscribeRequestParamsSchema = ResourceRequestParamsSchema;
 var UnsubscribeRequestSchema = RequestSchema.extend({
-  method: z41.literal("resources/unsubscribe"),
+  method: z42.literal("resources/unsubscribe"),
   params: UnsubscribeRequestParamsSchema
 });
 var ResourceUpdatedNotificationParamsSchema = NotificationsParamsSchema.extend({
-  uri: z41.string()
+  uri: z42.string()
 });
 var ResourceUpdatedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/resources/updated"),
+  method: z42.literal("notifications/resources/updated"),
   params: ResourceUpdatedNotificationParamsSchema
 });
-var PromptArgumentSchema = z41.object({
-  name: z41.string(),
-  description: z41.optional(z41.string()),
-  required: z41.optional(z41.boolean())
+var PromptArgumentSchema = z42.object({
+  name: z42.string(),
+  description: z42.optional(z42.string()),
+  required: z42.optional(z42.boolean())
 });
-var PromptSchema = z41.object({
+var PromptSchema = z42.object({
   ...BaseMetadataSchema.shape,
   ...IconsSchema.shape,
-  description: z41.optional(z41.string()),
-  arguments: z41.optional(z41.array(PromptArgumentSchema)),
-  _meta: z41.optional(z41.looseObject({}))
+  description: z42.optional(z42.string()),
+  arguments: z42.optional(z42.array(PromptArgumentSchema)),
+  _meta: z42.optional(z42.looseObject({}))
 });
 var ListPromptsRequestSchema = PaginatedRequestSchema.extend({
-  method: z41.literal("prompts/list")
+  method: z42.literal("prompts/list")
 });
 var ListPromptsResultSchema = PaginatedResultSchema.extend({
-  prompts: z41.array(PromptSchema)
+  prompts: z42.array(PromptSchema)
 });
 var GetPromptRequestParamsSchema = BaseRequestParamsSchema.extend({
-  name: z41.string(),
-  arguments: z41.record(z41.string(), z41.string()).optional()
+  name: z42.string(),
+  arguments: z42.record(z42.string(), z42.string()).optional()
 });
 var GetPromptRequestSchema = RequestSchema.extend({
-  method: z41.literal("prompts/get"),
+  method: z42.literal("prompts/get"),
   params: GetPromptRequestParamsSchema
 });
-var TextContentSchema = z41.object({
-  type: z41.literal("text"),
-  text: z41.string(),
+var TextContentSchema = z42.object({
+  type: z42.literal("text"),
+  text: z42.string(),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
-var ImageContentSchema = z41.object({
-  type: z41.literal("image"),
+var ImageContentSchema = z42.object({
+  type: z42.literal("image"),
   data: Base64Schema,
-  mimeType: z41.string(),
+  mimeType: z42.string(),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
-var AudioContentSchema = z41.object({
-  type: z41.literal("audio"),
+var AudioContentSchema = z42.object({
+  type: z42.literal("audio"),
   data: Base64Schema,
-  mimeType: z41.string(),
+  mimeType: z42.string(),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
-var ToolUseContentSchema = z41.object({
-  type: z41.literal("tool_use"),
-  name: z41.string(),
-  id: z41.string(),
-  input: z41.record(z41.string(), z41.unknown()),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+var ToolUseContentSchema = z42.object({
+  type: z42.literal("tool_use"),
+  name: z42.string(),
+  id: z42.string(),
+  input: z42.record(z42.string(), z42.unknown()),
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
-var EmbeddedResourceSchema = z41.object({
-  type: z41.literal("resource"),
-  resource: z41.union([TextResourceContentsSchema, BlobResourceContentsSchema]),
+var EmbeddedResourceSchema = z42.object({
+  type: z42.literal("resource"),
+  resource: z42.union([TextResourceContentsSchema, BlobResourceContentsSchema]),
   annotations: AnnotationsSchema.optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
 var ResourceLinkSchema = ResourceSchema.extend({
-  type: z41.literal("resource_link")
+  type: z42.literal("resource_link")
 });
-var ContentBlockSchema = z41.union([
+var ContentBlockSchema = z42.union([
   TextContentSchema,
   ImageContentSchema,
   AudioContentSchema,
   ResourceLinkSchema,
   EmbeddedResourceSchema
 ]);
-var PromptMessageSchema = z41.object({
+var PromptMessageSchema = z42.object({
   role: RoleSchema,
   content: ContentBlockSchema
 });
 var GetPromptResultSchema = ResultSchema.extend({
-  description: z41.string().optional(),
-  messages: z41.array(PromptMessageSchema)
+  description: z42.string().optional(),
+  messages: z42.array(PromptMessageSchema)
 });
 var PromptListChangedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/prompts/list_changed"),
+  method: z42.literal("notifications/prompts/list_changed"),
   params: NotificationsParamsSchema.optional()
 });
-var ToolAnnotationsSchema = z41.object({
-  title: z41.string().optional(),
-  readOnlyHint: z41.boolean().optional(),
-  destructiveHint: z41.boolean().optional(),
-  idempotentHint: z41.boolean().optional(),
-  openWorldHint: z41.boolean().optional()
+var ToolAnnotationsSchema = z42.object({
+  title: z42.string().optional(),
+  readOnlyHint: z42.boolean().optional(),
+  destructiveHint: z42.boolean().optional(),
+  idempotentHint: z42.boolean().optional(),
+  openWorldHint: z42.boolean().optional()
 });
-var ToolExecutionSchema = z41.object({
-  taskSupport: z41.enum(["required", "optional", "forbidden"]).optional()
+var ToolExecutionSchema = z42.object({
+  taskSupport: z42.enum(["required", "optional", "forbidden"]).optional()
 });
-var ToolSchema = z41.object({
+var ToolSchema = z42.object({
   ...BaseMetadataSchema.shape,
   ...IconsSchema.shape,
-  description: z41.string().optional(),
-  inputSchema: z41.object({
-    type: z41.literal("object"),
-    properties: z41.record(z41.string(), AssertObjectSchema).optional(),
-    required: z41.array(z41.string()).optional()
-  }).catchall(z41.unknown()),
-  outputSchema: z41.object({
-    type: z41.literal("object"),
-    properties: z41.record(z41.string(), AssertObjectSchema).optional(),
-    required: z41.array(z41.string()).optional()
-  }).catchall(z41.unknown()).optional(),
+  description: z42.string().optional(),
+  inputSchema: z42.object({
+    type: z42.literal("object"),
+    properties: z42.record(z42.string(), AssertObjectSchema).optional(),
+    required: z42.array(z42.string()).optional()
+  }).catchall(z42.unknown()),
+  outputSchema: z42.object({
+    type: z42.literal("object"),
+    properties: z42.record(z42.string(), AssertObjectSchema).optional(),
+    required: z42.array(z42.string()).optional()
+  }).catchall(z42.unknown()).optional(),
   annotations: ToolAnnotationsSchema.optional(),
   execution: ToolExecutionSchema.optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
 var ListToolsRequestSchema = PaginatedRequestSchema.extend({
-  method: z41.literal("tools/list")
+  method: z42.literal("tools/list")
 });
 var ListToolsResultSchema = PaginatedResultSchema.extend({
-  tools: z41.array(ToolSchema)
+  tools: z42.array(ToolSchema)
 });
 var CallToolResultSchema = ResultSchema.extend({
-  content: z41.array(ContentBlockSchema).default([]),
-  structuredContent: z41.record(z41.string(), z41.unknown()).optional(),
-  isError: z41.boolean().optional()
+  content: z42.array(ContentBlockSchema).default([]),
+  structuredContent: z42.record(z42.string(), z42.unknown()).optional(),
+  isError: z42.boolean().optional()
 });
 var CompatibilityCallToolResultSchema = CallToolResultSchema.or(ResultSchema.extend({
-  toolResult: z41.unknown()
+  toolResult: z42.unknown()
 }));
 var CallToolRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  name: z41.string(),
-  arguments: z41.record(z41.string(), z41.unknown()).optional()
+  name: z42.string(),
+  arguments: z42.record(z42.string(), z42.unknown()).optional()
 });
 var CallToolRequestSchema = RequestSchema.extend({
-  method: z41.literal("tools/call"),
+  method: z42.literal("tools/call"),
   params: CallToolRequestParamsSchema
 });
 var ToolListChangedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/tools/list_changed"),
+  method: z42.literal("notifications/tools/list_changed"),
   params: NotificationsParamsSchema.optional()
 });
-var ListChangedOptionsBaseSchema = z41.object({
-  autoRefresh: z41.boolean().default(true),
-  debounceMs: z41.number().int().nonnegative().default(300)
+var ListChangedOptionsBaseSchema = z42.object({
+  autoRefresh: z42.boolean().default(true),
+  debounceMs: z42.number().int().nonnegative().default(300)
 });
-var LoggingLevelSchema = z41.enum(["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]);
+var LoggingLevelSchema = z42.enum(["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]);
 var SetLevelRequestParamsSchema = BaseRequestParamsSchema.extend({
   level: LoggingLevelSchema
 });
 var SetLevelRequestSchema = RequestSchema.extend({
-  method: z41.literal("logging/setLevel"),
+  method: z42.literal("logging/setLevel"),
   params: SetLevelRequestParamsSchema
 });
 var LoggingMessageNotificationParamsSchema = NotificationsParamsSchema.extend({
   level: LoggingLevelSchema,
-  logger: z41.string().optional(),
-  data: z41.unknown()
+  logger: z42.string().optional(),
+  data: z42.unknown()
 });
 var LoggingMessageNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/message"),
+  method: z42.literal("notifications/message"),
   params: LoggingMessageNotificationParamsSchema
 });
-var ModelHintSchema = z41.object({
-  name: z41.string().optional()
+var ModelHintSchema = z42.object({
+  name: z42.string().optional()
 });
-var ModelPreferencesSchema = z41.object({
-  hints: z41.array(ModelHintSchema).optional(),
-  costPriority: z41.number().min(0).max(1).optional(),
-  speedPriority: z41.number().min(0).max(1).optional(),
-  intelligencePriority: z41.number().min(0).max(1).optional()
+var ModelPreferencesSchema = z42.object({
+  hints: z42.array(ModelHintSchema).optional(),
+  costPriority: z42.number().min(0).max(1).optional(),
+  speedPriority: z42.number().min(0).max(1).optional(),
+  intelligencePriority: z42.number().min(0).max(1).optional()
 });
-var ToolChoiceSchema = z41.object({
-  mode: z41.enum(["auto", "required", "none"]).optional()
+var ToolChoiceSchema = z42.object({
+  mode: z42.enum(["auto", "required", "none"]).optional()
 });
-var ToolResultContentSchema = z41.object({
-  type: z41.literal("tool_result"),
-  toolUseId: z41.string().describe("The unique identifier for the corresponding tool call."),
-  content: z41.array(ContentBlockSchema).default([]),
-  structuredContent: z41.object({}).loose().optional(),
-  isError: z41.boolean().optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+var ToolResultContentSchema = z42.object({
+  type: z42.literal("tool_result"),
+  toolUseId: z42.string().describe("The unique identifier for the corresponding tool call."),
+  content: z42.array(ContentBlockSchema).default([]),
+  structuredContent: z42.object({}).loose().optional(),
+  isError: z42.boolean().optional(),
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
-var SamplingContentSchema = z41.discriminatedUnion("type", [TextContentSchema, ImageContentSchema, AudioContentSchema]);
-var SamplingMessageContentBlockSchema = z41.discriminatedUnion("type", [
+var SamplingContentSchema = z42.discriminatedUnion("type", [TextContentSchema, ImageContentSchema, AudioContentSchema]);
+var SamplingMessageContentBlockSchema = z42.discriminatedUnion("type", [
   TextContentSchema,
   ImageContentSchema,
   AudioContentSchema,
   ToolUseContentSchema,
   ToolResultContentSchema
 ]);
-var SamplingMessageSchema = z41.object({
+var SamplingMessageSchema = z42.object({
   role: RoleSchema,
-  content: z41.union([SamplingMessageContentBlockSchema, z41.array(SamplingMessageContentBlockSchema)]),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+  content: z42.union([SamplingMessageContentBlockSchema, z42.array(SamplingMessageContentBlockSchema)]),
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
 var CreateMessageRequestParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  messages: z41.array(SamplingMessageSchema),
+  messages: z42.array(SamplingMessageSchema),
   modelPreferences: ModelPreferencesSchema.optional(),
-  systemPrompt: z41.string().optional(),
-  includeContext: z41.enum(["none", "thisServer", "allServers"]).optional(),
-  temperature: z41.number().optional(),
-  maxTokens: z41.number().int(),
-  stopSequences: z41.array(z41.string()).optional(),
+  systemPrompt: z42.string().optional(),
+  includeContext: z42.enum(["none", "thisServer", "allServers"]).optional(),
+  temperature: z42.number().optional(),
+  maxTokens: z42.number().int(),
+  stopSequences: z42.array(z42.string()).optional(),
   metadata: AssertObjectSchema.optional(),
-  tools: z41.array(ToolSchema).optional(),
+  tools: z42.array(ToolSchema).optional(),
   toolChoice: ToolChoiceSchema.optional()
 });
 var CreateMessageRequestSchema = RequestSchema.extend({
-  method: z41.literal("sampling/createMessage"),
+  method: z42.literal("sampling/createMessage"),
   params: CreateMessageRequestParamsSchema
 });
 var CreateMessageResultSchema = ResultSchema.extend({
-  model: z41.string(),
-  stopReason: z41.optional(z41.enum(["endTurn", "stopSequence", "maxTokens"]).or(z41.string())),
+  model: z42.string(),
+  stopReason: z42.optional(z42.enum(["endTurn", "stopSequence", "maxTokens"]).or(z42.string())),
   role: RoleSchema,
   content: SamplingContentSchema
 });
 var CreateMessageResultWithToolsSchema = ResultSchema.extend({
-  model: z41.string(),
-  stopReason: z41.optional(z41.enum(["endTurn", "stopSequence", "maxTokens", "toolUse"]).or(z41.string())),
+  model: z42.string(),
+  stopReason: z42.optional(z42.enum(["endTurn", "stopSequence", "maxTokens", "toolUse"]).or(z42.string())),
   role: RoleSchema,
-  content: z41.union([SamplingMessageContentBlockSchema, z41.array(SamplingMessageContentBlockSchema)])
+  content: z42.union([SamplingMessageContentBlockSchema, z42.array(SamplingMessageContentBlockSchema)])
 });
-var BooleanSchemaSchema = z41.object({
-  type: z41.literal("boolean"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  default: z41.boolean().optional()
+var BooleanSchemaSchema = z42.object({
+  type: z42.literal("boolean"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  default: z42.boolean().optional()
 });
-var StringSchemaSchema = z41.object({
-  type: z41.literal("string"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  minLength: z41.number().optional(),
-  maxLength: z41.number().optional(),
-  format: z41.enum(["email", "uri", "date", "date-time"]).optional(),
-  default: z41.string().optional()
+var StringSchemaSchema = z42.object({
+  type: z42.literal("string"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  minLength: z42.number().optional(),
+  maxLength: z42.number().optional(),
+  format: z42.enum(["email", "uri", "date", "date-time"]).optional(),
+  default: z42.string().optional()
 });
-var NumberSchemaSchema = z41.object({
-  type: z41.enum(["number", "integer"]),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  minimum: z41.number().optional(),
-  maximum: z41.number().optional(),
-  default: z41.number().optional()
+var NumberSchemaSchema = z42.object({
+  type: z42.enum(["number", "integer"]),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  minimum: z42.number().optional(),
+  maximum: z42.number().optional(),
+  default: z42.number().optional()
 });
-var UntitledSingleSelectEnumSchemaSchema = z41.object({
-  type: z41.literal("string"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  enum: z41.array(z41.string()),
-  default: z41.string().optional()
+var UntitledSingleSelectEnumSchemaSchema = z42.object({
+  type: z42.literal("string"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  enum: z42.array(z42.string()),
+  default: z42.string().optional()
 });
-var TitledSingleSelectEnumSchemaSchema = z41.object({
-  type: z41.literal("string"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  oneOf: z41.array(z41.object({
-    const: z41.string(),
-    title: z41.string()
+var TitledSingleSelectEnumSchemaSchema = z42.object({
+  type: z42.literal("string"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  oneOf: z42.array(z42.object({
+    const: z42.string(),
+    title: z42.string()
   })),
-  default: z41.string().optional()
+  default: z42.string().optional()
 });
-var LegacyTitledEnumSchemaSchema = z41.object({
-  type: z41.literal("string"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  enum: z41.array(z41.string()),
-  enumNames: z41.array(z41.string()).optional(),
-  default: z41.string().optional()
+var LegacyTitledEnumSchemaSchema = z42.object({
+  type: z42.literal("string"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  enum: z42.array(z42.string()),
+  enumNames: z42.array(z42.string()).optional(),
+  default: z42.string().optional()
 });
-var SingleSelectEnumSchemaSchema = z41.union([UntitledSingleSelectEnumSchemaSchema, TitledSingleSelectEnumSchemaSchema]);
-var UntitledMultiSelectEnumSchemaSchema = z41.object({
-  type: z41.literal("array"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  minItems: z41.number().optional(),
-  maxItems: z41.number().optional(),
-  items: z41.object({
-    type: z41.literal("string"),
-    enum: z41.array(z41.string())
+var SingleSelectEnumSchemaSchema = z42.union([UntitledSingleSelectEnumSchemaSchema, TitledSingleSelectEnumSchemaSchema]);
+var UntitledMultiSelectEnumSchemaSchema = z42.object({
+  type: z42.literal("array"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  minItems: z42.number().optional(),
+  maxItems: z42.number().optional(),
+  items: z42.object({
+    type: z42.literal("string"),
+    enum: z42.array(z42.string())
   }),
-  default: z41.array(z41.string()).optional()
+  default: z42.array(z42.string()).optional()
 });
-var TitledMultiSelectEnumSchemaSchema = z41.object({
-  type: z41.literal("array"),
-  title: z41.string().optional(),
-  description: z41.string().optional(),
-  minItems: z41.number().optional(),
-  maxItems: z41.number().optional(),
-  items: z41.object({
-    anyOf: z41.array(z41.object({
-      const: z41.string(),
-      title: z41.string()
+var TitledMultiSelectEnumSchemaSchema = z42.object({
+  type: z42.literal("array"),
+  title: z42.string().optional(),
+  description: z42.string().optional(),
+  minItems: z42.number().optional(),
+  maxItems: z42.number().optional(),
+  items: z42.object({
+    anyOf: z42.array(z42.object({
+      const: z42.string(),
+      title: z42.string()
     }))
   }),
-  default: z41.array(z41.string()).optional()
+  default: z42.array(z42.string()).optional()
 });
-var MultiSelectEnumSchemaSchema = z41.union([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema]);
-var EnumSchemaSchema = z41.union([LegacyTitledEnumSchemaSchema, SingleSelectEnumSchemaSchema, MultiSelectEnumSchemaSchema]);
-var PrimitiveSchemaDefinitionSchema = z41.union([EnumSchemaSchema, BooleanSchemaSchema, StringSchemaSchema, NumberSchemaSchema]);
+var MultiSelectEnumSchemaSchema = z42.union([UntitledMultiSelectEnumSchemaSchema, TitledMultiSelectEnumSchemaSchema]);
+var EnumSchemaSchema = z42.union([LegacyTitledEnumSchemaSchema, SingleSelectEnumSchemaSchema, MultiSelectEnumSchemaSchema]);
+var PrimitiveSchemaDefinitionSchema = z42.union([EnumSchemaSchema, BooleanSchemaSchema, StringSchemaSchema, NumberSchemaSchema]);
 var ElicitRequestFormParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  mode: z41.literal("form").optional(),
-  message: z41.string(),
-  requestedSchema: z41.object({
-    type: z41.literal("object"),
-    properties: z41.record(z41.string(), PrimitiveSchemaDefinitionSchema),
-    required: z41.array(z41.string()).optional()
+  mode: z42.literal("form").optional(),
+  message: z42.string(),
+  requestedSchema: z42.object({
+    type: z42.literal("object"),
+    properties: z42.record(z42.string(), PrimitiveSchemaDefinitionSchema),
+    required: z42.array(z42.string()).optional()
   })
 });
 var ElicitRequestURLParamsSchema = TaskAugmentedRequestParamsSchema.extend({
-  mode: z41.literal("url"),
-  message: z41.string(),
-  elicitationId: z41.string(),
-  url: z41.string().url()
+  mode: z42.literal("url"),
+  message: z42.string(),
+  elicitationId: z42.string(),
+  url: z42.string().url()
 });
-var ElicitRequestParamsSchema = z41.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema]);
+var ElicitRequestParamsSchema = z42.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema]);
 var ElicitRequestSchema = RequestSchema.extend({
-  method: z41.literal("elicitation/create"),
+  method: z42.literal("elicitation/create"),
   params: ElicitRequestParamsSchema
 });
 var ElicitationCompleteNotificationParamsSchema = NotificationsParamsSchema.extend({
-  elicitationId: z41.string()
+  elicitationId: z42.string()
 });
 var ElicitationCompleteNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/elicitation/complete"),
+  method: z42.literal("notifications/elicitation/complete"),
   params: ElicitationCompleteNotificationParamsSchema
 });
 var ElicitResultSchema = ResultSchema.extend({
-  action: z41.enum(["accept", "decline", "cancel"]),
-  content: z41.preprocess((val) => val === null ? undefined : val, z41.record(z41.string(), z41.union([z41.string(), z41.number(), z41.boolean(), z41.array(z41.string())])).optional())
+  action: z42.enum(["accept", "decline", "cancel"]),
+  content: z42.preprocess((val) => val === null ? undefined : val, z42.record(z42.string(), z42.union([z42.string(), z42.number(), z42.boolean(), z42.array(z42.string())])).optional())
 });
-var ResourceTemplateReferenceSchema = z41.object({
-  type: z41.literal("ref/resource"),
-  uri: z41.string()
+var ResourceTemplateReferenceSchema = z42.object({
+  type: z42.literal("ref/resource"),
+  uri: z42.string()
 });
-var PromptReferenceSchema = z41.object({
-  type: z41.literal("ref/prompt"),
-  name: z41.string()
+var PromptReferenceSchema = z42.object({
+  type: z42.literal("ref/prompt"),
+  name: z42.string()
 });
 var CompleteRequestParamsSchema = BaseRequestParamsSchema.extend({
-  ref: z41.union([PromptReferenceSchema, ResourceTemplateReferenceSchema]),
-  argument: z41.object({
-    name: z41.string(),
-    value: z41.string()
+  ref: z42.union([PromptReferenceSchema, ResourceTemplateReferenceSchema]),
+  argument: z42.object({
+    name: z42.string(),
+    value: z42.string()
   }),
-  context: z41.object({
-    arguments: z41.record(z41.string(), z41.string()).optional()
+  context: z42.object({
+    arguments: z42.record(z42.string(), z42.string()).optional()
   }).optional()
 });
 var CompleteRequestSchema = RequestSchema.extend({
-  method: z41.literal("completion/complete"),
+  method: z42.literal("completion/complete"),
   params: CompleteRequestParamsSchema
 });
 var CompleteResultSchema = ResultSchema.extend({
-  completion: z41.looseObject({
-    values: z41.array(z41.string()).max(100),
-    total: z41.optional(z41.number().int()),
-    hasMore: z41.optional(z41.boolean())
+  completion: z42.looseObject({
+    values: z42.array(z42.string()).max(100),
+    total: z42.optional(z42.number().int()),
+    hasMore: z42.optional(z42.boolean())
   })
 });
-var RootSchema = z41.object({
-  uri: z41.string().startsWith("file://"),
-  name: z41.string().optional(),
-  _meta: z41.record(z41.string(), z41.unknown()).optional()
+var RootSchema = z42.object({
+  uri: z42.string().startsWith("file://"),
+  name: z42.string().optional(),
+  _meta: z42.record(z42.string(), z42.unknown()).optional()
 });
 var ListRootsRequestSchema = RequestSchema.extend({
-  method: z41.literal("roots/list"),
+  method: z42.literal("roots/list"),
   params: BaseRequestParamsSchema.optional()
 });
 var ListRootsResultSchema = ResultSchema.extend({
-  roots: z41.array(RootSchema)
+  roots: z42.array(RootSchema)
 });
 var RootsListChangedNotificationSchema = NotificationSchema.extend({
-  method: z41.literal("notifications/roots/list_changed"),
+  method: z42.literal("notifications/roots/list_changed"),
   params: NotificationsParamsSchema.optional()
 });
-var ClientRequestSchema = z41.union([
+var ClientRequestSchema = z42.union([
   PingRequestSchema,
   InitializeRequestSchema,
   CompleteRequestSchema,
@@ -126386,14 +126542,14 @@ var ClientRequestSchema = z41.union([
   ListTasksRequestSchema,
   CancelTaskRequestSchema
 ]);
-var ClientNotificationSchema = z41.union([
+var ClientNotificationSchema = z42.union([
   CancelledNotificationSchema,
   ProgressNotificationSchema,
   InitializedNotificationSchema,
   RootsListChangedNotificationSchema,
   TaskStatusNotificationSchema
 ]);
-var ClientResultSchema = z41.union([
+var ClientResultSchema = z42.union([
   EmptyResultSchema,
   CreateMessageResultSchema,
   CreateMessageResultWithToolsSchema,
@@ -126403,7 +126559,7 @@ var ClientResultSchema = z41.union([
   ListTasksResultSchema,
   CreateTaskResultSchema
 ]);
-var ServerRequestSchema = z41.union([
+var ServerRequestSchema = z42.union([
   PingRequestSchema,
   CreateMessageRequestSchema,
   ElicitRequestSchema,
@@ -126413,7 +126569,7 @@ var ServerRequestSchema = z41.union([
   ListTasksRequestSchema,
   CancelTaskRequestSchema
 ]);
-var ServerNotificationSchema = z41.union([
+var ServerNotificationSchema = z42.union([
   CancelledNotificationSchema,
   ProgressNotificationSchema,
   LoggingMessageNotificationSchema,
@@ -126424,7 +126580,7 @@ var ServerNotificationSchema = z41.union([
   TaskStatusNotificationSchema,
   ElicitationCompleteNotificationSchema
 ]);
-var ServerResultSchema = z41.union([
+var ServerResultSchema = z42.union([
   EmptyResultSchema,
   InitializeResultSchema,
   CompleteResultSchema,
@@ -128028,149 +128184,149 @@ async function pkceChallenge(length) {
 }
 
 // node_modules/.bun/@modelcontextprotocol+sdk@1.29.0/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/auth.js
-import * as z42 from "zod/v4";
-var SafeUrlSchema = z42.url().superRefine((val, ctx) => {
+import * as z43 from "zod/v4";
+var SafeUrlSchema = z43.url().superRefine((val, ctx) => {
   if (!URL.canParse(val)) {
     ctx.addIssue({
-      code: z42.ZodIssueCode.custom,
+      code: z43.ZodIssueCode.custom,
       message: "URL must be parseable",
       fatal: true
     });
-    return z42.NEVER;
+    return z43.NEVER;
   }
 }).refine((url2) => {
   const u = new URL(url2);
   return u.protocol !== "javascript:" && u.protocol !== "data:" && u.protocol !== "vbscript:";
 }, { message: "URL cannot use javascript:, data:, or vbscript: scheme" });
-var OAuthProtectedResourceMetadataSchema = z42.looseObject({
-  resource: z42.string().url(),
-  authorization_servers: z42.array(SafeUrlSchema).optional(),
-  jwks_uri: z42.string().url().optional(),
-  scopes_supported: z42.array(z42.string()).optional(),
-  bearer_methods_supported: z42.array(z42.string()).optional(),
-  resource_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  resource_name: z42.string().optional(),
-  resource_documentation: z42.string().optional(),
-  resource_policy_uri: z42.string().url().optional(),
-  resource_tos_uri: z42.string().url().optional(),
-  tls_client_certificate_bound_access_tokens: z42.boolean().optional(),
-  authorization_details_types_supported: z42.array(z42.string()).optional(),
-  dpop_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  dpop_bound_access_tokens_required: z42.boolean().optional()
+var OAuthProtectedResourceMetadataSchema = z43.looseObject({
+  resource: z43.string().url(),
+  authorization_servers: z43.array(SafeUrlSchema).optional(),
+  jwks_uri: z43.string().url().optional(),
+  scopes_supported: z43.array(z43.string()).optional(),
+  bearer_methods_supported: z43.array(z43.string()).optional(),
+  resource_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  resource_name: z43.string().optional(),
+  resource_documentation: z43.string().optional(),
+  resource_policy_uri: z43.string().url().optional(),
+  resource_tos_uri: z43.string().url().optional(),
+  tls_client_certificate_bound_access_tokens: z43.boolean().optional(),
+  authorization_details_types_supported: z43.array(z43.string()).optional(),
+  dpop_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  dpop_bound_access_tokens_required: z43.boolean().optional()
 });
-var OAuthMetadataSchema = z42.looseObject({
-  issuer: z42.string(),
+var OAuthMetadataSchema = z43.looseObject({
+  issuer: z43.string(),
   authorization_endpoint: SafeUrlSchema,
   token_endpoint: SafeUrlSchema,
   registration_endpoint: SafeUrlSchema.optional(),
-  scopes_supported: z42.array(z42.string()).optional(),
-  response_types_supported: z42.array(z42.string()),
-  response_modes_supported: z42.array(z42.string()).optional(),
-  grant_types_supported: z42.array(z42.string()).optional(),
-  token_endpoint_auth_methods_supported: z42.array(z42.string()).optional(),
-  token_endpoint_auth_signing_alg_values_supported: z42.array(z42.string()).optional(),
+  scopes_supported: z43.array(z43.string()).optional(),
+  response_types_supported: z43.array(z43.string()),
+  response_modes_supported: z43.array(z43.string()).optional(),
+  grant_types_supported: z43.array(z43.string()).optional(),
+  token_endpoint_auth_methods_supported: z43.array(z43.string()).optional(),
+  token_endpoint_auth_signing_alg_values_supported: z43.array(z43.string()).optional(),
   service_documentation: SafeUrlSchema.optional(),
   revocation_endpoint: SafeUrlSchema.optional(),
-  revocation_endpoint_auth_methods_supported: z42.array(z42.string()).optional(),
-  revocation_endpoint_auth_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  introspection_endpoint: z42.string().optional(),
-  introspection_endpoint_auth_methods_supported: z42.array(z42.string()).optional(),
-  introspection_endpoint_auth_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  code_challenge_methods_supported: z42.array(z42.string()).optional(),
-  client_id_metadata_document_supported: z42.boolean().optional()
+  revocation_endpoint_auth_methods_supported: z43.array(z43.string()).optional(),
+  revocation_endpoint_auth_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  introspection_endpoint: z43.string().optional(),
+  introspection_endpoint_auth_methods_supported: z43.array(z43.string()).optional(),
+  introspection_endpoint_auth_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  code_challenge_methods_supported: z43.array(z43.string()).optional(),
+  client_id_metadata_document_supported: z43.boolean().optional()
 });
-var OpenIdProviderMetadataSchema = z42.looseObject({
-  issuer: z42.string(),
+var OpenIdProviderMetadataSchema = z43.looseObject({
+  issuer: z43.string(),
   authorization_endpoint: SafeUrlSchema,
   token_endpoint: SafeUrlSchema,
   userinfo_endpoint: SafeUrlSchema.optional(),
   jwks_uri: SafeUrlSchema,
   registration_endpoint: SafeUrlSchema.optional(),
-  scopes_supported: z42.array(z42.string()).optional(),
-  response_types_supported: z42.array(z42.string()),
-  response_modes_supported: z42.array(z42.string()).optional(),
-  grant_types_supported: z42.array(z42.string()).optional(),
-  acr_values_supported: z42.array(z42.string()).optional(),
-  subject_types_supported: z42.array(z42.string()),
-  id_token_signing_alg_values_supported: z42.array(z42.string()),
-  id_token_encryption_alg_values_supported: z42.array(z42.string()).optional(),
-  id_token_encryption_enc_values_supported: z42.array(z42.string()).optional(),
-  userinfo_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  userinfo_encryption_alg_values_supported: z42.array(z42.string()).optional(),
-  userinfo_encryption_enc_values_supported: z42.array(z42.string()).optional(),
-  request_object_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  request_object_encryption_alg_values_supported: z42.array(z42.string()).optional(),
-  request_object_encryption_enc_values_supported: z42.array(z42.string()).optional(),
-  token_endpoint_auth_methods_supported: z42.array(z42.string()).optional(),
-  token_endpoint_auth_signing_alg_values_supported: z42.array(z42.string()).optional(),
-  display_values_supported: z42.array(z42.string()).optional(),
-  claim_types_supported: z42.array(z42.string()).optional(),
-  claims_supported: z42.array(z42.string()).optional(),
-  service_documentation: z42.string().optional(),
-  claims_locales_supported: z42.array(z42.string()).optional(),
-  ui_locales_supported: z42.array(z42.string()).optional(),
-  claims_parameter_supported: z42.boolean().optional(),
-  request_parameter_supported: z42.boolean().optional(),
-  request_uri_parameter_supported: z42.boolean().optional(),
-  require_request_uri_registration: z42.boolean().optional(),
+  scopes_supported: z43.array(z43.string()).optional(),
+  response_types_supported: z43.array(z43.string()),
+  response_modes_supported: z43.array(z43.string()).optional(),
+  grant_types_supported: z43.array(z43.string()).optional(),
+  acr_values_supported: z43.array(z43.string()).optional(),
+  subject_types_supported: z43.array(z43.string()),
+  id_token_signing_alg_values_supported: z43.array(z43.string()),
+  id_token_encryption_alg_values_supported: z43.array(z43.string()).optional(),
+  id_token_encryption_enc_values_supported: z43.array(z43.string()).optional(),
+  userinfo_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  userinfo_encryption_alg_values_supported: z43.array(z43.string()).optional(),
+  userinfo_encryption_enc_values_supported: z43.array(z43.string()).optional(),
+  request_object_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  request_object_encryption_alg_values_supported: z43.array(z43.string()).optional(),
+  request_object_encryption_enc_values_supported: z43.array(z43.string()).optional(),
+  token_endpoint_auth_methods_supported: z43.array(z43.string()).optional(),
+  token_endpoint_auth_signing_alg_values_supported: z43.array(z43.string()).optional(),
+  display_values_supported: z43.array(z43.string()).optional(),
+  claim_types_supported: z43.array(z43.string()).optional(),
+  claims_supported: z43.array(z43.string()).optional(),
+  service_documentation: z43.string().optional(),
+  claims_locales_supported: z43.array(z43.string()).optional(),
+  ui_locales_supported: z43.array(z43.string()).optional(),
+  claims_parameter_supported: z43.boolean().optional(),
+  request_parameter_supported: z43.boolean().optional(),
+  request_uri_parameter_supported: z43.boolean().optional(),
+  require_request_uri_registration: z43.boolean().optional(),
   op_policy_uri: SafeUrlSchema.optional(),
   op_tos_uri: SafeUrlSchema.optional(),
-  client_id_metadata_document_supported: z42.boolean().optional()
+  client_id_metadata_document_supported: z43.boolean().optional()
 });
-var OpenIdProviderDiscoveryMetadataSchema = z42.object({
+var OpenIdProviderDiscoveryMetadataSchema = z43.object({
   ...OpenIdProviderMetadataSchema.shape,
   ...OAuthMetadataSchema.pick({
     code_challenge_methods_supported: true
   }).shape
 });
-var OAuthTokensSchema = z42.object({
-  access_token: z42.string(),
-  id_token: z42.string().optional(),
-  token_type: z42.string(),
-  expires_in: z42.coerce.number().optional(),
-  scope: z42.string().optional(),
-  refresh_token: z42.string().optional()
+var OAuthTokensSchema = z43.object({
+  access_token: z43.string(),
+  id_token: z43.string().optional(),
+  token_type: z43.string(),
+  expires_in: z43.coerce.number().optional(),
+  scope: z43.string().optional(),
+  refresh_token: z43.string().optional()
 }).strip();
-var OAuthErrorResponseSchema = z42.object({
-  error: z42.string(),
-  error_description: z42.string().optional(),
-  error_uri: z42.string().optional()
+var OAuthErrorResponseSchema = z43.object({
+  error: z43.string(),
+  error_description: z43.string().optional(),
+  error_uri: z43.string().optional()
 });
-var OptionalSafeUrlSchema = SafeUrlSchema.optional().or(z42.literal("").transform(() => {
+var OptionalSafeUrlSchema = SafeUrlSchema.optional().or(z43.literal("").transform(() => {
   return;
 }));
-var OAuthClientMetadataSchema = z42.object({
-  redirect_uris: z42.array(SafeUrlSchema),
-  token_endpoint_auth_method: z42.string().optional(),
-  grant_types: z42.array(z42.string()).optional(),
-  response_types: z42.array(z42.string()).optional(),
-  client_name: z42.string().optional(),
+var OAuthClientMetadataSchema = z43.object({
+  redirect_uris: z43.array(SafeUrlSchema),
+  token_endpoint_auth_method: z43.string().optional(),
+  grant_types: z43.array(z43.string()).optional(),
+  response_types: z43.array(z43.string()).optional(),
+  client_name: z43.string().optional(),
   client_uri: SafeUrlSchema.optional(),
   logo_uri: OptionalSafeUrlSchema,
-  scope: z42.string().optional(),
-  contacts: z42.array(z42.string()).optional(),
+  scope: z43.string().optional(),
+  contacts: z43.array(z43.string()).optional(),
   tos_uri: OptionalSafeUrlSchema,
-  policy_uri: z42.string().optional(),
+  policy_uri: z43.string().optional(),
   jwks_uri: SafeUrlSchema.optional(),
-  jwks: z42.any().optional(),
-  software_id: z42.string().optional(),
-  software_version: z42.string().optional(),
-  software_statement: z42.string().optional()
+  jwks: z43.any().optional(),
+  software_id: z43.string().optional(),
+  software_version: z43.string().optional(),
+  software_statement: z43.string().optional()
 }).strip();
-var OAuthClientInformationSchema = z42.object({
-  client_id: z42.string(),
-  client_secret: z42.string().optional(),
-  client_id_issued_at: z42.number().optional(),
-  client_secret_expires_at: z42.number().optional()
+var OAuthClientInformationSchema = z43.object({
+  client_id: z43.string(),
+  client_secret: z43.string().optional(),
+  client_id_issued_at: z43.number().optional(),
+  client_secret_expires_at: z43.number().optional()
 }).strip();
 var OAuthClientInformationFullSchema = OAuthClientMetadataSchema.merge(OAuthClientInformationSchema);
-var OAuthClientRegistrationErrorSchema = z42.object({
-  error: z42.string(),
-  error_description: z42.string().optional()
+var OAuthClientRegistrationErrorSchema = z43.object({
+  error: z43.string(),
+  error_description: z43.string().optional()
 }).strip();
-var OAuthTokenRevocationRequestSchema = z42.object({
-  token: z42.string(),
-  token_type_hint: z42.string().optional()
+var OAuthTokenRevocationRequestSchema = z43.object({
+  token: z43.string(),
+  token_type_hint: z43.string().optional()
 }).strip();
 
 // node_modules/.bun/@modelcontextprotocol+sdk@1.29.0/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/auth-utils.js
@@ -143260,6 +143416,7 @@ function createCoreTools(args) {
 }
 
 // src/features/team-mode/tools/lifecycle-create-tool.ts
+init_tool();
 init_agent_display_names();
 init_logger();
 
@@ -144284,13 +144441,13 @@ async function resolveParticipant2(teamRunId, sessionID, config, deps) {
 }
 
 // src/features/team-mode/tools/lifecycle-inline-spec.ts
-import { z as z43 } from "zod";
+import { z as z44 } from "zod";
 init_types2();
 var TEAM_CREATE_USAGE = 'team_create requires exactly one of teamName or inline_spec. Use team_create({ teamName: "existing-team" }) or team_create({ inline_spec: { name: "team-name", members: [{ name: "worker", category: "quick", prompt: "Do the assigned work." }] } }).';
-var TeamCreateArgsSchema = z43.object({
-  teamName: z43.string().min(1).optional(),
-  inline_spec: z43.unknown().optional(),
-  leadSessionId: z43.string().optional()
+var TeamCreateArgsSchema = z44.object({
+  teamName: z44.string().min(1).optional(),
+  inline_spec: z44.unknown().optional(),
+  leadSessionId: z44.string().optional()
 }).superRefine((value, ctx) => {
   const optionCount = Number(value.teamName !== undefined) + Number(value.inline_spec !== undefined);
   if (optionCount !== 1) {
@@ -144452,8 +144609,9 @@ function createTeamCreateTool(config, client, bgMgr, tmuxMgr, executorConfig, de
   });
 }
 // src/features/team-mode/tools/lifecycle-shutdown-tools.ts
+init_tool();
 init_logger();
-import { z as z44 } from "zod";
+import { z as z45 } from "zod";
 
 // src/features/team-mode/team-runtime/shutdown.ts
 init_store();
@@ -144543,13 +144701,13 @@ async function rejectShutdown(teamRunId, memberName, rejectorName, reason, confi
 
 // src/features/team-mode/tools/lifecycle-shutdown-tools.ts
 init_store();
-var TeamDeleteArgsSchema = z44.object({ teamRunId: z44.string().min(1), force: z44.boolean().optional() });
-var TeamShutdownRequestArgsSchema = z44.object({ teamRunId: z44.string().min(1), targetMemberName: z44.string().min(1) });
-var TeamApproveShutdownArgsSchema = z44.object({ teamRunId: z44.string().min(1), memberName: z44.string().min(1) });
-var TeamRejectShutdownArgsSchema = z44.object({
-  teamRunId: z44.string().min(1),
-  memberName: z44.string().min(1),
-  reason: z44.string().min(1)
+var TeamDeleteArgsSchema = z45.object({ teamRunId: z45.string().min(1), force: z45.boolean().optional() });
+var TeamShutdownRequestArgsSchema = z45.object({ teamRunId: z45.string().min(1), targetMemberName: z45.string().min(1) });
+var TeamApproveShutdownArgsSchema = z45.object({ teamRunId: z45.string().min(1), memberName: z45.string().min(1) });
+var TeamRejectShutdownArgsSchema = z45.object({
+  teamRunId: z45.string().min(1),
+  memberName: z45.string().min(1),
+  reason: z45.string().min(1)
 });
 var defaultTeamShutdownToolDeps = {
   listActiveTeams,
@@ -144724,6 +144882,7 @@ function createTeamRejectShutdownTool(config, client, deps = defaultTeamShutdown
   });
 }
 // src/features/team-mode/tools/query.ts
+init_tool();
 init_logger();
 
 // src/features/team-mode/team-runtime/status.ts
@@ -144985,6 +145144,7 @@ function createTeamListTool(config, client, deps = defaultDeps10) {
 }
 
 // src/features/team-mode/tools/tasks.ts
+init_tool();
 init_logger();
 
 // src/features/team-mode/team-tasklist/claim.ts
@@ -146771,7 +146931,7 @@ function extractErrorName3(error) {
     return error.name;
   return;
 }
-function extractErrorMessage3(error) {
+function extractErrorMessage4(error) {
   if (!error)
     return "";
   if (typeof error === "string")
@@ -147112,7 +147272,7 @@ function createModelFallbackEventHandler(args) {
     if (lastHandled === assistantMessageID)
       return true;
     const errorName = extractErrorName3(assistantError);
-    const errorMessage = extractErrorMessage3(assistantError);
+    const errorMessage = extractErrorMessage4(assistantError);
     if (!shouldRetryError({ name: errorName, message: errorMessage }))
       return false;
     const agentName = resolveFallbackAgentName({
@@ -148095,7 +148255,7 @@ function createEventHandler2(args) {
         const sessionID = resolveSessionEventID(props);
         const error = props?.error;
         const errorName = extractErrorName3(error);
-        const errorMessage = extractErrorMessage3(error);
+        const errorMessage = extractErrorMessage4(error);
         if (sessionID)
           userAbortInterruptedRecoveryGuard.noteSessionError(sessionID, errorName);
         const recovered = await handleRecoverableSessionError({
@@ -148552,7 +148712,7 @@ import * as path30 from "path";
 init_config_errors();
 init_logger();
 init_model_resolver2();
-var HOOK_NAME12 = "disabled-providers";
+var HOOK_NAME13 = "disabled-providers";
 function getModelProvider(model) {
   const slash = model.indexOf("/");
   if (slash <= 0)
@@ -148592,7 +148752,7 @@ function applyToHolder(label, holder, disabled) {
   if (normalizedChain) {
     const filteredChain = filterDisabledProviderModels(normalizedChain, disabled);
     if (filteredChain.length !== normalizedChain.length) {
-      log(`[${HOOK_NAME12}] Filtered disabled-provider entries from fallback chain`, {
+      log(`[${HOOK_NAME13}] Filtered disabled-provider entries from fallback chain`, {
         label,
         removed: normalizedChain.length - filteredChain.length,
         remaining: filteredChain.length
@@ -148603,7 +148763,7 @@ function applyToHolder(label, holder, disabled) {
   if (typeof holder.model === "string" && isProviderDisabled(holder.model, disabled)) {
     const replacement = findFirstAllowedReplacement(normalizeFallbackModels(holder.fallback_models), disabled);
     if (replacement) {
-      log(`[${HOOK_NAME12}] Substituted primary model from fallback chain`, {
+      log(`[${HOOK_NAME13}] Substituted primary model from fallback chain`, {
         label,
         from: holder.model,
         to: replacement
@@ -148612,7 +148772,7 @@ function applyToHolder(label, holder, disabled) {
     } else {
       const message = `${label} primary model "${holder.model}" uses a disabled provider and no allowed entry is available in fallback_models. ` + `Either remove the provider from disabled_providers or add an allowed entry to fallback_models.`;
       addConfigLoadError({ path: `disabled_providers:${label}`, error: message });
-      log(`[${HOOK_NAME12}] ${message}`, { label, primary: holder.model });
+      log(`[${HOOK_NAME13}] ${message}`, { label, primary: holder.model });
     }
   }
 }
@@ -149131,6 +149291,7 @@ init_legacy_workspace_migration();
 init_opencode_server_auth();
 
 // src/tools/nifty/nifty-plugin.js
+init_dist();
 import { homedir as homedir25 } from "os";
 import { basename as basename19, dirname as dirname41, extname as extname5, isAbsolute as isAbsolute19, join as join113, resolve as resolve29 } from "path";
 import { appendFileSync as appendFileSync7, closeSync as closeSync5, existsSync as existsSync106, mkdirSync as mkdirSync22, openSync as openSync5, readFileSync as readFileSync76 } from "fs";

@@ -2387,6 +2387,9 @@ export declare const OhMyOpenCodeConfigSchema: z.ZodObject<{
         max_results: z.ZodDefault<z.ZodNumber>;
         max_context_chars: z.ZodDefault<z.ZodNumber>;
     }, z.core.$strip>>;
+    error_auto_filer: z.ZodOptional<z.ZodOptional<z.ZodObject<{
+        file_bugs: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>>>;
     _migrations: z.ZodOptional<z.ZodArray<z.ZodString>>;
 }, z.core.$strip>;
 export type OhMyOpenCodeConfig = z.infer<typeof OhMyOpenCodeConfigSchema>;
