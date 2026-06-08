@@ -1,49 +1,90 @@
-# OpenCode Nifty Kit
+# OpenCode Nifty Orchestrator
 
-Portable Nifty integration for OpenCode.
+AI work orchestration for Nifty, built first as an OpenCode plugin and also exposed as a universal MCP server.
 
-This repo is meant to be versioned in GitHub and pulled into local machines, devcontainers, and other isolated OpenCode environments.
+Current package: `opencode-nifty-kit` v0.0.1.
 
-## What This Is
+This is not just a raw Nifty API wrapper. The runtime layers are:
 
-This is an OpenCode plugin kit, not an OpenCode skill.
+1. **RAG context** - bounded historical task/comment recall plus policy citations from LanceDB.
+2. **Orchestrator** - deterministic policy, bootstrap, lifecycle, subtask, evidence, and automation gates.
+3. **Nifty tools** - authenticated operations against Nifty projects, tasks, docs, milestones, comments, statuses, labels, and workflows.
 
-It gives you:
+The source of truth for the OpenCode plugin is `plugin/nifty.js`. The same `nifty_*` tools are adapted to MCP by `mcp/mcp-server.mjs`.
 
-- Nifty auth helpers
-- Raw Nifty API tools for projects, tasks, discussions, and comments
-- Higher-level workflow tools for ideas, to-do, in-progress, and review flows
-- A workflow alias config so each container or user can point OpenCode at different Nifty projects without changing plugin code
+## What This Plugin Does
+
+- Connects OpenCode to Nifty through OAuth or exported `NIFTY_*` credentials.
+- Exposes 62 `nifty_*` tools for project, task, document, milestone, label, discussion, comment, workflow, and auth operations.
+- Injects RAG context from `nifty-tasks` and `nifty-policy` LanceDB tables before tool execution when available.
+- Enforces policy-as-code at the tool boundary before mutating Nifty.
+- Requires full task or project context before dangerous mutations through the bootstrap gate.
+- Keeps parent task cards separate from Nifty subtasks, so agents do not treat checklist rows as full task cards.
+- Auto-hydrates task and project context for task/project-targeted tool calls.
+- Auto-starts lifecycle work by moving tasks to In Progress and assigning the configured assignee when policy allows.
+- Hard-gates Dev Review and delivery comments with RED/GREEN/sad-path evidence, architecture/regression proof, and visual proof for UI-impacting changes.
+- Posts structured Cave Updater progress comments and suppresses routine lifecycle noise by default.
+- Provides MCP support for Copilot, Claude Code, Cursor, Windsurf, Codex, Gemini CLI, Kimi Code CLI, and other MCP clients without duplicating business logic.
+
+## Runtime Architecture
+
+```text
+OpenCode or MCP client
+  -> nifty_* tool call
+  -> policy gate
+  -> bootstrap context gate
+  -> subtask/entity-kind gate
+  -> auto task/project hydration
+  -> auto lifecycle start
+  -> RAG context injection
+  -> Nifty API tool execution
+  -> bootstrap registration and automation progress handling
+```
+
+Important boundaries:
+
+- RAG is context only. It is fail-soft and never becomes a write authority.
+- Policy gates are deterministic and can hard-fail tool calls.
+- The bootstrap gate is required before mutating a known task or project.
+- MCP uses the same plugin tools, plus MCP-specific active-task persistence and optional remote policy gateway checks.
 
 ## Repo Layout
 
-- `plugin/nifty.js`: plugin source
-- `mcp/mcp-server.mjs`: universal MCP bridge — works with any MCP-capable AI coding client
-- `mcp/FULL_SPEC.md`: implementation and architecture specification for MCP integration
-- `mcp/mcp.example.json`: sample MCP server config
-- `config/nifty-workflows.example.json`: example multi-project workflow config
-- `env/nifty.env.example`: environment variable template
-- `scripts/install.sh`: install or update into an OpenCode instance
-- `scripts/update.sh`: wrapper around install
-- `scripts/install-copilot.sh`: writes/updates `.vscode/mcp.json` for VS Code / GitHub Copilot MCP usage
+- `plugin/nifty.js` - OpenCode plugin, tool catalog, policy wrapper, lifecycle orchestration, Nifty API integration.
+- `plugin/rag.mjs` - RAG query fanout, LanceDB table cache, bounded result shaping, diagnostics.
+- `mcp/mcp-server.mjs` - MCP stdio server exposing every `nifty_*` tool from the plugin.
+- `policy/nifty-ai-policy.json` - default deterministic AI policy and reporting standards.
+- `policy/nifty-ai-policy.schema.json` - policy schema.
+- `scripts/install.sh` - installs or updates the OpenCode plugin.
+- `scripts/update.sh` - update wrapper around the installer.
+- `scripts/index-nifty-tasks.mjs` - indexes Nifty tasks and comments into `nifty-tasks`.
+- `scripts/index-policy-docs.mjs` - indexes policies, reporting rules, automation rules, ADRs, and docs into `nifty-policy`.
+- `scripts/rag-webhook.mjs` - webhook server for keeping RAG indexes fresh.
+- `scripts/install-*.sh` - MCP config writers for Copilot, Claude, Cursor, Windsurf, and Codex.
+- `config/nifty-workflows.example.json` - example workflow alias config.
+- `env/nifty.env.example` - local credential template. Do not commit real `.nifty.env` files.
+- `docs/rag-architecture.md` - production RAG architecture and verification notes.
+- `mcp/FULL_SPEC.md` - MCP integration specification.
+- `test/*.mjs` - Node test suite for auth, policy, RAG, MCP, lifecycle, and tool behavior.
 
-## Install Into A Container Or Machine
+## Install From `dev-tony`
 
-For a full WSL/devcontainer handoff guide covering OpenCode, GitHub Copilot / VS Code MCP, Codex, and manual VS Code setup, see [`docs/install-wsl-devcontainer.md`](docs/install-wsl-devcontainer.md).
-
-Fast install after this repo is public:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | bash
-```
-
-Install the current team build from the `dev-tony` branch:
+Use this while the team build lives on the `dev-tony` branch.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | NIFTY_INSTALL_REF=dev-tony bash
 ```
 
-This installs the plugin into `~/.config/opencode` by default, copies `plugin/nifty.js` into OpenCode's plugin directory, registers it in your OpenCode config, writes the Nifty guidance and slash commands, and creates a non-overwriting `.nifty.env` template in the directory where you run the installer. Restart OpenCode after installing so it loads the new plugin.
+The installer:
+
+- installs `plugin/nifty.js` to `~/.config/opencode/plugins/nifty.js` by default,
+- registers `./plugins/nifty.js` in `~/.config/opencode/opencode.json` or `opencode.jsonc`,
+- ensures `@opencode-ai/plugin` is installed in the OpenCode config directory,
+- writes OpenCode guidance into `~/.config/opencode/AGENTS.md`,
+- installs slash commands `/nifty-auth`, `/nifty-health`, `/nifty-update`, and `/nifty-setup`,
+- creates a non-overwriting `.nifty.env` template in the directory where you run the installer.
+
+Restart OpenCode after installing so it loads the plugin.
 
 Clone-based install from `dev-tony`:
 
@@ -53,7 +94,7 @@ cd opencode-nifty
 ./scripts/install.sh
 ```
 
-Update an existing `dev-tony` clone and reinstall:
+Update an existing clone and reinstall:
 
 ```bash
 git checkout dev-tony
@@ -61,255 +102,33 @@ git pull --ff-only origin dev-tony
 ./scripts/update.sh
 ```
 
-Or clone this repo into the machine or devcontainer that runs OpenCode, then run the installer:
-
-```bash
-git clone git@github.com:CaveIM/opencode-nifty.git
-cd opencode-nifty
-./scripts/install.sh
-```
-
-If the repo is already cloned, run:
-
-```bash
-./scripts/install.sh
-```
-
-The installer does not need to be run from a specific project directory. When run from a clone, it finds files relative to the script location. When run through `curl | bash`, it downloads the plugin from GitHub. The project directory matters later when you ask OpenCode to create a project-local `nifty-workflows.json`.
-
-By default this installs into:
-
-```bash
-~/.config/opencode
-```
-
-Override the target if needed:
+Install into a project-local OpenCode config instead of the global one:
 
 ```bash
 OPENCODE_CONFIG_DIR=/workspace/.opencode ./scripts/install.sh
 ```
 
-The installer copies `plugin/nifty.js` into `~/.config/opencode/plugins/nifty.js` and registers `./plugins/nifty.js` in your global OpenCode config. It also creates a non-overwriting `.nifty.env` template in the directory where you run the installer. It does not create a workflow config file. Create project-local workflow config only when you are ready to connect a project to Nifty.
+## Requirements
 
-It also adds global OpenCode guidance in `~/.config/opencode/AGENTS.md` so the model treats phrases like “Nifty health check” as OpenCode tool calls instead of shell commands. Three global slash commands are installed as shortcuts:
-
-- `/nifty-auth`
-- `/nifty-health`
-- `/nifty-setup`
-
-By default the one-line installer downloads from `main`. To install another branch or tag, set `NIFTY_INSTALL_REF`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/main/scripts/install.sh | NIFTY_INSTALL_REF=v1.0.0 bash
-```
-
-## MCP Integration (Any AI Coding Client)
-
-This repo includes a universal MCP server (`mcp/mcp-server.mjs`) that exposes all `nifty_*` tools to **any MCP-capable AI coding client** — GitHub Copilot, Claude Code, Cursor, Windsurf, OpenCode, Gemini CLI, Kimi Code CLI, Codex, and others.
-
-The MCP server speaks standard [MCP stdio protocol](https://modelcontextprotocol.io/). No client-specific code. Point any client at the server with:
-
-```bash
-node /path/to/opencode-plugin/mcp/mcp-server.mjs
-```
-
-### Per-client install scripts
-
-Use the bundled scripts to generate the correct config file for your client. Each script writes `NIFTY_MCP_ROOT` into the config so `nifty_update_plugin` can keep the server binary up to date in place.
-
-| Client | Script | Config file written |
-|--------|--------|--------------------|
-| VS Code / GitHub Copilot | `./scripts/install-copilot.sh` | `.vscode/mcp.json` |
-| Claude Code (project) | `./scripts/install-claude.sh` | `.mcp.json` |
-| Claude Desktop (global) | `./scripts/install-claude.sh --global` | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Cursor (project) | `./scripts/install-cursor.sh` | `.cursor/mcp.json` |
-| Cursor (global) | `./scripts/install-cursor.sh --global` | `~/.cursor/mcp.json` |
-| Windsurf | `./scripts/install-windsurf.sh` | `~/.codeium/windsurf/mcp_config.json` |
-| Codex CLI (project) | `./scripts/install-codex.sh` | `.codex/config.toml` |
-| Codex CLI (global) | `./scripts/install-codex.sh --global` | `~/.codex/config.toml` |
-
-Or use npm scripts:
-
-```bash
-npm run mcp:install:claude          # project-local .mcp.json
-npm run mcp:install:cursor          # project-local .cursor/mcp.json
-npm run mcp:install:windsurf        # global ~/.codeium/windsurf/mcp_config.json
-npm run mcp:install:codex           # project-local .codex/config.toml
-npm run mcp:install:codex:global    # global ~/.codex/config.toml
-```
-
-### VS Code / GitHub Copilot
-
-Install the MCP config into `.vscode/mcp.json`:
-
-```bash
-./scripts/install-copilot.sh
-```
-
-After installing:
-
-1. Ensure Nifty credentials are in `.nifty.env` or exported as `NIFTY_*` env vars.
-2. Restart VS Code (or reload the window).
-3. Use Copilot chat and call the `nifty_*` tools directly.
-
-Manual start:
-
-```bash
-npm run mcp:start
-```
-
-### Claude Code
-
-```bash
-./scripts/install-claude.sh          # project-local .mcp.json
-./scripts/install-claude.sh --global # Claude Desktop global config
-```
-
-Manual JSON if you prefer:
-
-```json
-{
-  "mcpServers": {
-    "nifty": {
-      "command": "node",
-      "args": ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"],
-      "env": {
-        "NIFTY_WORKTREE": "/absolute/path/to/your/project",
-        "NIFTY_MCP_ROOT": "/absolute/path/to/opencode-plugin"
-      }
-    }
-  }
-}
-```
-
-### Cursor
-
-```bash
-./scripts/install-cursor.sh          # project-local .cursor/mcp.json
-./scripts/install-cursor.sh --global # global ~/.cursor/mcp.json
-```
-
-### Windsurf
-
-```bash
-./scripts/install-windsurf.sh        # always writes to global ~/.codeium/windsurf/mcp_config.json
-```
-
-### Codex CLI
-
-```bash
-./scripts/install-codex.sh          # project-local .codex/config.toml (trusted projects)
-./scripts/install-codex.sh --global # global ~/.codex/config.toml
-```
-
-Or let Codex manage it directly:
-
-```bash
-codex mcp add nifty \
-  --env NIFTY_WORKTREE=/path/to/your/project \
-  --env NIFTY_MCP_ROOT=/path/to/opencode-plugin \
-  -- node /path/to/opencode-plugin/mcp/mcp-server.mjs
-```
-
-Manual TOML if you prefer to edit `~/.codex/config.toml` directly:
-
-```toml
-[mcp_servers.nifty]
-command = "node"
-args = ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"]
-
-[mcp_servers.nifty.env]
-NIFTY_WORKTREE = "/absolute/path/to/your/project"
-NIFTY_MCP_ROOT = "/absolute/path/to/opencode-plugin"
-```
-
-### Gemini CLI
-
-Add to `~/.gemini/settings.json` under `mcpServers`:
-
-```json
-{
-  "mcpServers": {
-    "nifty": {
-      "command": "node",
-      "args": ["/absolute/path/to/opencode-plugin/mcp/mcp-server.mjs"],
-      "env": {
-        "NIFTY_WORKTREE": "/absolute/path/to/your/project",
-        "NIFTY_MCP_ROOT": "/absolute/path/to/opencode-plugin"
-      }
-    }
-  }
-}
-```
-
-### Kimi Code CLI / Codex and others
-
-Any client that supports MCP stdio servers uses the same config shape. Point `command` at `node` and `args` at the server file. Always include `NIFTY_MCP_ROOT` so the self-update tool works.
-
-Reference specification:
-
-```text
-mcp/FULL_SPEC.md
-```
-
-### MCP server environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NIFTY_MCP_ROOT` | — | Absolute path to this repo. Required for `nifty_update_plugin` to update the MCP server binary. Set automatically by all install scripts. |
-| `NIFTY_MCP_DEBUG` | unset | Set to any value to emit JSON-structured debug logs on stderr (safe for MCP clients that read stdout only). |
-| `NIFTY_MCP_PLUGIN_CACHE_TTL_MS` | `300000` | How often the plugin and policy are refreshed from disk (milliseconds). Decrease for faster policy iteration; increase for performance. |
-| `NIFTY_MCP_ACTIVE_TASK_ID` | unset | Optional hard override for the task card watched at MCP startup. |
-| `NIFTY_MCP_ACTIVE_TASK_STATE_PATH` | `~/.local/state/nifty/mcp-active-task.json` | Durable active-task store keyed by MCP session and worktree, used so reloads resume the same task card. |
-| `NIFTY_MCP_PROGRESS_POLL_ENABLED` | `true` | Enables autonomous MCP-side git polling after a task id is observed, so Copilot/Codex/Cursor/Windsurf sessions can update task cards even though host edit/test tools are invisible to MCP. |
-| `NIFTY_MCP_PROGRESS_POLL_INTERVAL_MS` | `5000` | Poll interval for worktree change detection. |
-| `NIFTY_MCP_PROGRESS_IDLE_TTL_MS` | `1800000` | Stops the observer after this many milliseconds without Nifty tool activity for the task. |
-| `NIFTY_MCP_PROGRESS_TEST_COMMAND` | unset | Optional verification command to run after changed-worktree batches; successful runs are posted as autonomous progress comments. |
-| `NIFTY_MCP_PROGRESS_TEST_TIMEOUT_MS` | `300000` | Timeout for the optional verification command. |
-
-The MCP observer is fully autonomous once a task id is known from a `nifty_*` call such as `nifty_run_task`, `nifty_get_task_full_context`, `nifty_update_task`, or `nifty_create_comment`. It persists that active task per MCP session and worktree, resumes it on MCP server restart, snapshots the git worktree, and dedupes repeated signatures. Dirty-worktree batches are detected but do not create comments by themselves; they only produce a Cave Updater task comment when `NIFTY_MCP_PROGRESS_TEST_COMMAND` passes. Repository sync events also post a Cave Updater comment when the local branch goes from ahead-of-upstream to no longer ahead. If another task card is opened in the same session/worktree, that newer card becomes active and the previous observer is stopped.
-
-### RAG webhook server (keep index fresh)
-
-The RAG system injects bounded historical task/comment context and policy citations into Nifty tool calls by default (`NIFTY_RAG_ENABLED=true`). It uses LanceDB full-text search with query fanout, table-open caching, result dedupe, timeout bounds, and health diagnostics. RAG is fail-soft context augmentation only; if LanceDB or indexes are unavailable, tools continue without historical context. Set `NIFTY_RAG_ENABLED=false` only when you explicitly want no RAG lookup. Policy gateway and local policy gates remain authoritative.
-
-Pre-populate the index:
-
-```bash
-npm run rag:index:policy   # indexes policy docs, reporting rules, automation rules, and ADRs
-npm run rag:index:tasks    # indexes Nifty task history and comments
-```
-
-The RAG index is kept current by a lightweight webhook server. Start it alongside your development session:
-
-```bash
-npm run rag:webhook
-```
-
-Point your Nifty workspace webhook at `http://<your-host>:7779/webhook`. The server re-indexes on `task.updated` and `comment.created` events (debounced 30 s) and runs a full nightly sync.
-
-Managed production health can require both `nifty-tasks` and `nifty-policy` tables with `NIFTY_RAG_REQUIRED=true`. See `docs/rag-architecture.md` for the full production spec and environment variable contract.
+- Node.js 20 or newer.
+- OpenCode with plugin support.
+- `npm` for installing `@opencode-ai/plugin` in the target OpenCode config directory.
+- Nifty OAuth app credentials or an access token.
+- Optional: `@lancedb/lancedb` for RAG. It is listed as an optional dependency.
 
 ## Configure Credentials
 
-The installer creates `.nifty.env` in the directory where it runs. If you cloned the kit and want to create one manually, copy the env template:
+The installer creates `.nifty.env` if one does not exist. You can also create it manually:
 
 ```bash
 cp env/nifty.env.example .nifty.env
 ```
 
-The template includes the shared Nifty app client ID, authorize URL, and localhost callback URL. Fill in:
+Fill in at least:
 
 - `NIFTY_CLIENT_SECRET`
 
-Optional but recommended:
-
-- `NIFTY_AUTH_PORT` if the localhost callback should use a port other than `8787`
-- `NIFTY_DEFAULT_WORKFLOW`
-
-Load that env file before starting OpenCode in the container.
-
-Example:
+Then load credentials before starting OpenCode:
 
 ```bash
 set -a
@@ -318,135 +137,47 @@ set +a
 opencode
 ```
 
-## Automatic Lifecycle Policy (Hard Gate)
+Common credential variables:
 
-The plugin now enforces an automatic lifecycle policy for task work in OpenCode plugin mode and across any MCP-connected AI coding client.
+- `NIFTY_CLIENT_ID`
+- `NIFTY_CLIENT_SECRET`
+- `NIFTY_AUTHORIZE_URL`
+- `NIFTY_REDIRECT_URI`
+- `NIFTY_ACCESS_TOKEN` for direct token override
+- `NIFTY_TOKEN_PATH` for cached OAuth token location
+- `NIFTY_AUTH_PORT` for the localhost OAuth callback port
 
-Default behavior:
+Do not commit `.nifty.env`.
 
-1. When task work starts through task-oriented tools (for example `nifty_get_task`, `nifty_update_task`, `nifty_prepare_task_for_delivery`, `nifty_create_comment` with `task_id`), the plugin auto-moves the task to In Progress.
-2. If the task has no assignee, it auto-assigns by policy:
-- `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` when configured.
-- otherwise the authenticated Nifty user when `NIFTY_AUTOPOLICY_ASSIGN_SELF=true`.
-3. Moving a task to Dev Review is hard-gated by delivery evidence.
+## First-Time Auth In OpenCode
 
-Automatic full-context behavior:
+After installing and restarting OpenCode, run the slash command:
 
-1. For task/project-targeted tools, the plugin auto-hydrates full context into agent metadata (task details, comments, subtasks, statuses, milestones, and project summaries).
-2. Context hydration works in OpenCode plugin mode and any MCP client.
-3. Context hydration is best-effort and non-blocking, while delivery gates remain hard-fail.
+```text
+/nifty-auth
+```
 
-Canonical task workflow:
+In a devcontainer or remote environment, the plugin uses `nifty_auth_localhost_start`, which starts the callback server in the background and returns the browser URL. Forward the configured auth port, usually `8787`, if your browser cannot reach the callback server.
 
-- `nifty_run_task` is the single entrypoint when a user asks an AI coding agent to run a Nifty card such as `MBC-495`.
-- It hydrates the task description, comments, child/subtask rows, parent relationship, workflow state, milestones, and project context before implementation work starts.
-- It assigns the parent task card to the authorized user using `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` or the authenticated Nifty user.
-- `nifty_complete_child_task` is the only child-completion workflow. It checks off the child row and posts one idempotent `🤖 Cave Updater` comment with exactly `What was done`, `Evidence / Tests`, and `How to verify`.
-- Workflow operations use local cross-process locks plus remote comment de-dupe so repeated or concurrent calls do not duplicate checkoffs or comments.
-
-Parent task cards vs subtasks hard gate:
-
-- Parent task cards are the authoritative work items for status, delivery, comments, labels, documents, links, archive/delete, and bulk movement.
-- Subtasks are execution checklist rows under parent task cards. They are not valid task-card targets for update comments or lifecycle/status mutations.
-- Task-card-only tools hard-deny when the target task id resolves to a subtask. The error includes the parent task id and tells the agent which parent task card to use instead.
-- The only allowed direct subtask mutations are `nifty_complete_child_task` for production child workflow completion and `nifty_complete_task` for low-level explicit check/uncheck. Subtask checkoff does not require parent-card `close_confirmation`; completing a parent task card still does.
-- `nifty_create_subtask` hard-requires a parent task card id for `parent_task_id`; passing a subtask id as the parent is rejected before mutation.
-- `nifty_get_project_full_context` separates parent `tasks` from child `subtasks`, exposes `subtasks_by_parent`, and includes parent `subtask_summary` counters so agents cannot confuse child rows with top-level task cards.
-
-Delivery gate requirements for Dev Review:
-
-- `delivery_evidence.red_proof` when changed files include code/config/test/runtime files
-- `delivery_evidence.green_proof` when changed files include code/config/test/runtime files
-- `delivery_evidence.sad_path_proof`
-
-Visual proof requirement:
-
-- If changed files include code/config/test/runtime files or indicate direct visual impact (CSS/UI/frontend/view/assets), `delivery_evidence.visual_proof` or `delivery_evidence.visual_proof_file_ids` is required.
-- Visual proof URLs are attached to the task comment as external files, Nifty file IDs are attached as `nifty_files`, and both are referenced in `## How to verify`.
-- If the change is documentation-only/non-code, TDD and visual regression proof are not required.
-
-Task comment evidence gate:
-
-- `nifty_create_comment`, `nifty_update_comment` callers, lifecycle delivery comments, and `nifty_complete_child_task` use the same task-card template.
-- When the local worktree or explicit `changed_files` show code/config/test/runtime changes, task-card comments must include RED proof, GREEN proof, and visual regression proof in `## How to verify`.
-- This is enforced in the MCP/plugin boundary so Codex CLI, OpenCode, Cursor, Windsurf, and other MCP clients cannot bypass it by missing local prompt skills.
-
-Policy environment variables:
-
-- `NIFTY_AUTOPOLICY_ENABLED` (default `true`)
-- `NIFTY_AUTOPOLICY_ASSIGN_SELF` (default `true`)
-- `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS` (comma-separated member IDs)
-- `NIFTY_AUTOPOLICY_IN_PROGRESS_STATE` (default `in_progress`)
-- `NIFTY_AUTOPOLICY_DEV_REVIEW_STATE` (default `dev_review`)
-- `NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE` (default `true`)
-- `NIFTY_AUTOCONTEXT_ENABLED` (default `true`)
-- `NIFTY_AUTOCONTEXT_COMMENT_LIMIT` (default `200`)
-- `NIFTY_AUTOCONTEXT_TASK_LIMIT` (default `200`)
-- `NIFTY_AUTOMATION_ACTIVE_TASK_ID` (optional hard override for the Cave Updater task-card context used by automation hooks; MCP startup also accepts it as a fallback)
+For direct local auth, the tool `nifty_auth_localhost_login` can complete the browser callback inline.
 
 ## Configure Workflows
 
-Workflow aliases connect OpenCode prompts to a specific Nifty project, status names, list names, and custom field mappings. The plugin only reads `nifty-workflows.json` from the repo/directory where OpenCode is launched.
-
-The installer does not create this file. From the project root, ask OpenCode to run `nifty_setup_recommended_workflow` with `write_config true` when you are ready to create or merge `./nifty-workflows.json` for that project.
-
-Do not edit `config/nifty-workflows.example.json` for container-specific workflow aliases. Keep local/container-specific aliases in `./nifty-workflows.json`. The repo ignores `./nifty-workflows.json` so pulls can update cleanly.
-
-Workflow config location:
+Workflow aliases connect natural prompts to a Nifty project, statuses, lists, and custom fields. The plugin reads workflow config from the OpenCode launch directory:
 
 ```text
 ./nifty-workflows.json
 ```
 
-The plugin does not read workflow config from `.nifty.env`, `NIFTY_WORKFLOW_CONFIG`, or `~/.config/opencode`.
+The installer does not create this file automatically. From the project root, ask OpenCode to run:
 
-If you need a non-default file for a specific operation, pass `config_path` explicitly to the workflow tool. The plugin never uses a custom path unless you provide it on that tool call.
-
-Example config:
-
-```json
-{
-  "workflows": {
-    "addons": {
-      "project": { "name": "Addons" },
-      "states": {
-        "backlog": "Backlog",
-        "todo": "To Do",
-        "in_progress": "In Progress",
-        "review": "Review"
-      },
-      "lists": {
-        "current": "Current"
-      },
-      "custom_fields": {
-        "area_of_concern": {
-          "id": "VYobLAtiyl",
-          "name": "SBM area of concern",
-          "type": "select",
-          "values": {
-            "tenant_auth": "Tenant / Auth",
-            "deployment": "Deployment"
-          }
-        }
-      }
-    }
-  }
-}
+```text
+run nifty_setup_recommended_workflow with write_config true
 ```
 
-Nifty lists are represented by the API as milestones with `is_list=true`. Add optional `lists` aliases when a project needs another planning level beyond status.
+Use `dry_run true` before creating or changing Nifty statuses/lists. Use `dry_run false` only when you want the plugin to create missing Nifty workflow objects.
 
-Custom fields are mapped from stable workflow keys to Nifty field IDs. Task output is enriched with a `custom_fields` object when mapped fields are present. Use `nifty_update_task_custom_fields` for custom-field-only updates with entries such as `{ "key": "area_of_concern", "value_key": "deployment" }`; it writes each field through Nifty's per-field task endpoint. Task list tools can filter with `custom_field_key` plus `custom_field_value`.
-
-## Activate In A Project
-
-1. Install the plugin in the environment that runs OpenCode.
-2. Start OpenCode from the project root with Nifty env vars loaded.
-3. Ask OpenCode to find the Nifty project and run `nifty_setup_recommended_workflow` with `write_config true`.
-4. Set `NIFTY_DEFAULT_WORKFLOW` to the alias you want OpenCode to use by default.
-5. Restart OpenCode from that project root, then run `/nifty-health` or the `nifty_health_check` tool.
-
-Example project-local config using the recommended lifecycle:
+Example shape:
 
 ```json
 {
@@ -455,174 +186,296 @@ Example project-local config using the recommended lifecycle:
       "project": { "nice_id": "GOV" },
       "states": {
         "ideas": "Ideas",
-        "shaping": "Shaping",
-        "shaped": "Shaped",
-        "planned": "Planned",
-        "not_now": "Not Now",
         "todo": "To Do",
         "in_progress": "In Progress",
         "dev_review": "Dev Review",
-        "ready_for_staging": "Ready for Staging",
-        "in_staging": "In Staging",
-        "ready_for_prod": "Ready for Prod",
-        "released": "Released in Prod",
         "done": "Done",
         "blocked": "Blocked"
       },
       "lists": {
-        "ui": "UI",
         "api": "API",
-        "infrastructure": "Infrastructure",
-        "auth": "Auth",
-        "billing": "Billing",
-        "content": "Content",
-        "docs": "Docs",
-        "data": "Data/Migrations",
-        "devops": "DevOps"
+        "ui": "UI",
+        "docs": "Docs"
       }
     }
   }
 }
 ```
 
-To have OpenCode generate that shape for a real project, run the OpenCode tool `nifty_recommended_workflow`. To compare a project against the recommended statuses/lists without writing to Nifty, run `nifty_setup_recommended_workflow` with `dry_run true`. To create or merge `./nifty-workflows.json`, add `write_config true`. To create missing statuses and lists in Nifty, run the same tool with `dry_run false`.
+Set `NIFTY_DEFAULT_WORKFLOW=gov` when one project should be the default.
 
-These are OpenCode tools, not shell commands. Ask OpenCode to run `nifty_health_check`; do not type `nifty_health_check` in the terminal.
+## RAG Context Layer
 
-## Typical Multi-Project Pattern
+RAG is enabled by default through `NIFTY_RAG_ENABLED=true`. It searches two LanceDB tables:
 
-1. Keep this repo in GitHub.
-2. Clone it into each devcontainer.
-3. Run `./scripts/install.sh`.
-4. Load `.nifty.env` before launching OpenCode.
-5. Set `NIFTY_DEFAULT_WORKFLOW` per container when one container is focused on one Nifty project.
-6. Use `workflow_alias` explicitly when one container needs to operate across multiple projects.
+- `nifty-tasks` - Nifty tasks and comments.
+- `nifty-policy` - policy JSON, reporting standards, automation rules, ADRs, and docs.
 
-## First-Time Auth
+Build or refresh the indexes:
 
-In containerized OpenCode sessions, use the non-blocking auth helper:
-
-```text
-run nifty_auth_localhost_start
+```bash
+npm run rag:index:policy
+npm run rag:index:tasks
 ```
 
-It starts the callback server in the background and immediately returns the browser URL.
+Keep task/comment history fresh with the webhook server:
 
-If the browser cannot reach `127.0.0.1:8787`, forward port `8787` from the container to the host. If `.nifty.env` sets `NIFTY_AUTH_PORT`, forward that port instead.
+```bash
+npm run rag:webhook
+```
 
-## Tools You’ll Use Most
+RAG behavior from code:
 
-- `nifty_auth_localhost_start`
+- builds bounded query fanout from tool name, ids, semantic args, file paths, and nested delivery evidence,
+- skips secret-like keys such as tokens, passwords, cookies, and authorization headers,
+- opens tables through a TTL cache,
+- dedupes and bounds result text,
+- returns empty context on missing LanceDB, missing tables, search errors, or timeouts,
+- never blocks tool execution unless health is explicitly configured to require RAG readiness.
+
+Important RAG variables:
+
+- `NIFTY_RAG_ENABLED` default `true`
+- `NIFTY_RAG_REQUIRED` default `false`
+- `NIFTY_RAG_INDEX_PATH` default `~/.config/opencode/nifty-rag`
+- `NIFTY_RAG_TASK_LIMIT` default `5`
+- `NIFTY_RAG_POLICY_LIMIT` default `3`
+- `NIFTY_RAG_TIMEOUT_MS` default `2000`
+- `NIFTY_RAG_QUERY_FANOUT` default `4`
+- `NIFTY_RAG_MAX_QUERY_CHARS` default `700`
+- `NIFTY_RAG_MAX_RESULT_TEXT_CHARS` default `1200`
+- `NIFTY_RAG_CACHE_TTL_MS` default `300000`
+
+Run `nifty_health_check` to inspect RAG readiness, table availability, cache state, and runtime limits.
+
+## Orchestrator And Policy Layer
+
+Every `nifty_*` tool is wrapped by `withLifecyclePolicy()` in `plugin/nifty.js`.
+
+The wrapper enforces this order before the underlying Nifty tool runs:
+
+1. Central policy gate.
+2. Bootstrap context gate for mutating task/project operations.
+3. Subtask/entity-kind gate.
+4. Best-effort task/project context hydration.
+5. Best-effort lifecycle auto-start.
+6. Best-effort RAG context injection.
+
+The default policy lives at `policy/nifty-ai-policy.json`. It includes:
+
+- structured reporting requirements,
+- RED/GREEN TDD proof requirements,
+- regression and architecture proof requirements,
+- visual proof requirements for UI-impacting work,
+- bulk-delete and workflow-object deletion controls,
+- progress comment milestones,
+- task context loss handling.
+
+Important policy and automation variables:
+
+- `NIFTY_POLICY_PATH`
+- `NIFTY_POLICY_REQUIRED`
+- `NIFTY_BOOTSTRAP_REQUIRED` default `true`
+- `NIFTY_AUTOPOLICY_ENABLED` default `true`
+- `NIFTY_AUTOPOLICY_ASSIGN_SELF` default `true`
+- `NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS`
+- `NIFTY_AUTOPOLICY_IN_PROGRESS_STATE` default `in_progress`
+- `NIFTY_AUTOPOLICY_DEV_REVIEW_STATE` default `dev_review`
+- `NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE` default `true`
+- `NIFTY_AUTOCONTEXT_ENABLED` default `true`
+- `NIFTY_AUTOCONTEXT_COMMENT_LIMIT` default `200`
+- `NIFTY_AUTOCONTEXT_TASK_LIMIT` default `200`
+- `NIFTY_AUTOMATION_ACTIVE_TASK_ID`
+
+## Parent Task Cards And Subtasks
+
+The plugin treats these as different entities:
+
+- Parent task cards are valid targets for status changes, Dev Review, delivery comments, labels, documents, archive/delete, and full lifecycle handling.
+- Nifty subtasks are checklist execution rows under a parent card.
+
+Task-card-only tools hard-deny when the target resolves to a subtask. Use:
+
+- `nifty_complete_child_task` for the production child-task completion workflow,
+- `nifty_complete_task` for low-level explicit subtask check/uncheck,
+- `nifty_create_subtask` only with a parent task-card id.
+
+## MCP Mode
+
+The MCP server exposes the same plugin tools to any MCP-capable AI client:
+
+```bash
+npm run mcp:start
+```
+
+Per-client config helpers:
+
+```bash
+npm run mcp:install:claude
+npm run mcp:install:cursor
+npm run mcp:install:windsurf
+npm run mcp:install:codex
+npm run mcp:install:codex:global
+./scripts/install-copilot.sh
+```
+
+Manual MCP command:
+
+```bash
+node /absolute/path/to/opencode-nifty/mcp/mcp-server.mjs
+```
+
+Set these in MCP env:
+
+- `NIFTY_WORKTREE` - project worktree used for local workflow config and progress detection.
+- `NIFTY_MCP_ROOT` - absolute path to this repo, used by self-update.
+- `NIFTY_MCP_DEBUG` - emits structured debug logs to stderr.
+
+MCP-specific orchestration:
+
+- `NIFTY_POLICY_GATEWAY_MODE=shadow|enforce`
+- `NIFTY_POLICY_GATEWAY_URL`
+- `NIFTY_POLICY_GATEWAY_TOKEN`
+- `NIFTY_POLICY_GATEWAY_TIMEOUT_MS` default `10000`
+- `NIFTY_MCP_ACTIVE_TASK_ID`
+- `NIFTY_MCP_ACTIVE_TASK_STATE_PATH` default `~/.local/state/nifty/mcp-active-task.json`
+- `NIFTY_MCP_PROGRESS_POLL_ENABLED` default `true`
+- `NIFTY_MCP_PROGRESS_POLL_INTERVAL_MS` default `5000`
+- `NIFTY_MCP_PROGRESS_IDLE_TTL_MS` default `1800000`
+- `NIFTY_MCP_PROGRESS_TEST_COMMAND`
+- `NIFTY_MCP_PROGRESS_TEST_TIMEOUT_MS` default `300000`
+
+Dirty-worktree batches are observed but do not create comments by themselves. The MCP observer posts a Cave Updater progress comment only when `NIFTY_MCP_PROGRESS_TEST_COMMAND` succeeds or when repository sync transitions from ahead-of-upstream to no longer ahead.
+
+## Tool Catalog
+
+The current plugin defines these tools:
+
+### Auth And Health
+
+- `nifty_auth_help`
+- `nifty_auth_exchange_code`
 - `nifty_auth_localhost_login`
-- `nifty_update_plugin`
+- `nifty_auth_localhost_start`
+- `nifty_me`
 - `nifty_health_check`
+- `nifty_update_plugin`
+
+### Projects, Workflows, And Members
+
+- `nifty_list_projects`
+- `nifty_find_project`
+- `nifty_get_project_full_context`
+- `nifty_list_members`
+- `nifty_list_workflows`
 - `nifty_validate_workflows`
 - `nifty_recommended_workflow`
 - `nifty_setup_recommended_workflow`
-- `nifty_shape_task`
-- `nifty_find_project`
-- `nifty_get_project_full_context`
+
+### Statuses, Milestones, Labels, Documents
+
+- `nifty_list_statuses`
 - `nifty_delete_status`
 - `nifty_list_milestones`
+- `nifty_get_milestone`
 - `nifty_create_milestone`
+- `nifty_update_milestone`
 - `nifty_update_milestone_tasks`
 - `nifty_list_labels`
+- `nifty_create_label`
+- `nifty_update_label`
 - `nifty_list_documents`
+- `nifty_get_document`
 - `nifty_create_document`
 - `nifty_update_document`
 - `nifty_delete_document`
-- `nifty_list_workflows`
+- `nifty_move_document`
+- `nifty_update_document_labels`
+
+### Tasks And Lifecycle
+
+- `nifty_shape_task`
 - `nifty_list_workflow_tasks`
 - `nifty_capture_backlog_item`
 - `nifty_batch_capture_backlog_items`
+- `nifty_list_tasks`
+- `nifty_get_task`
 - `nifty_get_task_full_context`
+- `nifty_run_task`
+- `nifty_complete_child_task`
+- `nifty_create_task`
 - `nifty_create_subtask`
-- `nifty_prepare_task_for_delivery`
-- `nifty_move_task_to_status`
+- `nifty_update_task`
+- `nifty_update_task_custom_fields`
+- `nifty_update_task_assignees`
+- `nifty_delete_task`
+- `nifty_delete_tasks`
 - `nifty_complete_task`
 - `nifty_archive_task`
-- `nifty_delete_task`
 - `nifty_clone_task`
 - `nifty_link_tasks`
+- `nifty_update_task_labels`
+- `nifty_attach_task_document`
+- `nifty_move_tasks`
+- `nifty_move_task_to_status`
+- `nifty_prepare_task_for_delivery`
 
-`nifty_move_task_to_status` and `nifty_prepare_task_for_delivery` accept `delivery_evidence` for Dev Review transitions. Example shape:
+### Discussions And Comments
 
-```json
-{
-  "delivery_evidence": {
-    "red_proof": "npm test -- test/lifecycle-policy.test.mjs",
-    "green_proof": "npm test",
-    "sad_path_proof": "verified invalid input returns expected error",
-    "visual_proof": ["https://example.com/screenshot.png"],
-    "visual_proof_file_ids": ["nifty-file-id"],
-    "changed_files": ["frontend/src/app/page.tsx"],
-    "notes": "All required checks passed"
-  }
-}
-```
+- `nifty_list_discussions`
+- `nifty_get_discussion`
+- `nifty_list_messages`
+- `nifty_create_comment`
+- `nifty_update_comment`
 
-Use `nifty_create_subtask` when the requested work is an execution step under an existing parent task. Use `nifty_create_task` or workflow task tools for independent backlog or workflow items.
+## Typical OpenCode Workflow
 
-Use `nifty_shape_task` to turn a short feature idea or existing rough task into a dev-ready task. Call it with the current answers, ask exactly the returned `next_question`, and repeat one question at a time until `ready: true`. Finalizing can update an existing task or create a new one. Proposed subtasks are only created when `create_subtasks` is true and the exact `subtask_confirmation` phrase is provided.
+1. Install from `dev-tony` and restart OpenCode.
+2. Load `.nifty.env` or export credentials.
+3. Run `/nifty-auth`.
+4. Run `/nifty-health` or ask OpenCode to call `nifty_health_check`.
+5. Generate or validate `./nifty-workflows.json` with `nifty_setup_recommended_workflow`.
+6. Index RAG policy and tasks if the team wants historical context.
+7. Start work with `nifty_run_task` or `nifty_get_task_full_context` for a task card.
+8. Let the orchestrator enforce context, lifecycle, evidence, and delivery gates.
 
-Before creating or preparing shaped tasks, answer open questions with the user. The plugin blocks unresolved `open_questions` instead of writing them into Nifty task descriptions.
+Example prompts inside OpenCode:
 
-Bulk task deletion requires an explicit confirmation phrase such as `delete 3 tasks`. Ask the user before providing that phrase.
-
-Use `nifty_update_plugin` to update the installed plugin from GitHub. If it reports `updated: false`, there is no newer plugin available. If it reports `updated: true`, restart OpenCode so the new plugin version is loaded.
-
-For deep task/project understanding by coding agents, use:
-
-- `nifty_get_task_full_context` to load full task details, description, comments, subtasks, project status map, and milestone context.
-- `nifty_get_project_full_context` to load full project context, workflow mapping, status distribution, document/task snapshots, parent task rows, subtask child rows, and parent subtask counters.
-
-## Example Prompts
-
-- `run nifty_list_workflows`
-- `/nifty-auth`
-- `/nifty-update`
 - `run nifty_health_check`
-- `/nifty-health`
-- `/nifty-setup`
-- `run nifty_validate_workflows`
-- `run nifty_recommended_workflow with workflow_alias gov and project_nice_id GOV`
-- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true`
-- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run true and write_config true`
-- `run nifty_setup_recommended_workflow with workflow_alias gov and project_name "Gov CMS" and dry_run false`
 - `run nifty_find_project with query Addons`
-- `run nifty_list_workflow_tasks with state_key backlog`
-- `run nifty_list_workflow_tasks with state_key backlog and list_key current`
-- `run nifty_capture_backlog_item with name Add retry handling`
-- `run nifty_batch_capture_backlog_items with dry_run true`
-- `run nifty_create_document with name "Launch notes" and content_text "Draft notes"`
-- `run nifty_list_documents`
-- `run nifty_prepare_task_for_delivery with task_id <id> state_key todo`
-- `run nifty_move_task_to_status with task_id <id> state_key in_progress`
-- `run nifty_complete_task with task_id <id>`
-- `run nifty_archive_task with task_id <id>`
-- `run nifty_link_tasks with task_id <id> and task_ids ["<other-id>"]`
+- `run nifty_setup_recommended_workflow with workflow_alias gov and project_nice_id GOV and dry_run true`
+- `run nifty_get_task_full_context with task_id MBC-462`
+- `run nifty_run_task with task_id MBC-462`
+- `run nifty_prepare_task_for_delivery with task_id MBC-462 and state_key dev_review`
 
-Automated comments created by workflow tools are prefixed with `🤖 Cave Updater`. Direct comment tools also default to that marker, but can opt out with `bot_marker false` when the comment is intended to come from a person.
-
-If `NIFTY_DEFAULT_WORKFLOW` is not set, provide `workflow_alias` explicitly.
-
-## Updating Existing Installs
-
-Run:
-
-```bash
-git pull
-./scripts/update.sh
-```
-
-The installer copies the latest plugin into the target OpenCode config and updates OpenCode guidance/commands. It does not create or modify workflow config files.
+These are OpenCode tool requests, not terminal commands.
 
 ## Validation
 
-Before opening a pull request or after changing the plugin, run:
+Before changing the plugin or opening a PR, run:
 
 ```bash
 npm run lint
 npm run format:check
 npm test
 ```
+
+RAG-specific verification:
+
+```bash
+npx -y node@20 --test test/rag.test.mjs test/rag-http.test.mjs
+```
+
+## Security Notes
+
+- Do not commit `.nifty.env`, access tokens, client secrets, or policy gateway tokens.
+- RAG skips secret-like keys during query construction and is not a policy authority.
+- Mutating tools are guarded by deterministic local policy and optional MCP remote policy gateway checks.
+- Routine lifecycle noise is suppressed by default; delivery comments must use structured evidence.
+
+## More Detail
+
+- RAG architecture: `docs/rag-architecture.md`
+- MCP integration: `mcp/FULL_SPEC.md`
+- Default policy: `policy/nifty-ai-policy.json`
+- Example workflow config: `config/nifty-workflows.example.json`
