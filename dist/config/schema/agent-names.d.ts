@@ -1,0 +1,58 @@
+import { z } from "zod";
+export declare const BuiltinAgentNameSchema: z.ZodEnum<{
+    metis: "metis";
+    momus: "momus";
+    atlas: "atlas";
+    denny: "denny";
+    tony: "tony";
+    june: "june";
+    mar: "mar";
+    pearly: "pearly";
+    anwyko: "anwyko";
+    berna: "berna";
+    jay: "jay";
+}>;
+export declare const BuiltinSkillNameSchema: z.ZodEnum<{
+    playwright: "playwright";
+    "agent-browser": "agent-browser";
+    "dev-browser": "dev-browser";
+    "frontend-ui-ux": "frontend-ui-ux";
+    "git-master": "git-master";
+    "review-work": "review-work";
+    "remove-ai-slops": "remove-ai-slops";
+    "init-deep": "init-deep";
+    "security-research": "security-research";
+    "security-review": "security-review";
+    "team-mode": "team-mode";
+}>;
+export declare const OverridableAgentNameSchema: z.ZodEnum<{
+    metis: "metis";
+    momus: "momus";
+    atlas: "atlas";
+    denny: "denny";
+    tony: "tony";
+    june: "june";
+    mar: "mar";
+    pearly: "pearly";
+    anwyko: "anwyko";
+    berna: "berna";
+    jay: "jay";
+    build: "build";
+    plan: "plan";
+    "OpenCode-Builder": "OpenCode-Builder";
+}>;
+export declare const AgentNameSchema: z.ZodEnum<{
+    metis: "metis";
+    momus: "momus";
+    atlas: "atlas";
+    denny: "denny";
+    tony: "tony";
+    june: "june";
+    mar: "mar";
+    pearly: "pearly";
+    anwyko: "anwyko";
+    berna: "berna";
+    jay: "jay";
+}>;
+export type AgentName = z.infer<typeof AgentNameSchema>;
+export type BuiltinSkillName = z.infer<typeof BuiltinSkillNameSchema>;

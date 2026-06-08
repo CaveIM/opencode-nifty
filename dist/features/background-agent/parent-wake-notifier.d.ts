@@ -1,0 +1,25 @@
+import type { ParentWakePromptContext, PendingParentWake } from "./parent-wake-dedupe";
+import type { ParentWakeNotifierDeps, ParentWakeNotifierOptions } from "./parent-wake-notifier-types";
+export type { ParentWakePromptContext, PendingParentWake } from "./parent-wake-dedupe";
+export declare class ParentWakeNotifier {
+    private readonly pendingQueue;
+    private readonly dispatchedTracker;
+    private readonly sessionInspector;
+    private readonly flushRunner;
+    constructor(deps: ParentWakeNotifierDeps, options: ParentWakeNotifierOptions);
+    getPendingParentWakes(): Map<string, PendingParentWake>;
+    getPendingParentWakeTimers(): Map<string, ReturnType<typeof setTimeout>>;
+    getDispatchedParentWakes(): Map<string, PendingParentWake>;
+    getDispatchedParentWakeTimers(): Map<string, ReturnType<typeof setTimeout>>;
+    recordParentSessionActivity(sessionID: string): void;
+    queuePendingParentWake(sessionID: string, notification: string, promptContext: ParentWakePromptContext, shouldReply: boolean, delayMs?: number): void;
+    flushPendingParentWake(sessionID: string): Promise<void>;
+    clearDispatchedParentWake(sessionID: string): void;
+    requeueDispatchedParentWake(sessionID: string, reason: string): Promise<boolean>;
+    requeueDispatchedParentWakeAfterEmptyAssistantTurn(sessionID: string): boolean;
+    schedulePendingParentWakeFlush(sessionID: string, delayMs?: number): void;
+    clearPendingParentWakeTimer(sessionID: string): void;
+    shutdown(): void;
+    private requeueWake;
+    private shouldDeferParentWakeForSessionHistory;
+}

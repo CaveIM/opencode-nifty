@@ -1,0 +1,2849 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "Skip to content" [ref=e4] [cursor=pointer]:
+        - /url: "#start-of-content"
+      - banner [ref=e6]:
+        - heading "Navigation Menu" [level=2] [ref=e7]
+        - generic [ref=e8]:
+          - link "Homepage" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=e11]
+          - generic [ref=e13]:
+            - navigation "Global" [ref=e16]:
+              - list [ref=e17]:
+                - listitem [ref=e18]:
+                  - button "Platform" [ref=e20] [cursor=pointer]:
+                    - text: Platform
+                    - img [ref=e21]
+                - listitem [ref=e23]:
+                  - button "Solutions" [ref=e25] [cursor=pointer]:
+                    - text: Solutions
+                    - img [ref=e26]
+                - listitem [ref=e28]:
+                  - button "Resources" [ref=e30] [cursor=pointer]:
+                    - text: Resources
+                    - img [ref=e31]
+                - listitem [ref=e33]:
+                  - button "Open Source" [ref=e35] [cursor=pointer]:
+                    - text: Open Source
+                    - img [ref=e36]
+                - listitem [ref=e38]:
+                  - button "Enterprise" [ref=e40] [cursor=pointer]:
+                    - text: Enterprise
+                    - img [ref=e41]
+                - listitem [ref=e43]:
+                  - link "Pricing" [ref=e44] [cursor=pointer]:
+                    - /url: https://github.com/pricing
+                    - generic [ref=e45]: Pricing
+            - generic [ref=e46]:
+              - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+                - img [ref=e51]
+              - link "Sign in" [ref=e54] [cursor=pointer]:
+                - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fanomalyco%2Fopencode%2Fblob%2Fdev%2F.opencode%2Fplugins%2Ftui-smoke.tsx
+              - link "Sign up" [ref=e55] [cursor=pointer]:
+                - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Fblob%2Fshow&source=header-repo&source_repo=anomalyco%2Fopencode
+              - button "Appearance settings" [ref=e58] [cursor=pointer]:
+                - img
+    - main [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e66]:
+            - img [ref=e67]
+            - link "anomalyco" [ref=e70] [cursor=pointer]:
+              - /url: /anomalyco
+            - generic [ref=e71]: /
+            - strong [ref=e72]:
+              - link "opencode" [ref=e73] [cursor=pointer]:
+                - /url: /anomalyco/opencode
+            - generic [ref=e74]: Public
+          - generic [ref=e75]:
+            - list:
+              - listitem [ref=e76]:
+                - link "You must be signed in to change notification settings" [ref=e77] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e78]
+                  - text: Notifications
+              - listitem [ref=e80]:
+                - link "Fork 20.4k" [ref=e81] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e82]
+                  - text: Fork
+                  - generic "20,428" [ref=e84]: 20.4k
+              - listitem [ref=e85]:
+                - link "You must be signed in to star a repository" [ref=e87] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e88]
+                  - text: Star
+                  - generic "170616 users starred this repository" [ref=e90]: 171k
+        - navigation "Repository" [ref=e91]:
+          - list [ref=e92]:
+            - listitem [ref=e93]:
+              - link "Code" [ref=e94] [cursor=pointer]:
+                - /url: /anomalyco/opencode
+                - img [ref=e95]
+                - generic [ref=e97]: Code
+            - listitem [ref=e98]:
+              - link "Issues 5k+" [ref=e99] [cursor=pointer]:
+                - /url: /anomalyco/opencode/issues
+                - img [ref=e100]
+                - generic [ref=e103]: Issues
+                - generic "5,000+" [ref=e104]: 5k+
+            - listitem [ref=e105]:
+              - link "Pull requests 986" [ref=e106] [cursor=pointer]:
+                - /url: /anomalyco/opencode/pulls
+                - img [ref=e107]
+                - generic [ref=e109]: Pull requests
+                - generic "986" [ref=e110]
+            - listitem [ref=e111]:
+              - link "Actions" [ref=e112] [cursor=pointer]:
+                - /url: /anomalyco/opencode/actions
+                - img [ref=e113]
+                - generic [ref=e115]: Actions
+            - listitem [ref=e116]:
+              - link "Projects" [ref=e117] [cursor=pointer]:
+                - /url: /anomalyco/opencode/projects
+                - img [ref=e118]
+                - generic [ref=e120]: Projects
+            - listitem [ref=e121]:
+              - link "Security and quality 2" [ref=e122] [cursor=pointer]:
+                - /url: /anomalyco/opencode/security
+                - img [ref=e123]
+                - generic [ref=e125]: Security and quality
+                - generic "2" [ref=e126]
+            - listitem [ref=e127]:
+              - link "Insights" [ref=e128] [cursor=pointer]:
+                - /url: /anomalyco/opencode/pulse
+                - img [ref=e129]
+                - generic [ref=e131]: Insights
+      - generic [ref=e139]:
+        - generic [ref=e141]:
+          - generic [ref=e144]:
+            - generic [ref=e145]:
+              - generic [ref=e146]:
+                - heading "Collapse file tree" [level=2] [ref=e147]:
+                  - button "Collapse file tree" [expanded] [ref=e148] [cursor=pointer]:
+                    - img [ref=e149]
+                - heading "Files" [level=2] [ref=e152]
+              - generic [ref=e153]:
+                - button "dev branch" [ref=e155] [cursor=pointer]:
+                  - generic [ref=e156]:
+                    - generic [ref=e158]:
+                      - img [ref=e160]
+                      - generic [ref=e163]: dev
+                    - generic:
+                      - img
+                - button "Search this repository (forward slash)" [ref=e165] [cursor=pointer]:
+                  - img [ref=e166]
+            - generic [ref=e169]:
+              - img [ref=e171]
+              - combobox "Go to file" [ref=e173]
+            - navigation "File Tree Navigation" [ref=e179]:
+              - tree "Files" [ref=e181]:
+                - treeitem ".changeset" [level=1] [ref=e182]:
+                  - generic [ref=e183] [cursor=pointer]:
+                    - img [ref=e185]
+                    - generic [ref=e187]:
+                      - img [ref=e191]
+                      - generic [ref=e193]: .changeset
+                - treeitem ".github" [level=1] [ref=e194]:
+                  - generic [ref=e195] [cursor=pointer]:
+                    - img [ref=e197]
+                    - generic [ref=e199]:
+                      - img [ref=e203]
+                      - generic [ref=e205]: .github
+                - treeitem ".husky" [level=1] [ref=e206]:
+                  - generic [ref=e207] [cursor=pointer]:
+                    - img [ref=e209]
+                    - generic [ref=e211]:
+                      - img [ref=e215]
+                      - generic [ref=e217]: .husky
+                - treeitem ".opencode" [expanded] [level=1] [ref=e218]:
+                  - generic [ref=e219] [cursor=pointer]:
+                    - img [ref=e221]
+                    - generic [ref=e223]:
+                      - img [ref=e227]
+                      - generic [ref=e229]: .opencode
+                  - group ".opencode" [ref=e230]:
+                    - treeitem "agent" [level=2] [ref=e231]:
+                      - generic [ref=e232] [cursor=pointer]:
+                        - img [ref=e237]
+                        - generic [ref=e239]:
+                          - img [ref=e243]
+                          - generic [ref=e245]: agent
+                    - treeitem "command" [level=2] [ref=e246]:
+                      - generic [ref=e247] [cursor=pointer]:
+                        - img [ref=e252]
+                        - generic [ref=e254]:
+                          - img [ref=e258]
+                          - generic [ref=e260]: command
+                    - treeitem "glossary" [level=2] [ref=e261]:
+                      - generic [ref=e262] [cursor=pointer]:
+                        - img [ref=e267]
+                        - generic [ref=e269]:
+                          - img [ref=e273]
+                          - generic [ref=e275]: glossary
+                    - treeitem "plugins" [expanded] [level=2] [ref=e276]:
+                      - generic [ref=e277] [cursor=pointer]:
+                        - img [ref=e282]
+                        - generic [ref=e284]:
+                          - img [ref=e288]
+                          - generic [ref=e290]: plugins
+                      - group "plugins" [ref=e291]:
+                        - treeitem "smoke-theme.json" [level=3] [ref=e292]:
+                          - generic [ref=e298] [cursor=pointer]:
+                            - img [ref=e301]
+                            - generic [ref=e303]: smoke-theme.json
+                        - treeitem "tui-smoke.tsx" [level=3] [ref=e304]:
+                          - generic [ref=e310] [cursor=pointer]:
+                            - img [ref=e313]
+                            - generic [ref=e315]: tui-smoke.tsx
+                    - treeitem "skills" [level=2] [ref=e316]:
+                      - generic [ref=e317] [cursor=pointer]:
+                        - img [ref=e322]
+                        - generic [ref=e324]:
+                          - img [ref=e328]
+                          - generic [ref=e330]: skills
+                    - treeitem "themes" [level=2] [ref=e331]:
+                      - generic [ref=e332] [cursor=pointer]:
+                        - img [ref=e337]
+                        - generic [ref=e339]:
+                          - img [ref=e343]
+                          - generic [ref=e345]: themes
+                    - treeitem "tool" [level=2] [ref=e346]:
+                      - generic [ref=e347] [cursor=pointer]:
+                        - img [ref=e352]
+                        - generic [ref=e354]:
+                          - img [ref=e358]
+                          - generic [ref=e360]: tool
+                    - treeitem ".gitignore" [level=2] [ref=e361]:
+                      - generic [ref=e366] [cursor=pointer]:
+                        - img [ref=e369]
+                        - generic [ref=e371]: .gitignore
+                    - treeitem "env.d.ts" [level=2] [ref=e372]:
+                      - generic [ref=e377] [cursor=pointer]:
+                        - img [ref=e380]
+                        - generic [ref=e382]: env.d.ts
+                    - treeitem "opencode.jsonc" [level=2] [ref=e383]:
+                      - generic [ref=e388] [cursor=pointer]:
+                        - img [ref=e391]
+                        - generic [ref=e393]: opencode.jsonc
+                    - treeitem "tui.json" [level=2] [ref=e394]:
+                      - generic [ref=e399] [cursor=pointer]:
+                        - img [ref=e402]
+                        - generic [ref=e404]: tui.json
+                - treeitem ".vscode" [level=1] [ref=e405]:
+                  - generic [ref=e406] [cursor=pointer]:
+                    - img [ref=e408]
+                    - generic [ref=e410]:
+                      - img [ref=e414]
+                      - generic [ref=e416]: .vscode
+                - treeitem ".zed" [level=1] [ref=e417]:
+                  - generic [ref=e418] [cursor=pointer]:
+                    - img [ref=e420]
+                    - generic [ref=e422]:
+                      - img [ref=e426]
+                      - generic [ref=e428]: .zed
+                - treeitem "github" [level=1] [ref=e429]:
+                  - generic [ref=e430] [cursor=pointer]:
+                    - img [ref=e432]
+                    - generic [ref=e434]:
+                      - img [ref=e438]
+                      - generic [ref=e440]: github
+                - treeitem "infra" [level=1] [ref=e441]:
+                  - generic [ref=e442] [cursor=pointer]:
+                    - img [ref=e444]
+                    - generic [ref=e446]:
+                      - img [ref=e450]
+                      - generic [ref=e452]: infra
+                - treeitem "nix" [level=1] [ref=e453]:
+                  - generic [ref=e454] [cursor=pointer]:
+                    - img [ref=e456]
+                    - generic [ref=e458]:
+                      - img [ref=e462]
+                      - generic [ref=e464]: nix
+                - treeitem "packages" [level=1] [ref=e465]:
+                  - generic [ref=e466] [cursor=pointer]:
+                    - img [ref=e468]
+                    - generic [ref=e470]:
+                      - img [ref=e474]
+                      - generic [ref=e476]: packages
+                - treeitem "patches" [level=1] [ref=e477]:
+                  - generic [ref=e478] [cursor=pointer]:
+                    - img [ref=e480]
+                    - generic [ref=e482]:
+                      - img [ref=e486]
+                      - generic [ref=e488]: patches
+                - treeitem "perf" [level=1] [ref=e489]:
+                  - generic [ref=e490] [cursor=pointer]:
+                    - img [ref=e492]
+                    - generic [ref=e494]:
+                      - img [ref=e498]
+                      - generic [ref=e500]: perf
+                - treeitem "script" [level=1] [ref=e501]:
+                  - generic [ref=e502] [cursor=pointer]:
+                    - img [ref=e504]
+                    - generic [ref=e506]:
+                      - img [ref=e510]
+                      - generic [ref=e512]: script
+                - treeitem "sdks" [level=1] [ref=e513]:
+                  - generic [ref=e514] [cursor=pointer]:
+                    - img [ref=e516]
+                    - generic [ref=e518]:
+                      - img [ref=e522]
+                      - generic [ref=e524]: sdks
+                - treeitem "specs" [level=1] [ref=e525]:
+                  - generic [ref=e526] [cursor=pointer]:
+                    - img [ref=e528]
+                    - generic [ref=e530]:
+                      - img [ref=e534]
+                      - generic [ref=e536]: specs
+                - treeitem ".dockerignore" [level=1] [ref=e537]:
+                  - generic [ref=e539] [cursor=pointer]:
+                    - img [ref=e542]
+                    - generic [ref=e544]: .dockerignore
+                - treeitem ".editorconfig" [level=1] [ref=e545]:
+                  - generic [ref=e547] [cursor=pointer]:
+                    - img [ref=e550]
+                    - generic [ref=e552]: .editorconfig
+                - treeitem ".gitattributes" [level=1] [ref=e553]:
+                  - generic [ref=e555] [cursor=pointer]:
+                    - img [ref=e558]
+                    - generic [ref=e560]: .gitattributes
+                - treeitem ".gitignore" [level=1] [ref=e561]:
+                  - generic [ref=e563] [cursor=pointer]:
+                    - img [ref=e566]
+                    - generic [ref=e568]: .gitignore
+                - treeitem ".gitleaksignore" [level=1] [ref=e569]:
+                  - generic [ref=e571] [cursor=pointer]:
+                    - img [ref=e574]
+                    - generic [ref=e576]: .gitleaksignore
+                - treeitem ".oxlintrc.json" [level=1] [ref=e577]:
+                  - generic [ref=e579] [cursor=pointer]:
+                    - img [ref=e582]
+                    - generic [ref=e584]: .oxlintrc.json
+                - treeitem ".prettierignore" [level=1] [ref=e585]:
+                  - generic [ref=e587] [cursor=pointer]:
+                    - img [ref=e590]
+                    - generic [ref=e592]: .prettierignore
+                - treeitem "AGENTS.md" [level=1] [ref=e593]:
+                  - generic [ref=e595] [cursor=pointer]:
+                    - img [ref=e598]
+                    - generic [ref=e600]: AGENTS.md
+                - treeitem "CONTEXT.md" [level=1] [ref=e601]:
+                  - generic [ref=e603] [cursor=pointer]:
+                    - img [ref=e606]
+                    - generic [ref=e608]: CONTEXT.md
+                - treeitem "CONTRIBUTING.md" [level=1] [ref=e609]:
+                  - generic [ref=e611] [cursor=pointer]:
+                    - img [ref=e614]
+                    - generic [ref=e616]: CONTRIBUTING.md
+                - treeitem "LICENSE" [level=1] [ref=e617]:
+                  - generic [ref=e619] [cursor=pointer]:
+                    - img [ref=e622]
+                    - generic [ref=e624]: LICENSE
+                - treeitem "README.ar.md" [level=1] [ref=e625]:
+                  - generic [ref=e627] [cursor=pointer]:
+                    - img [ref=e630]
+                    - generic [ref=e632]: README.ar.md
+                - treeitem "README.bn.md" [level=1] [ref=e633]:
+                  - generic [ref=e635] [cursor=pointer]:
+                    - img [ref=e638]
+                    - generic [ref=e640]: README.bn.md
+                - treeitem "README.br.md" [level=1] [ref=e641]:
+                  - generic [ref=e643] [cursor=pointer]:
+                    - img [ref=e646]
+                    - generic [ref=e648]: README.br.md
+                - treeitem "README.bs.md" [level=1] [ref=e649]:
+                  - generic [ref=e651] [cursor=pointer]:
+                    - img [ref=e654]
+                    - generic [ref=e656]: README.bs.md
+                - treeitem "README.da.md" [level=1] [ref=e657]:
+                  - generic [ref=e659] [cursor=pointer]:
+                    - img [ref=e662]
+                    - generic [ref=e664]: README.da.md
+                - treeitem "README.de.md" [level=1] [ref=e665]:
+                  - generic [ref=e667] [cursor=pointer]:
+                    - img [ref=e670]
+                    - generic [ref=e672]: README.de.md
+                - treeitem "README.es.md" [level=1] [ref=e673]:
+                  - generic [ref=e675] [cursor=pointer]:
+                    - img [ref=e678]
+                    - generic [ref=e680]: README.es.md
+                - treeitem "README.fr.md" [level=1] [ref=e681]:
+                  - generic [ref=e683] [cursor=pointer]:
+                    - img [ref=e686]
+                    - generic [ref=e688]: README.fr.md
+                - treeitem "README.gr.md" [level=1] [ref=e689]:
+                  - generic [ref=e691] [cursor=pointer]:
+                    - img [ref=e694]
+                    - generic [ref=e696]: README.gr.md
+                - treeitem "README.it.md" [level=1] [ref=e697]:
+                  - generic [ref=e699] [cursor=pointer]:
+                    - img [ref=e702]
+                    - generic [ref=e704]: README.it.md
+                - treeitem "README.ja.md" [level=1] [ref=e705]:
+                  - generic [ref=e707] [cursor=pointer]:
+                    - img [ref=e710]
+                    - generic [ref=e712]: README.ja.md
+                - treeitem "README.ko.md" [level=1] [ref=e713]:
+                  - generic [ref=e715] [cursor=pointer]:
+                    - img [ref=e718]
+                    - generic [ref=e720]: README.ko.md
+                - treeitem "README.md" [level=1] [ref=e721]:
+                  - generic [ref=e723] [cursor=pointer]:
+                    - img [ref=e726]
+                    - generic [ref=e728]: README.md
+                - treeitem "README.no.md" [level=1] [ref=e729]:
+                  - generic [ref=e731] [cursor=pointer]:
+                    - img [ref=e734]
+                    - generic [ref=e736]: README.no.md
+                - treeitem "README.pl.md" [level=1] [ref=e737]:
+                  - generic [ref=e739] [cursor=pointer]:
+                    - img [ref=e742]
+                    - generic [ref=e744]: README.pl.md
+                - treeitem "README.ru.md" [level=1] [ref=e745]:
+                  - generic [ref=e747] [cursor=pointer]:
+                    - img [ref=e750]
+                    - generic [ref=e752]: README.ru.md
+                - treeitem "README.th.md" [level=1] [ref=e753]:
+                  - generic [ref=e755] [cursor=pointer]:
+                    - img [ref=e758]
+                    - generic [ref=e760]: README.th.md
+                - treeitem "README.tr.md" [level=1] [ref=e761]:
+                  - generic [ref=e763] [cursor=pointer]:
+                    - img [ref=e766]
+                    - generic [ref=e768]: README.tr.md
+                - treeitem "README.uk.md" [level=1] [ref=e769]:
+                  - generic [ref=e771] [cursor=pointer]:
+                    - img [ref=e774]
+                    - generic [ref=e776]: README.uk.md
+                - treeitem "README.vi.md" [level=1] [ref=e777]:
+                  - generic [ref=e779] [cursor=pointer]:
+                    - img [ref=e782]
+                    - generic [ref=e784]: README.vi.md
+                - treeitem "README.zh.md" [level=1] [ref=e785]:
+                  - generic [ref=e787] [cursor=pointer]:
+                    - img [ref=e790]
+                    - generic [ref=e792]: README.zh.md
+                - treeitem "README.zht.md" [level=1] [ref=e793]:
+                  - generic [ref=e795] [cursor=pointer]:
+                    - img [ref=e798]
+                    - generic [ref=e800]: README.zht.md
+                - treeitem "SECURITY.md" [level=1] [ref=e801]:
+                  - generic [ref=e803] [cursor=pointer]:
+                    - img [ref=e806]
+                    - generic [ref=e808]: SECURITY.md
+                - treeitem "STATS.md" [level=1] [ref=e809]:
+                  - generic [ref=e811] [cursor=pointer]:
+                    - img [ref=e814]
+                    - generic [ref=e816]: STATS.md
+                - treeitem "bun.lock" [level=1] [ref=e817]:
+                  - generic [ref=e819] [cursor=pointer]:
+                    - img [ref=e822]
+                    - generic [ref=e824]: bun.lock
+                - treeitem "bunfig.toml" [level=1] [ref=e825]:
+                  - generic [ref=e827] [cursor=pointer]:
+                    - img [ref=e830]
+                    - generic [ref=e832]: bunfig.toml
+                - treeitem "flake.lock" [level=1] [ref=e833]:
+                  - generic [ref=e835] [cursor=pointer]:
+                    - img [ref=e838]
+                    - generic [ref=e840]: flake.lock
+                - treeitem "flake.nix" [level=1] [ref=e841]:
+                  - generic [ref=e843] [cursor=pointer]:
+                    - img [ref=e846]
+                    - generic [ref=e848]: flake.nix
+                - treeitem "install" [level=1] [ref=e849]:
+                  - generic [ref=e851] [cursor=pointer]:
+                    - img [ref=e854]
+                    - generic [ref=e856]: install
+                - treeitem "package.json" [level=1] [ref=e857]:
+                  - generic [ref=e859] [cursor=pointer]:
+                    - img [ref=e862]
+                    - generic [ref=e864]: package.json
+                - treeitem "screenshot-uk.png" [level=1] [ref=e865]:
+                  - generic [ref=e867] [cursor=pointer]:
+                    - img [ref=e870]
+                    - generic [ref=e872]: screenshot-uk.png
+                - treeitem "sst-env.d.ts" [level=1] [ref=e873]:
+                  - generic [ref=e875] [cursor=pointer]:
+                    - img [ref=e878]
+                    - generic [ref=e880]: sst-env.d.ts
+                - treeitem "sst.config.ts" [level=1] [ref=e881]:
+                  - generic [ref=e883] [cursor=pointer]:
+                    - img [ref=e886]
+                    - generic [ref=e888]: sst.config.ts
+                - treeitem "tsconfig.json" [level=1] [ref=e889]:
+                  - generic [ref=e891] [cursor=pointer]:
+                    - img [ref=e894]
+                    - generic [ref=e896]: tsconfig.json
+                - treeitem "turbo.json" [level=1] [ref=e897]:
+                  - generic [ref=e899] [cursor=pointer]:
+                    - img [ref=e902]
+                    - generic [ref=e904]: turbo.json
+          - slider "Draggable pane splitter" [ref=e906]
+        - generic [ref=e909]:
+          - generic [ref=e913]:
+            - generic [ref=e915]:
+              - navigation "Breadcrumbs" [ref=e916]:
+                - heading "Breadcrumbs" [level=2] [ref=e917]
+                - list [ref=e918]:
+                  - listitem [ref=e919]:
+                    - link "opencode" [ref=e920] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev
+                  - listitem [ref=e921]:
+                    - text: /
+                    - link ".opencode" [ref=e922] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev/.opencode
+                  - listitem [ref=e923]:
+                    - text: /
+                    - link "plugins" [ref=e924] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev/.opencode/plugins
+              - generic [ref=e925]:
+                - text: /
+                - heading "tui-smoke.tsx" [level=1] [ref=e926]
+              - button "Copy path" [ref=e927] [cursor=pointer]:
+                - img [ref=e928]
+            - button "More file actions" [ref=e934] [cursor=pointer]:
+              - img [ref=e935]
+          - generic [ref=e937]:
+            - generic [ref=e939]:
+              - heading "Latest commit" [level=2] [ref=e940]
+              - generic [ref=e941]:
+                - generic [ref=e943]:
+                  - link "kommander" [ref=e944] [cursor=pointer]:
+                    - /url: /kommander
+                    - img "kommander" [ref=e945]
+                  - link "commits by kommander" [ref=e946] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commits?author=kommander
+                    - text: kommander
+                - generic [ref=e947]:
+                  - generic [ref=e949]:
+                    - link "flatten to keybind compatible config (" [ref=e950] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/commit/a0fc27e4246c2f3a8dd1876eb0de0aa2fcdec0c3
+                    - link "#26421" [ref=e951] [cursor=pointer]:
+                      - /url: https://github.com/anomalyco/opencode/pull/26421
+                    - link ")" [ref=e952] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/commit/a0fc27e4246c2f3a8dd1876eb0de0aa2fcdec0c3
+                  - button "success" [ref=e953] [cursor=pointer]:
+                    - img [ref=e954]
+              - generic [ref=e956]:
+                - generic [ref=e958]:
+                  - link "Commit a0fc27e" [ref=e959] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commit/a0fc27e4246c2f3a8dd1876eb0de0aa2fcdec0c3
+                    - text: a0fc27e
+                  - text: ·
+                  - generic "May 9, 2026, 7:29 AM GMT+8" [ref=e960]: May 9, 2026last month
+                - generic [ref=e961]:
+                  - heading "History" [level=2] [ref=e962]
+                  - link "History" [ref=e963] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commits/dev/.opencode/plugins/tui-smoke.tsx
+                    - generic [ref=e964]:
+                      - generic:
+                        - img
+                      - generic [ref=e965]: History
+            - generic [ref=e967]:
+              - generic [ref=e969]:
+                - heading "File metadata and controls" [level=2] [ref=e970]
+                - list "File view" [ref=e972]:
+                  - listitem [ref=e973]:
+                    - button "Code" [ref=e974] [cursor=pointer]:
+                      - generic [ref=e976]: Code
+                  - listitem [ref=e977]:
+                    - button "Blame" [ref=e978] [cursor=pointer]:
+                      - generic [ref=e980]: Blame
+                - generic [ref=e981]:
+                  - generic [ref=e983]:
+                    - link "Raw" [ref=e985] [cursor=pointer]:
+                      - /url: https://github.com/anomalyco/opencode/raw/refs/heads/dev/.opencode/plugins/tui-smoke.tsx
+                      - generic [ref=e987]: Raw
+                    - button "Copy raw file" [ref=e989] [cursor=pointer]:
+                      - img [ref=e990]
+                    - button "Download raw file" [ref=e994] [cursor=pointer]:
+                      - img [ref=e995]
+                  - button "Open symbols panel" [ref=e998] [cursor=pointer]:
+                    - img [ref=e999]
+              - region "tui-smoke.tsx" [ref=e1002]:
+                - generic [ref=e1006]:
+                  - textbox "file content" [ref=e1011]: "/** @jsxImportSource @opentui/solid */ import { useTerminalDimensions, type JSX } from \"@opentui/solid\" import { useBindings, useKeymapSelector } from \"@opentui/keymap/solid\" import { RGBA, VignetteEffect, type KeyEvent, type Renderable } from \"@opentui/core\" import { createBindingLookup, type BindingConfig } from \"@opentui/keymap/extras\" import type { TuiPlugin, TuiPluginApi, TuiPluginMeta, TuiPluginModule, TuiSlotPlugin } from \"@opencode-ai/plugin/tui\" const tabs = [\"overview\", \"counter\", \"help\"] const command = { modal: \"smoke_modal\", screen: \"smoke_screen\", alert: \"smoke_alert\", confirm: \"smoke_confirm\", prompt: \"smoke_prompt\", select: \"smoke_select\", host: \"smoke_host\", home: \"smoke_home\", toast: \"smoke_toast\", dialog_close: \"smoke_dialog_close\", local_push: \"smoke_local_push\", local_pop: \"smoke_local_pop\", screen_home: \"smoke_screen_home\", screen_left: \"smoke_screen_left\", screen_right: \"smoke_screen_right\", screen_up: \"smoke_screen_up\", screen_down: \"smoke_screen_down\", screen_modal: \"smoke_screen_modal\", screen_local: \"smoke_screen_local\", screen_host: \"smoke_screen_host\", screen_alert: \"smoke_screen_alert\", screen_confirm: \"smoke_screen_confirm\", screen_prompt: \"smoke_screen_prompt\", screen_select: \"smoke_screen_select\", modal_accept: \"smoke_modal_accept\", modal_close: \"smoke_modal_close\", } type SmokeBindings = BindingConfig<Renderable, KeyEvent> const defaultKeymap = { [command.modal]: \"ctrl+shift+m\", [command.screen]: \"ctrl+shift+o\", [command.dialog_close]: \"escape\", [command.local_push]: \"enter,return\", [command.local_pop]: \"escape,q,backspace\", [command.screen_home]: \"escape,ctrl+h\", [command.screen_left]: \"left,h\", [command.screen_right]: \"right,l\", [command.screen_up]: \"up,k\", [command.screen_down]: \"down,j\", [command.screen_modal]: \"ctrl+shift+m\", [command.screen_local]: \"x\", [command.screen_host]: \"z\", [command.screen_alert]: \"a\", [command.screen_confirm]: \"c\", [command.screen_prompt]: \"p\", [command.screen_select]: \"s\", [command.modal_accept]: \"enter,return\", [command.modal_close]: \"escape\", } const pick = (value: unknown, fallback: string) => { if (typeof value !== \"string\") return fallback if (!value.trim()) return fallback return value } const num = (value: unknown, fallback: number) => { if (typeof value !== \"number\") return fallback return value } const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === \"object\" && !Array.isArray(value) type Cfg = { label: string route: string vignette: number keybinds: SmokeBindings | undefined } type Route = { modal: string screen: string } type State = { tab: number count: number source: string note: string selected: string local: number } const cfg = (options: Record<string, unknown> | undefined) => { return { label: pick(options?.label, \"smoke\"), route: pick(options?.route, \"workspace-smoke\"), vignette: Math.max(0, num(options?.vignette, 0.35)), keybinds: record(options?.keybinds) ? (options.keybinds as SmokeBindings) : undefined, } } const names = (input: Cfg) => { return { modal: `${input.route}.modal`, screen: `${input.route}.screen`, } } function createKeys(input: SmokeBindings | undefined) { return createBindingLookup({ ...defaultKeymap, ...input }) } type Keys = ReturnType<typeof createKeys> const ui = { panel: \"#1d1d1d\", border: \"#4a4a4a\", text: \"#f0f0f0\", muted: \"#a5a5a5\", accent: \"#5f87ff\", } type Color = RGBA | string const ink = (map: Record<string, unknown>, name: string, fallback: string): Color => { const value = map[name] if (typeof value === \"string\") return value if (value instanceof RGBA) return value return fallback } const look = (map: Record<string, unknown>) => { return { panel: ink(map, \"backgroundPanel\", ui.panel), border: ink(map, \"border\", ui.border), text: ink(map, \"text\", ui.text), muted: ink(map, \"textMuted\", ui.muted), accent: ink(map, \"primary\", ui.accent), selected: ink(map, \"selectedListItemText\", ui.text), } } const tone = (api: TuiPluginApi) => { return look(api.theme.current) } type Skin = { panel: Color border: Color text: Color muted: Color accent: Color selected: Color } const Btn = (props: { txt: string; run: () => void; skin: Skin; on?: boolean }) => { return ( <box onMouseUp={() => { props.run() }} backgroundColor={props.on ? props.skin.accent : props.skin.border} paddingLeft={1} paddingRight={1} > <text fg={props.on ? props.skin.selected : props.skin.text}>{props.txt}</text> </box> ) } const parse = (params: Record<string, unknown> | undefined) => { const tab = typeof params?.tab === \"number\" ? params.tab : 0 const count = typeof params?.count === \"number\" ? params.count : 0 const source = typeof params?.source === \"string\" ? params.source : \"unknown\" const note = typeof params?.note === \"string\" ? params.note : \"\" const selected = typeof params?.selected === \"string\" ? params.selected : \"\" const local = typeof params?.local === \"number\" ? params.local : 0 return { tab: Math.max(0, Math.min(tab, tabs.length - 1)), count, source, note, selected, local: Math.max(0, local), } } const current = (api: TuiPluginApi, route: Route) => { const value = api.route.current const ok = Object.values(route).includes(value.name) if (!ok) return parse(undefined) if (!(\"params\" in value)) return parse(undefined) return parse(value.params) } const opts = [ { title: \"Overview\", value: 0, description: \"Switch to overview tab\", }, { title: \"Counter\", value: 1, description: \"Switch to counter tab\", }, { title: \"Help\", value: 2, description: \"Switch to help tab\", }, ] const host = (api: TuiPluginApi, input: Cfg, skin: Skin) => { api.ui.dialog.setSize(\"medium\") api.ui.dialog.replace(() => ( <box paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1} flexDirection=\"column\"> <text fg={skin.text}> <b>{input.label} host overlay</b> </text> <text fg={skin.muted}>Using api.ui.dialog stack with built-in backdrop</text> <text fg={skin.muted}>esc closes · depth {api.ui.dialog.depth}</text> <box flexDirection=\"row\" gap={1}> <Btn txt=\"close\" run={() => api.ui.dialog.clear()} skin={skin} on /> </box> </box> )) } const warn = (api: TuiPluginApi, route: Route, value: State) => { const DialogAlert = api.ui.DialogAlert api.ui.dialog.setSize(\"medium\") api.ui.dialog.replace(() => ( <DialogAlert title=\"Smoke alert\" message=\"Testing built-in alert dialog\" onConfirm={() => api.route.navigate(route.screen, { ...value, source: \"alert\" })} /> )) } const check = (api: TuiPluginApi, route: Route, value: State) => { const DialogConfirm = api.ui.DialogConfirm api.ui.dialog.setSize(\"medium\") api.ui.dialog.replace(() => ( <DialogConfirm title=\"Smoke confirm\" message=\"Apply +1 to counter?\" onConfirm={() => api.route.navigate(route.screen, { ...value, count: value.count + 1, source: \"confirm\" })} onCancel={() => api.route.navigate(route.screen, { ...value, source: \"confirm-cancel\" })} /> )) } const entry = (api: TuiPluginApi, route: Route, value: State) => { const DialogPrompt = api.ui.DialogPrompt api.ui.dialog.setSize(\"medium\") api.ui.dialog.replace(() => ( <DialogPrompt title=\"Smoke prompt\" value={value.note} onConfirm={(note) => { api.ui.dialog.clear() api.route.navigate(route.screen, { ...value, note, source: \"prompt\" }) }} onCancel={() => { api.ui.dialog.clear() api.route.navigate(route.screen, value) }} /> )) } const picker = (api: TuiPluginApi, route: Route, value: State) => { const DialogSelect = api.ui.DialogSelect api.ui.dialog.setSize(\"medium\") api.ui.dialog.replace(() => ( <DialogSelect title=\"Smoke select\" options={opts} current={value.tab} onSelect={(item) => { api.ui.dialog.clear() api.route.navigate(route.screen, { ...value, tab: typeof item.value === \"number\" ? item.value : value.tab, selected: item.title, source: \"select\", }) }} /> )) } const Screen = (props: { api: TuiPluginApi input: Cfg route: Route keys: Keys meta: TuiPluginMeta params?: Record<string, unknown> }) => { const dim = useTerminalDimensions() const value = parse(props.params) const skin = tone(props.api) const set = (local: number, base?: State) => { const next = base ?? current(props.api, props.route) props.api.route.navigate(props.route.screen, { ...next, local: Math.max(0, local), source: \"local\" }) } const push = (base?: State) => { const next = base ?? current(props.api, props.route) set(next.local + 1, next) } const open = () => { const next = current(props.api, props.route) if (next.local > 0) return set(1, next) } const pop = (base?: State) => { const next = base ?? current(props.api, props.route) set(Math.max(0, next.local - 1), next) } const show = () => { setTimeout(() => { open() }, 0) } const screenActive = () => props.api.route.current.name === props.route.screen useBindings(() => ({ enabled: () => screenActive() && props.api.ui.dialog.open, commands: [ { name: command.dialog_close, run() { props.api.ui.dialog.clear() }, }, ], bindings: props.keys.gather(\"smoke.dialog\", [command.dialog_close]), })) useBindings(() => ({ enabled: () => screenActive() && !props.api.ui.dialog.open && current(props.api, props.route).local > 0, commands: [ { name: command.local_push, run() { push(current(props.api, props.route)) }, }, { name: command.local_pop, run() { pop(current(props.api, props.route)) }, }, ], bindings: props.keys.gather(\"smoke.local\", [command.local_push, command.local_pop]), })) useBindings(() => ({ enabled: () => screenActive() && !props.api.ui.dialog.open && current(props.api, props.route).local === 0, commands: [ { name: command.screen_home, run() { props.api.route.navigate(\"home\") }, }, { name: command.screen_left, run() { const next = current(props.api, props.route) props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab - 1 + tabs.length) % tabs.length }) }, }, { name: command.screen_right, run() { const next = current(props.api, props.route) props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab + 1) % tabs.length }) }, }, { name: command.screen_up, run() { const next = current(props.api, props.route) props.api.route.navigate(props.route.screen, { ...next, count: next.count + 1 }) }, }, { name: command.screen_down, run() { const next = current(props.api, props.route) props.api.route.navigate(props.route.screen, { ...next, count: next.count - 1 }) }, }, { name: command.screen_modal, run() { props.api.route.navigate(props.route.modal, current(props.api, props.route)) }, }, { name: command.screen_local, run() { open() }, }, { name: command.screen_host, run() { host(props.api, props.input, skin) }, }, { name: command.screen_alert, run() { warn(props.api, props.route, current(props.api, props.route)) }, }, { name: command.screen_confirm, run() { check(props.api, props.route, current(props.api, props.route)) }, }, { name: command.screen_prompt, run() { entry(props.api, props.route, current(props.api, props.route)) }, }, { name: command.screen_select, run() { picker(props.api, props.route, current(props.api, props.route)) }, }, ], bindings: props.keys.gather(\"smoke.screen\", [ command.screen_home, command.screen_left, command.screen_right, command.screen_up, command.screen_down, command.screen_modal, command.screen_local, command.screen_host, command.screen_alert, command.screen_confirm, command.screen_prompt, command.screen_select, ]), })) const shortcuts = useKeymapSelector((keymap) => { const bindings = keymap.getCommandBindings({ visibility: \"registered\", commands: [ command.screen_home, command.screen_up, command.screen_down, command.screen_modal, command.screen_alert, command.screen_confirm, command.screen_prompt, command.screen_select, command.screen_local, command.screen_host, command.local_push, command.local_pop, ], }) return { screen_home: props.api.keys.formatBindings(bindings.get(command.screen_home)) ?? \"\", screen_up: props.api.keys.formatBindings(bindings.get(command.screen_up)) ?? \"\", screen_down: props.api.keys.formatBindings(bindings.get(command.screen_down)) ?? \"\", screen_modal: props.api.keys.formatBindings(bindings.get(command.screen_modal)) ?? \"\", screen_alert: props.api.keys.formatBindings(bindings.get(command.screen_alert)) ?? \"\", screen_confirm: props.api.keys.formatBindings(bindings.get(command.screen_confirm)) ?? \"\", screen_prompt: props.api.keys.formatBindings(bindings.get(command.screen_prompt)) ?? \"\", screen_select: props.api.keys.formatBindings(bindings.get(command.screen_select)) ?? \"\", screen_local: props.api.keys.formatBindings(bindings.get(command.screen_local)) ?? \"\", screen_host: props.api.keys.formatBindings(bindings.get(command.screen_host)) ?? \"\", local_push: props.api.keys.formatBindings(bindings.get(command.local_push)) ?? \"\", local_pop: props.api.keys.formatBindings(bindings.get(command.local_pop)) ?? \"\", } }) return ( <box width={dim().width} height={dim().height} backgroundColor={skin.panel} position=\"relative\"> <box flexDirection=\"column\" width=\"100%\" height=\"100%\" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} > <box flexDirection=\"row\" justifyContent=\"space-between\" paddingBottom={1}> <text fg={skin.text}> <b>{props.input.label} screen</b> <span style={{ fg: skin.muted }}> plugin route</span> </text> <text fg={skin.muted}>{shortcuts().screen_home} home</text> </box> <box flexDirection=\"row\" gap={1} paddingBottom={1}> {tabs.map((item, i) => { const on = value.tab === i return ( <Btn txt={item} run={() => props.api.route.navigate(props.route.screen, { ...value, tab: i })} skin={skin} on={on} /> ) })} </box> <box border borderColor={skin.border} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} flexGrow={1} > {value.tab === 0 ? ( <box flexDirection=\"column\" gap={1}> <text fg={skin.text}>Route: {props.route.screen}</text> <text fg={skin.muted}>plugin state: {props.meta.state}</text> <text fg={skin.muted}> first: {props.meta.state === \"first\" ? \"yes\" : \"no\"} · updated:{\" \"} {props.meta.state === \"updated\" ? \"yes\" : \"no\"} · loads: {props.meta.load_count} </text> <text fg={skin.muted}>plugin source: {props.meta.source}</text> <text fg={skin.muted}>source: {value.source}</text> <text fg={skin.muted}>note: {value.note || \"(none)\"}</text> <text fg={skin.muted}>selected: {value.selected || \"(none)\"}</text> <text fg={skin.muted}>local stack depth: {value.local}</text> <text fg={skin.muted}>host stack open: {props.api.ui.dialog.open ? \"yes\" : \"no\"}</text> </box> ) : null} {value.tab === 1 ? ( <box flexDirection=\"column\" gap={1}> <text fg={skin.text}>Counter: {value.count}</text> <text fg={skin.muted}> {shortcuts().screen_up} / {shortcuts().screen_down} change value </text> </box> ) : null} {value.tab === 2 ? ( <box flexDirection=\"column\" gap={1}> <text fg={skin.muted}> {shortcuts().screen_modal} modal | {shortcuts().screen_alert} alert | {shortcuts().screen_confirm}{\" \"} confirm | {shortcuts().screen_prompt} prompt | {shortcuts().screen_select} select </text> <text fg={skin.muted}> {shortcuts().screen_local} local stack | {shortcuts().screen_host} host stack </text> <text fg={skin.muted}> local open: {shortcuts().local_push} push nested · {shortcuts().local_pop} close </text> <text fg={skin.muted}>{shortcuts().screen_home} returns home</text> </box> ) : null} </box> <box flexDirection=\"row\" gap={1} paddingTop={1}> <Btn txt=\"go home\" run={() => props.api.route.navigate(\"home\")} skin={skin} /> <Btn txt=\"modal\" run={() => props.api.route.navigate(props.route.modal, value)} skin={skin} on /> <Btn txt=\"local overlay\" run={show} skin={skin} /> <Btn txt=\"host overlay\" run={() => host(props.api, props.input, skin)} skin={skin} /> <Btn txt=\"alert\" run={() => warn(props.api, props.route, value)} skin={skin} /> <Btn txt=\"confirm\" run={() => check(props.api, props.route, value)} skin={skin} /> <Btn txt=\"prompt\" run={() => entry(props.api, props.route, value)} skin={skin} /> <Btn txt=\"select\" run={() => picker(props.api, props.route, value)} skin={skin} /> </box> </box> <box visible={value.local > 0} width={dim().width} height={dim().height} alignItems=\"center\" position=\"absolute\" zIndex={3000} paddingTop={dim().height / 4} left={0} top={0} backgroundColor={RGBA.fromInts(0, 0, 0, 160)} onMouseUp={() => { pop() }} > <box onMouseUp={(evt) => { evt.stopPropagation() }} width={60} maxWidth={dim().width - 2} backgroundColor={skin.panel} border borderColor={skin.border} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1} flexDirection=\"column\" > <text fg={skin.text}> <b>{props.input.label} local overlay</b> </text> <text fg={skin.muted}>Plugin-owned stack depth: {value.local}</text> <text fg={skin.muted}> {shortcuts().local_push} push nested · {shortcuts().local_pop} pop/close </text> <box flexDirection=\"row\" gap={1}> <Btn txt=\"push\" run={push} skin={skin} on /> <Btn txt=\"pop\" run={pop} skin={skin} /> </box> </box> </box> </box> ) } const Modal = (props: { api: TuiPluginApi input: Cfg route: Route keys: Keys params?: Record<string, unknown> }) => { const Dialog = props.api.ui.Dialog const value = parse(props.params) const skin = tone(props.api) useBindings(() => ({ enabled: () => props.api.route.current.name === props.route.modal, commands: [ { name: command.modal_accept, run() { props.api.route.navigate(props.route.screen, { ...parse(props.params), source: \"modal\" }) }, }, { name: command.modal_close, run() { props.api.route.navigate(\"home\") }, }, ], bindings: props.keys.gather(\"smoke.modal\", [command.modal_accept, command.modal_close]), })) const shortcuts = useKeymapSelector((keymap) => { const bindings = keymap.getCommandBindings({ visibility: \"registered\", commands: [command.modal, command.screen, command.modal_accept, command.modal_close], }) return { modal: props.api.keys.formatBindings(bindings.get(command.modal)) ?? \"\", screen: props.api.keys.formatBindings(bindings.get(command.screen)) ?? \"\", modal_accept: props.api.keys.formatBindings(bindings.get(command.modal_accept)) ?? \"\", modal_close: props.api.keys.formatBindings(bindings.get(command.modal_close)) ?? \"\", } }) return ( <box width=\"100%\" height=\"100%\" backgroundColor={skin.panel}> <Dialog onClose={() => props.api.route.navigate(\"home\")}> <box paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1} flexDirection=\"column\"> <text fg={skin.text}> <b>{props.input.label} modal</b> </text> <text fg={skin.muted}>{shortcuts().modal} modal command</text> <text fg={skin.muted}>{shortcuts().screen} screen command</text> <text fg={skin.muted}> {shortcuts().modal_accept} opens screen · {shortcuts().modal_close} closes </text> <box flexDirection=\"row\" gap={1}> <Btn txt=\"open screen\" run={() => props.api.route.navigate(props.route.screen, { ...value, source: \"modal\" })} skin={skin} on /> <Btn txt=\"cancel\" run={() => props.api.route.navigate(\"home\")} skin={skin} /> </box> </box> </Dialog> </box> ) } const home = (api: TuiPluginApi, input: Cfg) => ({ slots: { home_logo(ctx) { const map = ctx.theme.current const skin = look(map) const art = [ \" $$\\\\\", \" $$ |\", \" $$$$$$$\\\\ $$$$$$\\\\$$$$\\\\ $$$$$$\\\\ $$ | $$\\\\ $$$$$$\\\\\", \"$$ _____|$$ _$$ _$$\\\\ $$ __$$\\\\ $$ | $$ |$$ __$$\\\\\", \"\\\\$$$$$$\\\\ $$ / $$ / $$ |$$ / $$ |$$$$$$ / $$$$$$$$ |\", \" \\\\____$$\\\\ $$ | $$ | $$ |$$ | $$ |$$ _$$< $$ ____|\", \"$$$$$$$ |$$ | $$ | $$ |\\\\$$$$$$ |$$ | \\\\$$\\\\ \\\\$$$$$$$\\\\\", \"\\\\_______/ \\\\__| \\\\__| \\\\__| \\\\______/ \\\\__| \\\\__| \\\\_______|\", ] const fill = [ skin.accent, skin.muted, ink(map, \"info\", ui.accent), skin.text, ink(map, \"success\", ui.accent), ink(map, \"warning\", ui.accent), ink(map, \"secondary\", ui.accent), ink(map, \"error\", ui.accent), ] return ( <box flexDirection=\"column\"> {art.map((line, i) => ( <text fg={fill[i]}>{line}</text> ))} </box> ) }, home_prompt(ctx, value) { const skin = look(ctx.theme.current) const Prompt = api.ui.Prompt const Slot = api.ui.Slot const normal = [ `[SMOKE] route check for ${input.label}`, \"[SMOKE] confirm home_prompt slot override\", \"[SMOKE] verify prompt-right slot passthrough\", ] const shell = [\"printf '[SMOKE] home prompt\\n'\", \"git status --short\", \"bun --version\"] const hint = ( <box flexShrink={0} flexDirection=\"row\" gap={1}> <text fg={skin.muted}> <span style={{ fg: skin.accent }}>•</span> smoke home prompt </text> </box> ) return ( <Prompt workspaceID={value.workspace_id} hint={hint} right={ <box flexDirection=\"row\" gap={1}> <Slot name=\"home_prompt_right\" workspace_id={value.workspace_id} /> <Slot name=\"smoke_prompt_right\" workspace_id={value.workspace_id} label={input.label} /> </box> } placeholders={{ normal, shell }} /> ) }, home_prompt_right(ctx, value) { const skin = look(ctx.theme.current) const id = value.workspace_id?.slice(0, 8) ?? \"none\" return ( <text fg={skin.muted}> <span style={{ fg: skin.accent }}>{input.label}</span> home:{id} </text> ) }, session_prompt_right(ctx, value) { const skin = look(ctx.theme.current) return ( <text fg={skin.muted}> <span style={{ fg: skin.accent }}>{input.label}</span> session:{value.session_id.slice(0, 8)} </text> ) }, smoke_prompt_right(ctx, value) { const skin = look(ctx.theme.current) const id = typeof value.workspace_id === \"string\" ? value.workspace_id.slice(0, 8) : \"none\" const label = typeof value.label === \"string\" ? value.label : input.label return ( <text fg={skin.muted}> <span style={{ fg: skin.accent }}>{label}</span> custom:{id} </text> ) }, home_bottom(ctx) { const skin = look(ctx.theme.current) const text = \"extra content in the unified home bottom slot\" return ( <box width=\"100%\" maxWidth={75} alignItems=\"center\" paddingTop={1} flexShrink={0} gap={1}> <box border borderColor={skin.border} backgroundColor={skin.panel} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} width=\"100%\" > <text fg={skin.muted}> <span style={{ fg: skin.accent }}>{input.label}</span> {text} </text> </box> </box> ) }, }, }) const block = (input: Cfg, order: number, title: string, text: string): TuiSlotPlugin => ({ order, slots: { sidebar_content(ctx, value) { const skin = look(ctx.theme.current) return ( <box border borderColor={skin.border} backgroundColor={skin.panel} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} flexDirection=\"column\" gap={1} > <text fg={skin.accent}> <b>{title}</b> </text> <text fg={skin.text}>{text}</text> <text fg={skin.muted}> {input.label} order {order} · session {value.session_id.slice(0, 8)} </text> </box> ) }, }, }) const slot = (api: TuiPluginApi, input: Cfg): TuiSlotPlugin[] => [ home(api, input), block(input, 50, \"Smoke above\", \"renders above internal sidebar blocks\"), block(input, 250, \"Smoke between\", \"renders between internal sidebar blocks\"), block(input, 650, \"Smoke below\", \"renders below internal sidebar blocks\"), ] const reg = (api: TuiPluginApi, input: Cfg, keys: Keys) => { const route = names(input) api.keymap.registerLayer({ commands: [ { name: command.modal, title: `${input.label} modal`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke\", run() { api.route.navigate(route.modal, { source: \"command\" }) }, }, { name: command.screen, title: `${input.label} screen`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-screen\", run() { api.route.navigate(route.screen, { source: \"command\", tab: 0, count: 0 }) }, }, { name: command.alert, title: `${input.label} alert dialog`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-alert\", run() { warn(api, route, current(api, route)) }, }, { name: command.confirm, title: `${input.label} confirm dialog`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-confirm\", run() { check(api, route, current(api, route)) }, }, { name: command.prompt, title: `${input.label} prompt dialog`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-prompt\", run() { entry(api, route, current(api, route)) }, }, { name: command.select, title: `${input.label} select dialog`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-select\", run() { picker(api, route, current(api, route)) }, }, { name: command.host, title: `${input.label} host overlay`, category: \"Plugin\", namespace: \"palette\", slashName: \"smoke-host\", run() { host(api, input, tone(api)) }, }, { name: command.home, title: `${input.label} go home`, category: \"Plugin\", namespace: \"palette\", enabled: () => api.route.current.name !== \"home\", run() { api.route.navigate(\"home\") }, }, { name: command.toast, title: `${input.label} toast`, category: \"Plugin\", namespace: \"palette\", run() { api.ui.toast({ variant: \"info\", title: \"Smoke\", message: \"Plugin toast works\", duration: 2000, }) }, }, ], bindings: keys.gather(\"smoke.global\", [ command.modal, command.screen, command.alert, command.confirm, command.prompt, command.select, command.host, command.home, command.toast, ]), }) } const tui: TuiPlugin = async (api, options, meta) => { if (options?.enabled === false) return await api.theme.install(\"./smoke-theme.json\") api.theme.set(\"smoke-theme\") const value = cfg(options) const route = names(value) const keys = createKeys(value.keybinds) const fx = new VignetteEffect(value.vignette) const post = fx.apply.bind(fx) api.renderer.addPostProcessFn(post) api.lifecycle.onDispose(() => { api.renderer.removePostProcessFn(post) }) api.route.register([ { name: route.screen, render: ({ params }) => <Screen api={api} input={value} route={route} keys={keys} meta={meta} params={params} />, }, { name: route.modal, render: ({ params }) => <Modal api={api} input={value} route={route} keys={keys} params={params} />, }, ]) reg(api, value, keys) for (const item of slot(api, value)) { api.slots.register(item) } } const plugin: TuiPluginModule & { id: string } = { id: \"tui-smoke\", tui, } export default plugin"
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic [ref=e1012]:
+                          - generic [ref=e1013] [cursor=pointer]: "1"
+                          - generic [ref=e1014] [cursor=pointer]: "2"
+                          - generic [ref=e1015] [cursor=pointer]: "3"
+                          - generic [ref=e1016] [cursor=pointer]: "4"
+                          - generic [ref=e1017] [cursor=pointer]: "5"
+                          - generic [ref=e1018] [cursor=pointer]: "6"
+                          - generic [ref=e1019] [cursor=pointer]: "7"
+                          - generic [ref=e1020] [cursor=pointer]: "8"
+                          - generic [ref=e1021] [cursor=pointer]: "9"
+                          - generic [ref=e1022] [cursor=pointer]: "10"
+                          - generic [ref=e1023] [cursor=pointer]: "11"
+                          - generic [ref=e1024] [cursor=pointer]: "12"
+                          - generic [ref=e1025] [cursor=pointer]: "13"
+                          - generic [ref=e1026] [cursor=pointer]: "14"
+                          - generic [ref=e1027] [cursor=pointer]: "15"
+                          - generic [ref=e1028] [cursor=pointer]: "16"
+                          - generic [ref=e1029] [cursor=pointer]: "17"
+                          - generic [ref=e1030] [cursor=pointer]: "18"
+                          - generic [ref=e1031] [cursor=pointer]: "19"
+                          - generic [ref=e1032] [cursor=pointer]: "20"
+                          - generic [ref=e1033] [cursor=pointer]: "21"
+                          - generic [ref=e1034] [cursor=pointer]: "22"
+                          - generic [ref=e1035] [cursor=pointer]: "23"
+                          - generic [ref=e1036] [cursor=pointer]: "24"
+                          - generic [ref=e1037] [cursor=pointer]: "25"
+                          - generic [ref=e1038] [cursor=pointer]: "26"
+                          - generic [ref=e1039] [cursor=pointer]: "27"
+                          - generic [ref=e1040] [cursor=pointer]: "28"
+                          - generic [ref=e1041] [cursor=pointer]: "29"
+                          - generic [ref=e1042] [cursor=pointer]: "30"
+                          - generic [ref=e1043] [cursor=pointer]: "31"
+                          - generic [ref=e1044] [cursor=pointer]: "32"
+                          - generic [ref=e1045] [cursor=pointer]: "33"
+                          - generic [ref=e1046] [cursor=pointer]: "34"
+                          - generic [ref=e1047] [cursor=pointer]: "35"
+                          - generic [ref=e1048] [cursor=pointer]: "36"
+                          - generic [ref=e1049] [cursor=pointer]: "37"
+                          - generic [ref=e1050] [cursor=pointer]: "38"
+                          - generic [ref=e1051] [cursor=pointer]: "39"
+                          - generic [ref=e1052] [cursor=pointer]: "40"
+                          - generic [ref=e1053] [cursor=pointer]: "41"
+                          - generic [ref=e1054] [cursor=pointer]: "42"
+                          - generic [ref=e1055] [cursor=pointer]: "43"
+                          - generic [ref=e1056] [cursor=pointer]: "44"
+                          - generic [ref=e1057] [cursor=pointer]: "45"
+                          - generic [ref=e1058] [cursor=pointer]: "46"
+                          - generic [ref=e1059] [cursor=pointer]: "47"
+                          - generic [ref=e1060] [cursor=pointer]: "48"
+                          - generic [ref=e1061] [cursor=pointer]: "49"
+                          - generic [ref=e1062] [cursor=pointer]: "50"
+                          - generic [ref=e1063] [cursor=pointer]: "51"
+                          - generic [ref=e1064] [cursor=pointer]: "52"
+                          - generic [ref=e1065] [cursor=pointer]: "53"
+                          - generic [ref=e1066] [cursor=pointer]: "54"
+                          - generic [ref=e1067] [cursor=pointer]: "55"
+                          - generic [ref=e1068] [cursor=pointer]: "56"
+                          - generic [ref=e1069] [cursor=pointer]: "57"
+                          - generic [ref=e1070] [cursor=pointer]: "58"
+                          - generic [ref=e1071] [cursor=pointer]: "59"
+                          - generic [ref=e1072] [cursor=pointer]: "60"
+                          - generic [ref=e1073] [cursor=pointer]: "61"
+                          - generic [ref=e1074] [cursor=pointer]:
+                            - text: "62"
+                            - button [ref=e1075]:
+                              - img [ref=e1076]
+                          - generic [ref=e1078] [cursor=pointer]: "63"
+                          - generic [ref=e1079] [cursor=pointer]: "64"
+                          - generic [ref=e1080] [cursor=pointer]: "65"
+                          - generic [ref=e1081] [cursor=pointer]: "66"
+                          - generic [ref=e1082] [cursor=pointer]: "67"
+                          - generic [ref=e1083] [cursor=pointer]: "68"
+                          - generic [ref=e1084] [cursor=pointer]: "69"
+                          - generic [ref=e1085] [cursor=pointer]: "70"
+                          - generic [ref=e1086] [cursor=pointer]: "71"
+                          - generic [ref=e1087] [cursor=pointer]: "72"
+                          - generic [ref=e1088] [cursor=pointer]: "73"
+                          - generic [ref=e1089] [cursor=pointer]: "74"
+                          - generic [ref=e1090] [cursor=pointer]: "75"
+                          - generic [ref=e1091] [cursor=pointer]:
+                            - text: "76"
+                            - button [ref=e1092]:
+                              - img [ref=e1093]
+                          - generic [ref=e1095] [cursor=pointer]: "77"
+                          - generic [ref=e1096] [cursor=pointer]: "78"
+                          - generic [ref=e1097] [cursor=pointer]: "79"
+                          - generic [ref=e1098] [cursor=pointer]: "80"
+                          - generic [ref=e1099] [cursor=pointer]: "81"
+                          - generic [ref=e1100] [cursor=pointer]: "82"
+                          - generic [ref=e1101] [cursor=pointer]: "83"
+                          - generic [ref=e1102] [cursor=pointer]: "84"
+                          - generic [ref=e1103] [cursor=pointer]: "85"
+                          - generic [ref=e1104] [cursor=pointer]: "86"
+                          - generic [ref=e1105] [cursor=pointer]: "87"
+                          - generic [ref=e1106] [cursor=pointer]:
+                            - text: "88"
+                            - button [ref=e1107]:
+                              - img [ref=e1108]
+                          - generic [ref=e1110] [cursor=pointer]: "89"
+                          - generic [ref=e1111] [cursor=pointer]: "90"
+                          - generic [ref=e1112] [cursor=pointer]: "91"
+                          - generic [ref=e1113] [cursor=pointer]: "92"
+                          - generic [ref=e1114] [cursor=pointer]: "93"
+                          - generic [ref=e1115] [cursor=pointer]: "94"
+                          - generic [ref=e1116] [cursor=pointer]: "95"
+                          - generic [ref=e1117] [cursor=pointer]: "96"
+                          - generic [ref=e1118] [cursor=pointer]:
+                            - text: "97"
+                            - button [ref=e1119]:
+                              - img [ref=e1120]
+                          - generic [ref=e1122] [cursor=pointer]: "98"
+                          - generic [ref=e1123] [cursor=pointer]: "99"
+                          - generic [ref=e1124] [cursor=pointer]: "100"
+                          - generic [ref=e1125] [cursor=pointer]: "101"
+                          - generic [ref=e1126] [cursor=pointer]: "102"
+                          - generic [ref=e1127] [cursor=pointer]: "103"
+                          - generic [ref=e1128] [cursor=pointer]: "104"
+                          - generic [ref=e1129] [cursor=pointer]: "105"
+                          - generic [ref=e1130] [cursor=pointer]:
+                            - text: "106"
+                            - button [ref=e1131]:
+                              - img [ref=e1132]
+                          - generic [ref=e1134] [cursor=pointer]: "107"
+                          - generic [ref=e1135] [cursor=pointer]: "108"
+                          - generic [ref=e1136] [cursor=pointer]: "109"
+                          - generic [ref=e1137] [cursor=pointer]: "110"
+                          - generic [ref=e1138] [cursor=pointer]: "111"
+                          - generic [ref=e1139] [cursor=pointer]: "112"
+                          - generic [ref=e1140] [cursor=pointer]: "113"
+                          - generic [ref=e1141] [cursor=pointer]: "114"
+                          - generic [ref=e1142] [cursor=pointer]: "115"
+                          - generic [ref=e1143] [cursor=pointer]: "116"
+                          - generic [ref=e1144] [cursor=pointer]: "117"
+                          - generic [ref=e1145] [cursor=pointer]: "118"
+                          - generic [ref=e1146] [cursor=pointer]: "119"
+                          - generic [ref=e1147] [cursor=pointer]: "120"
+                          - generic [ref=e1148] [cursor=pointer]: "121"
+                          - generic [ref=e1149] [cursor=pointer]: "122"
+                          - generic [ref=e1150] [cursor=pointer]: "123"
+                          - generic [ref=e1151] [cursor=pointer]: "124"
+                          - generic [ref=e1152] [cursor=pointer]: "125"
+                          - generic [ref=e1153] [cursor=pointer]: "126"
+                          - generic [ref=e1154] [cursor=pointer]: "127"
+                          - generic [ref=e1155] [cursor=pointer]: "128"
+                          - generic [ref=e1156] [cursor=pointer]:
+                            - text: "129"
+                            - button [ref=e1157]:
+                              - img [ref=e1158]
+                          - generic [ref=e1160] [cursor=pointer]: "130"
+                          - generic [ref=e1161] [cursor=pointer]: "131"
+                          - generic [ref=e1162] [cursor=pointer]: "132"
+                          - generic [ref=e1163] [cursor=pointer]: "133"
+                          - generic [ref=e1164] [cursor=pointer]: "134"
+                          - generic [ref=e1165] [cursor=pointer]: "135"
+                          - generic [ref=e1166] [cursor=pointer]:
+                            - text: "136"
+                            - button [ref=e1167]:
+                              - img [ref=e1168]
+                          - generic [ref=e1170] [cursor=pointer]: "137"
+                          - generic [ref=e1171] [cursor=pointer]: "138"
+                          - generic [ref=e1172] [cursor=pointer]: "139"
+                          - generic [ref=e1173] [cursor=pointer]: "140"
+                          - generic [ref=e1174] [cursor=pointer]: "141"
+                          - generic [ref=e1175] [cursor=pointer]: "142"
+                          - generic [ref=e1176] [cursor=pointer]: "143"
+                          - generic [ref=e1177] [cursor=pointer]: "144"
+                          - generic [ref=e1178] [cursor=pointer]: "145"
+                          - generic [ref=e1179] [cursor=pointer]: "146"
+                          - generic [ref=e1180] [cursor=pointer]: "147"
+                          - generic [ref=e1181] [cursor=pointer]: "148"
+                          - generic [ref=e1182] [cursor=pointer]: "149"
+                          - generic [ref=e1183] [cursor=pointer]: "150"
+                          - generic [ref=e1184] [cursor=pointer]:
+                            - text: "151"
+                            - button [ref=e1185]:
+                              - img [ref=e1186]
+                          - generic [ref=e1188] [cursor=pointer]: "152"
+                          - generic [ref=e1189] [cursor=pointer]: "153"
+                          - generic [ref=e1190] [cursor=pointer]: "154"
+                          - generic [ref=e1191] [cursor=pointer]: "155"
+                          - generic [ref=e1192] [cursor=pointer]: "156"
+                          - generic [ref=e1193] [cursor=pointer]: "157"
+                          - generic [ref=e1194] [cursor=pointer]: "158"
+                          - generic [ref=e1195] [cursor=pointer]: "159"
+                          - generic [ref=e1196] [cursor=pointer]:
+                            - text: "160"
+                            - button [ref=e1197]:
+                              - img [ref=e1198]
+                          - generic [ref=e1200] [cursor=pointer]: "161"
+                          - generic [ref=e1201] [cursor=pointer]: "162"
+                          - generic [ref=e1202] [cursor=pointer]: "163"
+                          - generic [ref=e1203] [cursor=pointer]: "164"
+                          - generic [ref=e1204] [cursor=pointer]: "165"
+                          - generic [ref=e1205] [cursor=pointer]: "166"
+                          - generic [ref=e1206] [cursor=pointer]: "167"
+                          - generic [ref=e1207] [cursor=pointer]: "946"
+                          - generic [ref=e1208] [cursor=pointer]: "947"
+                          - generic [ref=e1209] [cursor=pointer]: "948"
+                          - generic [ref=e1210] [cursor=pointer]: "949"
+                          - generic [ref=e1211] [cursor=pointer]: "950"
+                          - generic [ref=e1212] [cursor=pointer]: "951"
+                          - generic [ref=e1213] [cursor=pointer]: "952"
+                          - generic [ref=e1214] [cursor=pointer]: "953"
+                          - generic [ref=e1215] [cursor=pointer]: "954"
+                          - generic [ref=e1216] [cursor=pointer]: "955"
+                          - generic [ref=e1217] [cursor=pointer]: "956"
+                          - generic [ref=e1218] [cursor=pointer]:
+                            - text: "957"
+                            - button [ref=e1219]:
+                              - img [ref=e1220]
+                          - generic [ref=e1222] [cursor=pointer]: "958"
+                          - generic [ref=e1223] [cursor=pointer]: "959"
+                          - generic [ref=e1224] [cursor=pointer]: "960"
+                          - generic [ref=e1225] [cursor=pointer]: "961"
+                          - generic [ref=e1226] [cursor=pointer]: "962"
+                          - generic [ref=e1227] [cursor=pointer]: "963"
+                          - generic [ref=e1228] [cursor=pointer]: "964"
+                          - generic [ref=e1229] [cursor=pointer]: "965"
+                          - generic [ref=e1230] [cursor=pointer]: "966"
+                          - generic [ref=e1231] [cursor=pointer]: "967"
+                          - generic [ref=e1232] [cursor=pointer]: "968"
+                          - generic [ref=e1233] [cursor=pointer]: "969"
+                          - generic [ref=e1234] [cursor=pointer]: "970"
+                          - generic [ref=e1235] [cursor=pointer]: "971"
+                          - generic [ref=e1236] [cursor=pointer]: "972"
+                          - generic [ref=e1237] [cursor=pointer]: "973"
+                          - generic [ref=e1238] [cursor=pointer]: "974"
+                          - generic [ref=e1239] [cursor=pointer]: "975"
+                          - generic [ref=e1240] [cursor=pointer]: "976"
+                          - generic [ref=e1241] [cursor=pointer]: "977"
+                          - generic [ref=e1242] [cursor=pointer]: "978"
+                          - generic [ref=e1243] [cursor=pointer]: "979"
+                          - generic [ref=e1244] [cursor=pointer]: "980"
+                          - generic [ref=e1245] [cursor=pointer]:
+                            - text: "981"
+                            - button [ref=e1246]:
+                              - img [ref=e1247]
+                          - generic [ref=e1249] [cursor=pointer]: "982"
+                          - generic [ref=e1250] [cursor=pointer]: "983"
+                          - generic [ref=e1251] [cursor=pointer]: "984"
+                          - generic [ref=e1252] [cursor=pointer]: "985"
+                          - generic [ref=e1253] [cursor=pointer]: "986"
+                          - generic [ref=e1254] [cursor=pointer]: "987"
+                          - generic [ref=e1255] [cursor=pointer]: "988"
+                          - generic [ref=e1256] [cursor=pointer]: "989"
+                          - generic [ref=e1257] [cursor=pointer]: "990"
+                          - generic [ref=e1258] [cursor=pointer]: "991"
+                          - generic [ref=e1259] [cursor=pointer]: "992"
+                          - generic [ref=e1260] [cursor=pointer]: "993"
+                          - generic [ref=e1261] [cursor=pointer]: "994"
+                          - generic [ref=e1262] [cursor=pointer]: "995"
+                          - generic [ref=e1263] [cursor=pointer]: "996"
+                          - generic [ref=e1264] [cursor=pointer]: "997"
+                          - generic [ref=e1265] [cursor=pointer]: "998"
+                          - generic [ref=e1266] [cursor=pointer]: "999"
+                          - generic [ref=e1267] [cursor=pointer]: "1000"
+                          - generic [ref=e1268] [cursor=pointer]: "1001"
+                          - generic [ref=e1269] [cursor=pointer]: "1002"
+                          - generic [ref=e1270] [cursor=pointer]: "1003"
+                          - generic [ref=e1271] [cursor=pointer]: "1004"
+                          - generic [ref=e1272] [cursor=pointer]: "1005"
+                          - generic [ref=e1273] [cursor=pointer]: "1006"
+                          - generic [ref=e1274] [cursor=pointer]: "1007"
+                          - generic [ref=e1275] [cursor=pointer]: "1008"
+                          - generic [ref=e1276] [cursor=pointer]: "1009"
+                          - generic [ref=e1277] [cursor=pointer]: "1010"
+                          - generic [ref=e1278] [cursor=pointer]: "1011"
+                          - generic [ref=e1279] [cursor=pointer]: "1012"
+                          - generic [ref=e1280] [cursor=pointer]: "1013"
+                          - generic [ref=e1281] [cursor=pointer]: "1014"
+                          - generic [ref=e1282] [cursor=pointer]: "1015"
+                          - generic [ref=e1283] [cursor=pointer]: "1016"
+                          - generic [ref=e1284] [cursor=pointer]: "1017"
+                          - generic [ref=e1285] [cursor=pointer]: "1018"
+                          - generic [ref=e1286] [cursor=pointer]: "1019"
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - text: /**
+                                  - generic: "@jsxImportSource"
+                                  - generic: "@opentui"
+                                  - text: /solid */
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: import
+                                - generic: "{"
+                                - generic: useTerminalDimensions
+                                - generic: ","
+                                - generic: type
+                                - generic: JSX
+                                - generic: "}"
+                                - generic: from
+                                - generic: "\"@opentui/solid\""
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: import
+                                - generic: "{"
+                                - generic: useBindings
+                                - generic: ","
+                                - generic: useKeymapSelector
+                                - generic: "}"
+                                - generic: from
+                                - generic: "\"@opentui/keymap/solid\""
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: import
+                                - generic: "{"
+                                - generic: RGBA
+                                - generic: ","
+                                - generic: VignetteEffect
+                                - generic: ","
+                                - generic: type
+                                - generic: KeyEvent
+                                - generic: ","
+                                - generic: type
+                                - generic: Renderable
+                                - generic: "}"
+                                - generic: from
+                                - generic: "\"@opentui/core\""
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: import
+                                - generic: "{"
+                                - generic: createBindingLookup
+                                - generic: ","
+                                - generic: type
+                                - generic: BindingConfig
+                                - generic: "}"
+                                - generic: from
+                                - generic: "\"@opentui/keymap/extras\""
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: import
+                                - generic: type
+                                - generic: "{"
+                                - generic: TuiPlugin
+                                - generic: ","
+                                - generic: TuiPluginApi
+                                - generic: ","
+                                - generic: TuiPluginMeta
+                                - generic: ","
+                                - generic: TuiPluginModule
+                                - generic: ","
+                                - generic: TuiSlotPlugin
+                                - generic: "}"
+                                - generic: from
+                                - generic: "\"@opencode-ai/plugin/tui\""
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: tabs
+                                - generic: =
+                                - generic: "["
+                                - generic: "\"overview\""
+                                - generic: ","
+                                - generic: "\"counter\""
+                                - generic: ","
+                                - generic: "\"help\""
+                                - generic: "]"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: command
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: modal
+                                - text: ":"
+                                - generic: "\"smoke_modal\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen
+                                - text: ":"
+                                - generic: "\"smoke_screen\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: alert
+                                - text: ":"
+                                - generic: "\"smoke_alert\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: confirm
+                                - text: ":"
+                                - generic: "\"smoke_confirm\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: prompt
+                                - text: ":"
+                                - generic: "\"smoke_prompt\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: select
+                                - text: ":"
+                                - generic: "\"smoke_select\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: host
+                                - text: ":"
+                                - generic: "\"smoke_host\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: home
+                                - text: ":"
+                                - generic: "\"smoke_home\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: toast
+                                - text: ":"
+                                - generic: "\"smoke_toast\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: dialog_close
+                                - text: ":"
+                                - generic: "\"smoke_dialog_close\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: local_push
+                                - text: ":"
+                                - generic: "\"smoke_local_push\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: local_pop
+                                - text: ":"
+                                - generic: "\"smoke_local_pop\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_home
+                                - text: ":"
+                                - generic: "\"smoke_screen_home\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_left
+                                - text: ":"
+                                - generic: "\"smoke_screen_left\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_right
+                                - text: ":"
+                                - generic: "\"smoke_screen_right\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_up
+                                - text: ":"
+                                - generic: "\"smoke_screen_up\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_down
+                                - text: ":"
+                                - generic: "\"smoke_screen_down\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_modal
+                                - text: ":"
+                                - generic: "\"smoke_screen_modal\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_local
+                                - text: ":"
+                                - generic: "\"smoke_screen_local\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_host
+                                - text: ":"
+                                - generic: "\"smoke_screen_host\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_alert
+                                - text: ":"
+                                - generic: "\"smoke_screen_alert\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_confirm
+                                - text: ":"
+                                - generic: "\"smoke_screen_confirm\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_prompt
+                                - text: ":"
+                                - generic: "\"smoke_screen_prompt\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen_select
+                                - text: ":"
+                                - generic: "\"smoke_screen_select\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: modal_accept
+                                - text: ":"
+                                - generic: "\"smoke_modal_accept\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: modal_close
+                                - text: ":"
+                                - generic: "\"smoke_modal_close\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: SmokeBindings
+                                - generic: =
+                                - generic: BindingConfig
+                                - generic: <
+                                - generic: Renderable
+                                - generic: ","
+                                - generic: KeyEvent
+                                - generic: ">"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: defaultKeymap
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: modal
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"ctrl+shift+m\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"ctrl+shift+o\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: dialog_close
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"escape\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: local_push
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"enter,return\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: local_pop
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"escape,q,backspace\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_home
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"escape,ctrl+h\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_left
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"left,h\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_right
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"right,l\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_up
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"up,k\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_down
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"down,j\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_modal
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"ctrl+shift+m\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_local
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"x\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_host
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"z\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_alert
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"a\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_confirm
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"c\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_prompt
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"p\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: screen_select
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"s\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: modal_accept
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"enter,return\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "["
+                                - generic: command
+                                - generic: .
+                                - generic: modal_close
+                                - generic: "]"
+                                - text: ":"
+                                - generic: "\"escape\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: pick
+                                - generic: =
+                                - generic: (
+                                - generic: value
+                                - text: ":"
+                                - generic: unknown
+                                - generic: ","
+                                - generic: fallback
+                                - text: ":"
+                                - generic: string
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: typeof
+                                - generic: value
+                                - generic: "!=="
+                                - generic: "\"string\""
+                                - generic: )
+                                - generic: return
+                                - generic: fallback
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: "!"
+                                - generic: value
+                                - generic: .
+                                - generic: trim
+                                - generic: (
+                                - generic: )
+                                - generic: )
+                                - generic: return
+                                - generic: fallback
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: value
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: num
+                                - generic: =
+                                - generic: (
+                                - generic: value
+                                - text: ":"
+                                - generic: unknown
+                                - generic: ","
+                                - generic: fallback
+                                - text: ":"
+                                - generic: number
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: typeof
+                                - generic: value
+                                - generic: "!=="
+                                - generic: "\"number\""
+                                - generic: )
+                                - generic: return
+                                - generic: fallback
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: value
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: record
+                                - generic: =
+                                - generic: (
+                                - generic: value
+                                - text: ":"
+                                - generic: unknown
+                                - generic: )
+                                - text: ":"
+                                - generic: value
+                                - text: is
+                                - generic: Record
+                                - generic: <
+                                - generic: string
+                                - generic: ","
+                                - generic: unknown
+                                - generic: ">"
+                                - generic: =>
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "!"
+                                - generic: "!"
+                                - generic: value
+                                - generic: "&&"
+                                - generic: typeof
+                                - generic: value
+                                - generic: ===
+                                - generic: "\"object\""
+                                - generic: "&&"
+                                - generic: "!"
+                                - generic: Array
+                                - generic: .
+                                - generic: isArray
+                                - generic: (
+                                - generic: value
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: Cfg
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: label
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: route
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: vignette
+                                - text: ":"
+                                - generic: number
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: keybinds
+                                - text: ":"
+                                - generic: SmokeBindings
+                                - generic: "|"
+                                - generic: undefined
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: Route
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: modal
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: State
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: tab
+                                - text: ":"
+                                - generic: number
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: count
+                                - text: ":"
+                                - generic: number
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: source
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: note
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: selected
+                                - text: ":"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: local
+                                - text: ":"
+                                - generic: number
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: cfg
+                                - generic: =
+                                - generic: (
+                                - generic: options
+                                - text: ":"
+                                - generic: Record
+                                - generic: <
+                                - generic: string
+                                - generic: ","
+                                - generic: unknown
+                                - generic: ">"
+                                - generic: "|"
+                                - generic: undefined
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: label
+                                - text: ":"
+                                - generic: pick
+                                - generic: (
+                                - generic: options
+                                - generic: "?."
+                                - generic: label
+                                - generic: ","
+                                - generic: "\"smoke\""
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: route
+                                - text: ":"
+                                - generic: pick
+                                - generic: (
+                                - generic: options
+                                - generic: "?."
+                                - generic: route
+                                - generic: ","
+                                - generic: "\"workspace-smoke\""
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: vignette
+                                - text: ":"
+                                - generic: Math
+                                - generic: .
+                                - generic: max
+                                - generic: (
+                                - generic: "0"
+                                - generic: ","
+                                - generic: num
+                                - generic: (
+                                - generic: options
+                                - generic: "?."
+                                - generic: vignette
+                                - generic: ","
+                                - generic: "0.35"
+                                - generic: )
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: keybinds
+                                - text: ":"
+                                - generic: record
+                                - generic: (
+                                - generic: options
+                                - generic: "?."
+                                - generic: keybinds
+                                - generic: )
+                                - text: "?"
+                                - generic: (
+                                - generic: options
+                                - generic: .
+                                - generic: keybinds
+                                - generic: as
+                                - generic: SmokeBindings
+                                - generic: )
+                                - text: ":"
+                                - generic: undefined
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: names
+                                - generic: =
+                                - generic: (
+                                - generic: input
+                                - text: ":"
+                                - generic: Cfg
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: modal
+                                - text: ":"
+                                - generic:
+                                  - text: "`"
+                                  - generic:
+                                    - generic: "${"
+                                    - generic: input
+                                    - generic: .
+                                    - generic: route
+                                    - generic: "}"
+                                  - text: ".modal`"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: screen
+                                - text: ":"
+                                - generic:
+                                  - text: "`"
+                                  - generic:
+                                    - generic: "${"
+                                    - generic: input
+                                    - generic: .
+                                    - generic: route
+                                    - generic: "}"
+                                  - text: ".screen`"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: function
+                                - generic: createKeys
+                                - generic: (
+                                - generic: input
+                                - text: ":"
+                                - generic: SmokeBindings
+                                - generic: "|"
+                                - generic: undefined
+                                - generic: )
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: createBindingLookup
+                                - generic: (
+                                - generic: "{"
+                                - text: ...
+                                - generic: defaultKeymap
+                                - generic: ","
+                                - text: ...
+                                - generic: input
+                                - generic: "}"
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: Keys
+                                - generic: =
+                                - generic: ReturnType
+                                - generic: <
+                                - generic: typeof
+                                - generic: createKeys
+                                - generic: ">"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: ui
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: panel
+                                - text: ":"
+                                - generic: "\"#1d1d1d\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: border
+                                - text: ":"
+                                - generic: "\"#4a4a4a\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: text
+                                - text: ":"
+                                - generic: "\"#f0f0f0\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: muted
+                                - text: ":"
+                                - generic: "\"#a5a5a5\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: accent
+                                - text: ":"
+                                - generic: "\"#5f87ff\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: Color
+                                - generic: =
+                                - generic: RGBA
+                                - generic: "|"
+                                - generic: string
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: ink
+                                - generic: =
+                                - generic: (
+                                - generic: map
+                                - text: ":"
+                                - generic: Record
+                                - generic: <
+                                - generic: string
+                                - generic: ","
+                                - generic: unknown
+                                - generic: ">"
+                                - generic: ","
+                                - generic: name
+                                - text: ":"
+                                - generic: string
+                                - generic: ","
+                                - generic: fallback
+                                - text: ":"
+                                - generic: string
+                                - generic: )
+                                - text: ":"
+                                - generic: Color
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: value
+                                - generic: =
+                                - generic: map
+                                - generic: "["
+                                - generic: name
+                                - generic: "]"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: typeof
+                                - generic: value
+                                - generic: ===
+                                - generic: "\"string\""
+                                - generic: )
+                                - generic: return
+                                - generic: value
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: value
+                                - generic: instanceof
+                                - generic: RGBA
+                                - generic: )
+                                - generic: return
+                                - generic: value
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: fallback
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: look
+                                - generic: =
+                                - generic: (
+                                - generic: map
+                                - text: ":"
+                                - generic: Record
+                                - generic: <
+                                - generic: string
+                                - generic: ","
+                                - generic: unknown
+                                - generic: ">"
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: panel
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"backgroundPanel\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: panel
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: border
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"border\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: border
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: text
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"text\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: text
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: muted
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"textMuted\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: muted
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: accent
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"primary\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: accent
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: selected
+                                - text: ":"
+                                - generic: ink
+                                - generic: (
+                                - generic: map
+                                - generic: ","
+                                - generic: "\"selectedListItemText\""
+                                - generic: ","
+                                - generic: ui
+                                - generic: .
+                                - generic: text
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: tone
+                                - generic: =
+                                - generic: (
+                                - generic: api
+                                - text: ":"
+                                - generic: TuiPluginApi
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: look
+                                - generic: (
+                                - generic: api
+                                - generic: .
+                                - generic: theme
+                                - generic: .
+                                - generic: current
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: type
+                                - generic: Skin
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: panel
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: border
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: text
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: muted
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: accent
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: selected
+                                - text: ":"
+                                - generic: Color
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: Btn
+                                - generic: =
+                                - generic: (
+                                - generic: props
+                                - text: ":"
+                                - generic: "{"
+                                - generic: txt
+                                - text: ":"
+                                - generic: string
+                                - generic: ;
+                                - generic: run
+                                - text: ":"
+                                - generic: (
+                                - generic: )
+                                - generic: =>
+                                - generic:
+                                  - generic: void
+                                - generic: ;
+                                - generic: skin
+                                - text: ":"
+                                - generic: Skin
+                                - generic: ;
+                                - generic: "on"
+                                - text: "?:"
+                                - generic: boolean
+                                - generic: "}"
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: return
+                                - generic: (
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: <
+                                - generic: box
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: onMouseUp
+                                - generic: =
+                                - generic: "{"
+                                - generic: (
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: props
+                                - generic: .
+                                - generic: run
+                                - generic: (
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: backgroundColor
+                                - generic: =
+                                - generic: "{"
+                                - generic: props
+                                - generic: .
+                                - generic: "on"
+                                - text: "?"
+                                - generic: props
+                                - generic: .
+                                - generic: skin
+                                - generic: .
+                                - generic: accent
+                                - text: ":"
+                                - generic: props
+                                - generic: .
+                                - generic: skin
+                                - generic: .
+                                - generic: border
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: paddingLeft
+                                - generic: =
+                                - generic: "{"
+                                - generic: "1"
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: namespace
+                                - text: ":"
+                                - generic: "\"palette\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: enabled
+                                - text: ":"
+                                - generic: (
+                                - generic: )
+                                - generic: =>
+                                - generic: api
+                                - generic: .
+                                - generic: route
+                                - generic: .
+                                - generic: current
+                                - generic: .
+                                - generic: name
+                                - generic: "!=="
+                                - generic: "\"home\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: run
+                                - generic: (
+                                - generic: )
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: route
+                                - generic: .
+                                - generic: navigate
+                                - generic: (
+                                - generic: "\"home\""
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: name
+                                - text: ":"
+                                - generic: command
+                                - generic: .
+                                - generic: toast
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: title
+                                - text: ":"
+                                - generic:
+                                  - text: "`"
+                                  - generic:
+                                    - generic: "${"
+                                    - generic: input
+                                    - generic: .
+                                    - generic: label
+                                    - generic: "}"
+                                  - text: "toast`"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: category
+                                - text: ":"
+                                - generic: "\"Plugin\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: namespace
+                                - text: ":"
+                                - generic: "\"palette\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: run
+                                - generic: (
+                                - generic: )
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: ui
+                                - generic: .
+                                - generic: toast
+                                - generic: (
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: variant
+                                - text: ":"
+                                - generic: "\"info\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: title
+                                - text: ":"
+                                - generic: "\"Smoke\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: message
+                                - text: ":"
+                                - generic: "\"Plugin toast works\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: duration
+                                - text: ":"
+                                - generic: "2000"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "]"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: bindings
+                                - text: ":"
+                                - generic: keys
+                                - generic: .
+                                - generic: gather
+                                - generic: (
+                                - generic: "\"smoke.global\""
+                                - generic: ","
+                                - generic: "["
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: modal
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: screen
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: alert
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: confirm
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: prompt
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: select
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: host
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: home
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: command
+                                - generic: .
+                                - generic: toast
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "]"
+                                - generic: )
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: tui
+                                - text: ":"
+                                - generic: TuiPlugin
+                                - generic: =
+                                - generic: async
+                                - generic: (
+                                - generic: api
+                                - generic: ","
+                                - generic: options
+                                - generic: ","
+                                - generic: meta
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: if
+                                - generic: (
+                                - generic: options
+                                - generic: "?."
+                                - generic: enabled
+                                - generic: ===
+                                - generic: "false"
+                                - generic: )
+                                - generic: return
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: await
+                                - generic: api
+                                - generic: .
+                                - generic: theme
+                                - generic: .
+                                - generic: install
+                                - generic: (
+                                - generic: "\"./smoke-theme.json\""
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: theme
+                                - generic: .
+                                - generic: set
+                                - generic: (
+                                - generic: "\"smoke-theme\""
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: value
+                                - generic: =
+                                - generic: cfg
+                                - generic: (
+                                - generic: options
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: route
+                                - generic: =
+                                - generic: names
+                                - generic: (
+                                - generic: value
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: keys
+                                - generic: =
+                                - generic: createKeys
+                                - generic: (
+                                - generic: value
+                                - generic: .
+                                - generic: keybinds
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: fx
+                                - generic: =
+                                - generic: new
+                                - generic: VignetteEffect
+                                - generic: (
+                                - generic: value
+                                - generic: .
+                                - generic: vignette
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: post
+                                - generic: =
+                                - generic: fx
+                                - generic: .
+                                - generic: apply
+                                - generic: .
+                                - generic: bind
+                                - generic: (
+                                - generic: fx
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: renderer
+                                - generic: .
+                                - generic: addPostProcessFn
+                                - generic: (
+                                - generic: post
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: lifecycle
+                                - generic: .
+                                - generic: onDispose
+                                - generic: (
+                                - generic: (
+                                - generic: )
+                                - generic: =>
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: renderer
+                                - generic: .
+                                - generic: removePostProcessFn
+                                - generic: (
+                                - generic: post
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: route
+                                - generic: .
+                                - generic: register
+                                - generic: (
+                                - generic: "["
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: name
+                                - text: ":"
+                                - generic: route
+                                - generic: .
+                                - generic: screen
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: render
+                                - text: ":"
+                                - generic: (
+                                - generic: "{"
+                                - text: params
+                                - generic: "}"
+                                - generic: )
+                                - generic: =>
+                                - generic: <
+                                - generic: Screen
+                                - generic: api
+                                - generic: =
+                                - generic: "{"
+                                - generic: api
+                                - generic: "}"
+                                - generic: input
+                                - generic: =
+                                - generic: "{"
+                                - generic: value
+                                - generic: "}"
+                                - generic: route
+                                - generic: =
+                                - generic: "{"
+                                - generic: route
+                                - generic: "}"
+                                - generic: keys
+                                - generic: =
+                                - generic: "{"
+                                - generic: keys
+                                - generic: "}"
+                                - generic: meta
+                                - generic: =
+                                - generic: "{"
+                                - generic: meta
+                                - generic: "}"
+                                - generic: params
+                                - generic: =
+                                - generic: "{"
+                                - generic: params
+                                - generic: "}"
+                                - generic: />
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: name
+                                - text: ":"
+                                - generic: route
+                                - generic: .
+                                - generic: modal
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: render
+                                - text: ":"
+                                - generic: (
+                                - generic: "{"
+                                - text: params
+                                - generic: "}"
+                                - generic: )
+                                - generic: =>
+                                - generic: <
+                                - generic: Modal
+                                - generic: api
+                                - generic: =
+                                - generic: "{"
+                                - generic: api
+                                - generic: "}"
+                                - generic: input
+                                - generic: =
+                                - generic: "{"
+                                - generic: value
+                                - generic: "}"
+                                - generic: route
+                                - generic: =
+                                - generic: "{"
+                                - generic: route
+                                - generic: "}"
+                                - generic: keys
+                                - generic: =
+                                - generic: "{"
+                                - generic: keys
+                                - generic: "}"
+                                - generic: params
+                                - generic: =
+                                - generic: "{"
+                                - generic: params
+                                - generic: "}"
+                                - generic: />
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "]"
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: reg
+                                - generic: (
+                                - generic: api
+                                - generic: ","
+                                - generic: value
+                                - generic: ","
+                                - generic: keys
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: for
+                                - generic: (
+                                - generic: const
+                                - generic: item
+                                - generic: of
+                                - generic: slot
+                                - generic: (
+                                - generic: api
+                                - generic: ","
+                                - generic: value
+                                - generic: )
+                                - generic: )
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: api
+                                - generic: .
+                                - generic: slots
+                                - generic: .
+                                - generic: register
+                                - generic: (
+                                - generic: item
+                                - generic: )
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: const
+                                - generic: plugin
+                                - text: ":"
+                                - generic: TuiPluginModule
+                                - generic: "&"
+                                - generic: "{"
+                                - generic: id
+                                - text: ":"
+                                - generic: string
+                                - generic: "}"
+                                - generic: =
+                                - generic: "{"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: id
+                                - text: ":"
+                                - generic: "\"tui-smoke\""
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - text: tui
+                                - generic: ","
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "}"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: export
+                                - generic: default
+                                - generic: plugin
+  - alert [ref=e1292]

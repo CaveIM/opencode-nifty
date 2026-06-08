@@ -1,0 +1,23 @@
+type NiftyTodoSyncLogFields = {
+    tool?: "task_create" | "task_update" | "task_get" | "task_list";
+    task_id?: string;
+    task_status?: "pending" | "in_progress" | "completed" | "deleted";
+    parent_task_id?: string;
+    parent_task_nice_id?: string;
+    parent_resolved_from?: "raw" | "nice_id";
+    parent_source?: "env" | "file" | "default" | "none";
+    description_provided?: boolean;
+    blocks_count?: number;
+    blocked_by_count?: number;
+    owner_provided?: boolean;
+    has_previous_status?: boolean;
+    previous_status?: "pending" | "in_progress" | "completed" | "deleted";
+    token_source?: "cache" | "env" | "none";
+    refresh_attempted?: boolean;
+    http_status?: number;
+    duration_ms?: number;
+    posted?: boolean;
+    skipped_reason?: string;
+};
+export declare function buildNiftyTodoSyncLogFields(args: NiftyTodoSyncLogFields): NiftyTodoSyncLogFields;
+export {};

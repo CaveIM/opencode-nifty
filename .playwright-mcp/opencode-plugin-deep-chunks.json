@@ -1,0 +1,206 @@
+[
+  {
+    "repo": "griffinmartin/opencode-claude-auth",
+    "path": "src/index.ts",
+    "chunks": [
+      {
+        "term": "export default",
+        "range": "L550-L555",
+        "url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/src/index.ts#L550-L555",
+        "snippet": "550:   }\n551: }\n552: \n553: export const ClaudeAuthPlugin = plugin\n554: export default plugin\n555: "
+      },
+      {
+        "term": "const plugin",
+        "range": "L216-L231",
+        "url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/src/index.ts#L216-L231",
+        "snippet": "216: }\n217: \n218: const SYNC_INTERVAL = 5 * 60 * 1000 // 5 minutes\n219: \n220: const plugin: Plugin = async () => {\n221:   initLogger()\n222: \n223:   let accounts: ClaudeAccount[] = []\n224:   try {\n225:     accounts = readAllClaudeAccounts()\n226:   } catch (err) {\n227:     const error = err instanceof Error ? err.message : String(err)\n228:     log(\"plugin_init_error\", { error })\n229:     console.warn(\n230:       \"opencode-claude-auth: Failed to read Claude Code credentials:\",\n231:       error,"
+      },
+      {
+        "term": "experimental.chat.system.transform",
+        "range": "L280-L295",
+        "url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/src/index.ts#L280-L295",
+        "snippet": "280:   return {\n281:     config: async (opencodeConfig) => {\n282:       applyOpencodeConfig(opencodeConfig)\n283:     },\n284:     \"experimental.chat.system.transform\": async (input, output) => {\n285:       if (input.model?.providerID !== \"anthropic\") {\n286:         return\n287:       }\n288: \n289:       const hasIdentityPrefix = output.system.some((entry) =>\n290:         entry.includes(SYSTEM_IDENTITY_PREFIX),\n291:       )\n292:       if (!hasIdentityPrefix) {\n293:         output.system.unshift(SYSTEM_IDENTITY_PREFIX)\n294:       }\n295:     },"
+      }
+    ]
+  },
+  {
+    "repo": "shekohex/opencode-pty",
+    "path": "src/plugin.ts",
+    "chunks": [
+      {
+        "term": "export const PTYPlugin",
+        "range": "L11-L26",
+        "url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin.ts#L11-L26",
+        "snippet": "11: \n12: const ptyOpenClientCommand = 'pty-open-background-spy'\n13: const ptyShowServerUrlCommand = 'pty-show-server-url'\n14: \n15: export const PTYPlugin = async ({ client, directory }: PluginContext): Promise<PluginResult> => {\n16:   initPermissions(client, directory)\n17:   initManager(client)\n18:   let ptyServer: PTYServer | undefined\n19: \n20:   return {\n21:     'command.execute.before': async (input) => {\n22:       if (input.command !== ptyOpenClientCommand && input.command !== ptyShowServerUrlCommand) {\n23:         return\n24:       }\n25:       if (ptyServer === undefined) {\n26:         ptyServer = await PTYServer.createServer()"
+      },
+      {
+        "term": "return {",
+        "range": "L16-L31",
+        "url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin.ts#L16-L31",
+        "snippet": "16:   initPermissions(client, directory)\n17:   initManager(client)\n18:   let ptyServer: PTYServer | undefined\n19: \n20:   return {\n21:     'command.execute.before': async (input) => {\n22:       if (input.command !== ptyOpenClientCommand && input.command !== ptyShowServerUrlCommand) {\n23:         return\n24:       }\n25:       if (ptyServer === undefined) {\n26:         ptyServer = await PTYServer.createServer()\n27:       }\n28:       if (input.command === ptyOpenClientCommand) {\n29:         open(ptyServer.server.url.origin)\n30:       } else if (input.command === ptyShowServerUrlCommand) {\n31:         const message = `PTY Sessions Web Interface URL: ${ptyServer.server.url.origin}`"
+      },
+      {
+        "term": "tool:",
+        "range": "L43-L58",
+        "url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin.ts#L43-L58",
+        "snippet": "43:         })\n44:       }\n45:       throw new Error('Command handled by PTY plugin')\n46:     },\n47:     tool: {\n48:       pty_spawn: ptySpawn,\n49:       pty_write: ptyWrite,\n50:       pty_read: ptyRead,\n51:       pty_list: ptyList,\n52:       pty_kill: ptyKill,\n53:     },\n54:     config: async (input) => {\n55:       if (!input.command) {\n56:         input.command = {}\n57:       }\n58:       input.command[ptyOpenClientCommand] = {"
+      },
+      {
+        "term": "event:",
+        "range": "L63-L74",
+        "url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin.ts#L63-L74",
+        "snippet": "63:         template: `This command will show the PTY Sessions Web Interface URL.`,\n64:         description: 'Show PTY Sessions Web Interface URL',\n65:       }\n66:     },\n67:     event: async ({ event }) => {\n68:       if (event.type === 'session.deleted') {\n69:         manager.cleanupBySession(event.properties.info.id)\n70:       }\n71:     },\n72:   }\n73: }\n74: "
+      }
+    ]
+  },
+  {
+    "repo": "sdwolf4103/opencode-working-memory",
+    "path": "src/plugin.ts",
+    "chunks": [
+      {
+        "term": "export const MemoryV2Plugin",
+        "range": "L230-L245",
+        "url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts#L230-L245",
+        "snippet": "230: function compactionIdFromSummary(summary: string): string | undefined {\n231:   return summary.match(/Memory ref snapshot id:\\s*([a-zA-Z0-9_-]+)/i)?.[1];\n232: }\n233: \n234: export const MemoryV2Plugin: Plugin = async (input) => {\n235:   const { directory, client } = input;\n236: \n237:   // Cache for sub-agent detection — avoids repeated API calls per session.\n238:   // Maps sessionID → parentID (string) or null (root session).\n239:   const sessionParentCache = new Map<string, string | null>();\n240: \n241:   async function isSubAgent(sessionID: string): Promise<boolean> {\n242:     if (sessionParentCache.has(sessionID)) {\n243:       return sessionParentCache.get(sessionID) !== null;\n244:     }\n245:     try {"
+      },
+      {
+        "term": "experimental.session.compacting",
+        "range": "L1033-L1048",
+        "url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts#L1033-L1048",
+        "snippet": "1033:      *\n1034:      * We set output.prompt to replace the entire prompt, removing all ---\n1035:      * and explicitly forbidding YAML frontmatter / horizontal rules.\n1036:      */\n1037:     \"experimental.session.compacting\": async (hookInput, output) => {\n1038:       const { sessionID } = hookInput;\n1039:       if (!sessionID) return;\n1040: \n1041:       try {\n1042:         // Sub-agents don't need compaction support\n1043:         if (await isSubAgent(sessionID)) return;\n1044: \n1045:         // Preserve context injected by other plugins that ran before us.\n1046:         // Setting output.prompt bypasses the default prompt + context join,\n1047:         // so we must explicitly carry forward any existing output.context.\n1048:         const otherContext = output.context.filter(Boolean).join(\"\\n\\n\");"
+      },
+      {
+        "term": "experimental.chat.system.transform",
+        "range": "L915-L930",
+        "url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts#L915-L930",
+        "snippet": "915:   }\n916: \n917:   return {\n918:     // Inject frozen workspace memory and frozen hot session state into system prompt\n919:     \"experimental.chat.system.transform\": async (hookInput, output) => {\n920:       const { sessionID } = hookInput;\n921:       if (!sessionID) return;\n922: \n923:       try {\n924:         pruneFrozenPromptEpochCaches();\n925:         pruneProcessedUserMessagesCache();\n926: \n927:         // Sub-agents are short-lived - skip memory system\n928:         if (await isSubAgent(sessionID)) return;\n929: \n930:         // Process explicit user memory even on no-tool turns. Keep this after the"
+      },
+      {
+        "term": "tool.execute.after",
+        "range": "L964-L979",
+        "url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts#L964-L979",
+        "snippet": "964:       }\n965:     },\n966: \n967:     // Track tool usage and update session state\n968:     \"tool.execute.after\": async (hookInput, hookOutput) => {\n969:       const { sessionID, tool: toolName, args } = hookInput;\n970:       const { output: toolOutput } = hookOutput;\n971:       if (!sessionID) return;\n972: \n973:       // Sub-agents don't need memory tracking\n974:       if (await isSubAgent(sessionID)) return;\n975: \n976:       try {\n977:         await updateSessionState(directory, sessionID, state => {\n978:           // Track active files from tool usage\n979:           if (toolName === \"read\" || toolName === \"edit\" || toolName === \"write\" || toolName === \"grep\") {"
+      },
+      {
+        "term": "event:",
+        "range": "L1091-L1106",
+        "url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts#L1091-L1106",
+        "snippet": "1091:       }\n1092:     },\n1093: \n1094:     // Handle session events\n1095:     event: async ({ event }) => {\n1096:       if (event.type === \"session.compacted\") {\n1097:         let sessionID: string | undefined;\n1098:         try {\n1099:           sessionID = sessionIDFromEventProperties(event.properties);\n1100:           if (!sessionID) return;\n1101: \n1102:           // Sub-agents don't need post-compaction processing\n1103:           if (await isSubAgent(sessionID)) return;\n1104: \n1105:           try {\n1106:             // Parse latest compaction summary for memory candidates, stage them into"
+      }
+    ]
+  },
+  {
+    "repo": "angristan/opencode-wakatime",
+    "path": "src/index.ts",
+    "chunks": [
+      {
+        "term": "export const plugin",
+        "range": "L303-L318",
+        "url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/src/index.ts#L303-L318",
+        "snippet": "303:     isWrite: existing.isWrite || (info.isWrite ?? false),\n304:   });\n305: }\n306: \n307: export const plugin: Plugin = async (ctx) => {\n308:   // Read debug setting from ~/.wakatime.cfg (or $WAKATIME_HOME/.wakatime.cfg)\n309:   const wakatimeCfgPath = getWakatimeConfigFilePath();\n310:   try {\n311:     const cfg = fs.readFileSync(wakatimeCfgPath, \"utf-8\");\n312:     const debugMatch = cfg.match(/^\\s*debug\\s*=\\s*true\\s*$/m);\n313:     if (debugMatch) {\n314:       logger.setLevel(LogLevel.DEBUG);\n315:     }\n316:   } catch {\n317:     // Config file doesn't exist or can't be read, keep default INFO level\n318:   }"
+      },
+      {
+        "term": "event:",
+        "range": "L44-L59",
+        "url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/src/index.ts#L44-L59",
+        "snippet": "44: \n45: /**\n46:  * Type guard to check if an event is a MessagePartUpdatedEvent\n47:  */\n48: function isMessagePartUpdatedEvent(event: {\n49:   type: string;\n50: }): event is MessagePartUpdatedEvent {\n51:   return event.type === \"message.part.updated\";\n52: }\n53: \n54: // Set of processed callIDs to avoid duplicate processing\n55: const processedCallIds = new Set<string>();\n56: \n57: /**\n58:  * Represents tracked changes for a single file\n59:  */"
+      },
+      {
+        "term": "message.part.updated",
+        "range": "L35-L50",
+        "url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/src/index.ts#L35-L50",
+        "snippet": "35:   state: { status: string } & Partial<ToolStateCompleted>;\n36: }\n37: \n38: interface MessagePartUpdatedEvent {\n39:   type: \"message.part.updated\";\n40:   properties: {\n41:     part: ToolPart | { type: string };\n42:   };\n43: }\n44: \n45: /**\n46:  * Type guard to check if an event is a MessagePartUpdatedEvent\n47:  */\n48: function isMessagePartUpdatedEvent(event: {\n49:   type: string;\n50: }): event is MessagePartUpdatedEvent {"
+      }
+    ]
+  },
+  {
+    "repo": "kdcokenny/opencode-worktree",
+    "path": "src/plugin/worktree.ts",
+    "chunks": [
+      {
+        "term": "tool({",
+        "range": "L1007-L1022",
+        "url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/src/plugin/worktree.ts#L1007-L1022",
+        "snippet": "1007: \tconst database = await initDb(directory, log)\n1008: \n1009: \treturn {\n1010: \t\ttool: {\n1011: \t\t\tworktree_create: tool({\n1012: \t\t\t\tdescription:\n1013: \t\t\t\t\t\"Create a new git worktree for isolated development. A new terminal will open with OpenCode in the worktree.\",\n1014: \t\t\t\targs: {\n1015: \t\t\t\t\tbranch: tool.schema\n1016: \t\t\t\t\t\t.string()\n1017: \t\t\t\t\t\t.describe(\"Branch name for the worktree (e.g., 'feature/dark-mode')\"),\n1018: \t\t\t\t\tbaseBranch: tool.schema\n1019: \t\t\t\t\t\t.string()\n1020: \t\t\t\t\t\t.optional()\n1021: \t\t\t\t\t\t.describe(\"Base branch to create from (defaults to HEAD)\"),\n1022: \t\t\t\t},"
+      },
+      {
+        "term": "return {",
+        "range": "L245-L260",
+        "url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/src/plugin/worktree.ts#L245-L260",
+        "snippet": "245: \t\t\t\"launch\",\n246: \t\t)\n247: \t}\n248: \n249: \treturn {\n250: \t\tmode: \"ocx\",\n251: \t\tocxBin: resolvedPath,\n252: \t\tprofile,\n253: \t}\n254: }\n255: \n256: async function validateOcxProfileAvailability(\n257: \tocxBin: string,\n258: \tprofile: string,\n259: ): Promise<Result<void, string>> {\n260: \ttry {"
+      },
+      {
+        "term": "event:",
+        "range": "L1159-L1174",
+        "url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/src/plugin/worktree.ts#L1159-L1174",
+        "snippet": "1159: \t\t\t\t},\n1160: \t\t\t}),\n1161: \t\t},\n1162: \n1163: \t\tevent: async ({ event }: { event: Event }): Promise<void> => {\n1164: \t\t\tif (event.type !== \"session.idle\") return\n1165: \n1166: \t\t\t// Handle pending delete\n1167: \t\t\tconst pendingDelete = getPendingDelete(database)\n1168: \t\t\tif (pendingDelete) {\n1169: \t\t\t\tconst { path: worktreePath, branch } = pendingDelete\n1170: \n1171: \t\t\t\t// Run preDelete hooks before cleanup\n1172: \t\t\t\tconst config = await loadWorktreeConfig(directory, log)\n1173: \t\t\t\tif (config.hooks.preDelete.length > 0) {\n1174: \t\t\t\t\tawait runHooks(worktreePath, config.hooks.preDelete, log)"
+      },
+      {
+        "term": "worktree_create",
+        "range": "L1007-L1022",
+        "url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/src/plugin/worktree.ts#L1007-L1022",
+        "snippet": "1007: \tconst database = await initDb(directory, log)\n1008: \n1009: \treturn {\n1010: \t\ttool: {\n1011: \t\t\tworktree_create: tool({\n1012: \t\t\t\tdescription:\n1013: \t\t\t\t\t\"Create a new git worktree for isolated development. A new terminal will open with OpenCode in the worktree.\",\n1014: \t\t\t\targs: {\n1015: \t\t\t\t\tbranch: tool.schema\n1016: \t\t\t\t\t\t.string()\n1017: \t\t\t\t\t\t.describe(\"Branch name for the worktree (e.g., 'feature/dark-mode')\"),\n1018: \t\t\t\t\tbaseBranch: tool.schema\n1019: \t\t\t\t\t\t.string()\n1020: \t\t\t\t\t\t.optional()\n1021: \t\t\t\t\t\t.describe(\"Base branch to create from (defaults to HEAD)\"),\n1022: \t\t\t\t},"
+      }
+    ]
+  },
+  {
+    "repo": "kdcokenny/opencode-notify",
+    "path": "src/notify.ts",
+    "chunks": [
+      {
+        "term": "const NotifyPlugin",
+        "range": "L551-L566",
+        "url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts#L551-L566",
+        "snippet": "551: // ==========================================\n552: // PLUGIN EXPORT\n553: // ==========================================\n554: \n555: const NotifyPlugin: Plugin = async (ctx) => {\n556: \tconst { client } = ctx\n557: \n558: \t// Load config once at startup\n559: \tconst config = await loadConfig()\n560: \n561: \t// Detect terminal once at startup (cached for performance)\n562: \tconst terminalInfo = await detectTerminalInfo(config)\n563: \tconst cmuxCommand = resolveCmuxNotificationCommand()\n564: \tconst notificationRuntime: NotificationRuntime = {\n565: \t\tpreferCmux: Boolean(cmuxCommand),\n566: \t\tcmuxCommand,"
+      },
+      {
+        "term": "return {",
+        "range": "L111-L126",
+        "url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts#L111-L126",
+        "snippet": "111: \t\tconst content = await fs.readFile(configPath, \"utf8\")\n112: \t\tconst userConfig = JSON.parse(content) as Partial<NotifyConfig>\n113: \n114: \t\t// Merge with defaults\n115: \t\treturn {\n116: \t\t\t...DEFAULT_CONFIG,\n117: \t\t\t...userConfig,\n118: \t\t\tsounds: {\n119: \t\t\t\t...DEFAULT_CONFIG.sounds,\n120: \t\t\t\t...userConfig.sounds,\n121: \t\t\t},\n122: \t\t\tquietHours: {\n123: \t\t\t\t...DEFAULT_CONFIG.quietHours,\n124: \t\t\t\t...userConfig.quietHours,\n125: \t\t\t},\n126: \t\t}"
+      },
+      {
+        "term": "tool.execute.before",
+        "range": "L946-L961",
+        "url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts#L946-L961",
+        "snippet": "946: \t\tawait handlePermissionUpdated(config, terminalInfo, notificationRuntime)\n947: \t}\n948: \n949: \treturn {\n950: \t\t\"tool.execute.before\": async (input: { tool: string; sessionID: string; callID: string }) => {\n951: \t\t\tif (input.tool === \"question\") {\n952: \t\t\t\tapplyRuntimeSessionStatusTransition(\n953: \t\t\t\t\tbuildCmuxSessionStatusTransitionForQuestionTool(input.sessionID),\n954: \t\t\t\t)\n955: \t\t\t\tawait notifyQuestionIfNeeded(buildQuestionToolDedupeKey(input.sessionID, input.callID))\n956: \t\t\t}\n957: \t\t},\n958: \t\tevent: async ({ event }: { event: Event }): Promise<void> => {\n959: \t\t\tconst runtimeEvent = event as { type: string; properties: Record<string, unknown> }\n960: \t\t\tconst runtimeSessionStatusTransition = buildCmuxSessionStatusTransitionForEvent(\n961: \t\t\t\truntimeEvent.type,"
+      },
+      {
+        "term": "event:",
+        "range": "L954-L969",
+        "url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts#L954-L969",
+        "snippet": "954: \t\t\t\t)\n955: \t\t\t\tawait notifyQuestionIfNeeded(buildQuestionToolDedupeKey(input.sessionID, input.callID))\n956: \t\t\t}\n957: \t\t},\n958: \t\tevent: async ({ event }: { event: Event }): Promise<void> => {\n959: \t\t\tconst runtimeEvent = event as { type: string; properties: Record<string, unknown> }\n960: \t\t\tconst runtimeSessionStatusTransition = buildCmuxSessionStatusTransitionForEvent(\n961: \t\t\t\truntimeEvent.type,\n962: \t\t\t\truntimeEvent.properties,\n963: \t\t\t)\n964: \t\t\tapplyRuntimeSessionStatusTransition(runtimeSessionStatusTransition)\n965: \n966: \t\t\tswitch (runtimeEvent.type) {\n967: \t\t\t\tcase \"session.status\":\n968: \t\t\t\tcase \"session.idle\": {\n969: \t\t\t\t\tif (runtimeSessionStatusTransition?.logicalState === \"idle\") {"
+      },
+      {
+        "term": "export default",
+        "range": "L1002-L1007",
+        "url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts#L1002-L1007",
+        "snippet": "1002: \t\t},\n1003: \t}\n1004: }\n1005: \n1006: export default NotifyPlugin\n1007: "
+      }
+    ]
+  },
+  {
+    "repo": "Octane0411/opencode-plugin-openspec",
+    "path": "src/index.ts",
+    "chunks": [
+      {
+        "term": "const OpenSpecPlugin",
+        "range": "L1-L16",
+        "url": "https://github.com/Octane0411/opencode-plugin-openspec/blob/54864428bd0cb2afeb36f6558ca714b7bbc1203f/src/index.ts#L1-L16",
+        "snippet": "1: import type { Plugin } from \"@opencode-ai/plugin\";\n2: import { createConfigHook } from \"./config\";\n3: import { isOpenSpecProject } from \"./utils/detection\";\n4: \n5: const OpenSpecPlugin: Plugin = async (ctx) => {\n6:   const isActive = await isOpenSpecProject(ctx);\n7: \n8:   if (!isActive) {\n9:     return {};\n10:   }\n11: \n12:   return {\n13:     config: createConfigHook(ctx),\n14:   };\n15: };\n16: "
+      },
+      {
+        "term": "return",
+        "range": "L5-L18",
+        "url": "https://github.com/Octane0411/opencode-plugin-openspec/blob/54864428bd0cb2afeb36f6558ca714b7bbc1203f/src/index.ts#L5-L18",
+        "snippet": "5: const OpenSpecPlugin: Plugin = async (ctx) => {\n6:   const isActive = await isOpenSpecProject(ctx);\n7: \n8:   if (!isActive) {\n9:     return {};\n10:   }\n11: \n12:   return {\n13:     config: createConfigHook(ctx),\n14:   };\n15: };\n16: \n17: export default OpenSpecPlugin;\n18: "
+      },
+      {
+        "term": "export default",
+        "range": "L13-L18",
+        "url": "https://github.com/Octane0411/opencode-plugin-openspec/blob/54864428bd0cb2afeb36f6558ca714b7bbc1203f/src/index.ts#L13-L18",
+        "snippet": "13:     config: createConfigHook(ctx),\n14:   };\n15: };\n16: \n17: export default OpenSpecPlugin;\n18: "
+      }
+    ]
+  }
+]

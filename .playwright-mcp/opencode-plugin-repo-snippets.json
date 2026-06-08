@@ -1,0 +1,618 @@
+[
+  {
+    "repo": "griffinmartin/opencode-claude-auth",
+    "sha": "ffefe9d9070eb64c09a4ec0be365c33b4d2e7892",
+    "branch": "main",
+    "pushed_at": "2026-05-15T04:33:10Z",
+    "stars": 1053,
+    "description": "OpenCode plugin that uses your existing Claude Code credentials — no separate login needed. ",
+    "topics": [
+      "ai",
+      "anthropic",
+      "authentication",
+      "claude",
+      "claude-code",
+      "homebrew",
+      "nodejs",
+      "oauth",
+      "opencode",
+      "opencode-plugin",
+      "typescript"
+    ],
+    "files": [
+      {
+        "path": "src/index.ts",
+        "html_url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/src/index.ts",
+        "line_count": 555,
+        "hits": [
+          {
+            "range": "L1-L6",
+            "snippet": "1: import type { Plugin } from \"@opencode-ai/plugin\"\n2: import crypto from \"node:crypto\"\n3: import { config } from \"./model-config.ts\"\n4: import { readAllClaudeAccounts, type ClaudeAccount } from \"./keychain.ts\"\n5: import { initLogger, log } from \"./logger.ts\"\n6: import {"
+          },
+          {
+            "range": "L13-L20",
+            "snippet": "13: } from \"./betas.ts\"\n14: import { transformBody, transformResponseStream } from \"./transforms.ts\"\n15: import { applyOpencodeConfig } from \"./plugin-config.ts\"\n16: import {\n17:   getCachedCredentials,\n18:   getCredentialsForSync,\n19:   syncAuthJson,\n20:   initAccounts,"
+          },
+          {
+            "range": "L46-L53",
+            "snippet": "46:   type ClaudeCredentials,\n47: } from \"./credentials.ts\"\n48: export { isEnable1mContext, type PluginSettings } from \"./plugin-config.ts\"\n49: export {\n50:   buildBillingHeaderValue,\n51:   computeCch,\n52:   computeVersionSuffix,\n53:   extractFirstUserMessageText,"
+          },
+          {
+            "range": "L130-L137",
+            "snippet": "130:       const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN\n131:       const delay = Number.isNaN(parsed) ? (i + 1) * 2000 : parsed * 1000\n132:       // If delay exceeds the cap, the server is signalling a quota/usage-limit\n133:       // reset far in the future. Return immediately so the error surfaces to\n134:       // the user rather than silently hanging until the reset time.\n135:       if (delay > getMaxRetryDelayMs()) {\n136:         log(\"fetch_rate_limited_quota\", {\n137:           status: res.status,"
+          }
+        ]
+      },
+      {
+        "path": "package.json",
+        "html_url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/package.json",
+        "line_count": 77,
+        "hits": [
+          {
+            "range": "L2-L9",
+            "snippet": "2:   \"name\": \"opencode-claude-auth\",\n3:   \"version\": \"1.5.4\",\n4:   \"description\": \"OpenCode plugin that uses your Claude Code credentials — no separate login needed.\",\n5:   \"keywords\": [\n6:     \"anthropic\",\n7:     \"auth\",\n8:     \"claude\",\n9:     \"opencode\","
+          },
+          {
+            "range": "L8-L15",
+            "snippet": "8:     \"claude\",\n9:     \"opencode\",\n10:     \"plugin\"\n11:   ],\n12:   \"license\": \"MIT\",\n13:   \"repository\": {\n14:     \"type\": \"git\",\n15:     \"url\": \"git+https://github.com/griffinmartin/opencode-claude-auth.git\""
+          },
+          {
+            "range": "L29-L36",
+            "snippet": "29:       \"import\": \"./opencode-claude-auth.js\"\n30:     },\n31:     \"./server\": {\n32:       \"types\": \"./dist/index.d.ts\",\n33:       \"import\": \"./opencode-claude-auth.js\"\n34:     },\n35:     \"./claude-auth-plugin\": {\n36:       \"types\": \"./dist/index.d.ts\","
+          },
+          {
+            "range": "L33-L40",
+            "snippet": "33:       \"import\": \"./opencode-claude-auth.js\"\n34:     },\n35:     \"./claude-auth-plugin\": {\n36:       \"types\": \"./dist/index.d.ts\",\n37:       \"import\": \"./dist/index.js\"\n38:     },\n39:     \"./claude-auth-plugin.js\": {\n40:       \"types\": \"./dist/index.d.ts\","
+          }
+        ]
+      },
+      {
+        "path": "src/index.test.ts",
+        "html_url": "https://github.com/griffinmartin/opencode-claude-auth/blob/ffefe9d9070eb64c09a4ec0be365c33b4d2e7892/src/index.test.ts",
+        "line_count": 1204,
+        "hits": [
+          {
+            "range": "L26-L33",
+            "snippet": "26:     expires: number\n27:   }>,\n28:   provider: { models: Record<string, { cost?: unknown }> },\n29: ) => Promise<{\n30:   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>\n31: }>\n32: \n33: interface Account {"
+          },
+          {
+            "range": "L110-L117",
+            "snippet": "110:       return {\n111:         type: \"success\" as const,\n112:         provider: \"anthropic\",\n113:         access: creds.accessToken,\n114:         refresh: creds.refreshToken,\n115:         expires: creds.expiresAt,\n116:       }\n117:     },"
+          },
+          {
+            "range": "L123-L130",
+            "snippet": "123:   \"betas.ts\",\n124:   \"model-config.ts\",\n125:   \"plugin-config.ts\",\n126:   \"signing.ts\",\n127:   \"transforms.ts\",\n128:   \"credentials.ts\",\n129:   \"logger.ts\",\n130: ] as const"
+          },
+          {
+            "range": "L657-L664",
+            "snippet": "657: \n658:     try {\n659:       const plugin = await helpers.default({} as never)\n660:       assert.equal(\n661:         typeof plugin[\"experimental.chat.system.transform\"],\n662:         \"function\",\n663:       )\n664: "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "shekohex/opencode-pty",
+    "sha": "9b2b7eb43a31c21a5102d1e11f26b96f86949991",
+    "branch": "main",
+    "pushed_at": "2026-04-20T14:08:43Z",
+    "stars": 461,
+    "description": "OpenCode plugin for interactive PTY management - run background processes, send input, read output with regex filtering",
+    "topics": [
+      "background-process",
+      "bun",
+      "cli",
+      "opencode",
+      "opencode-plugin",
+      "pty",
+      "terminal",
+      "typescript"
+    ],
+    "files": [
+      {
+        "path": "index.ts",
+        "html_url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/index.ts",
+        "line_count": 2,
+        "hits": [
+          {
+            "range": "L1-L2",
+            "snippet": "1: export { PTYPlugin } from './src/plugin.ts'\n2: "
+          }
+        ]
+      },
+      {
+        "path": "src/plugin.ts",
+        "html_url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin.ts",
+        "line_count": 74,
+        "hits": [
+          {
+            "range": "L1-L6",
+            "snippet": "1: import type { PluginContext, PluginResult } from './plugin/types.ts'\n2: import { initManager, manager } from './plugin/pty/manager.ts'\n3: import { initPermissions } from './plugin/pty/permissions.ts'\n4: import { ptySpawn } from './plugin/pty/tools/spawn.ts'\n5: import { ptyWrite } from './plugin/pty/tools/write.ts'\n6: import { ptyRead } from './plugin/pty/tools/read.ts'"
+          },
+          {
+            "range": "L1-L7",
+            "snippet": "1: import type { PluginContext, PluginResult } from './plugin/types.ts'\n2: import { initManager, manager } from './plugin/pty/manager.ts'\n3: import { initPermissions } from './plugin/pty/permissions.ts'\n4: import { ptySpawn } from './plugin/pty/tools/spawn.ts'\n5: import { ptyWrite } from './plugin/pty/tools/write.ts'\n6: import { ptyRead } from './plugin/pty/tools/read.ts'\n7: import { ptyList } from './plugin/pty/tools/list.ts'"
+          },
+          {
+            "range": "L1-L8",
+            "snippet": "1: import type { PluginContext, PluginResult } from './plugin/types.ts'\n2: import { initManager, manager } from './plugin/pty/manager.ts'\n3: import { initPermissions } from './plugin/pty/permissions.ts'\n4: import { ptySpawn } from './plugin/pty/tools/spawn.ts'\n5: import { ptyWrite } from './plugin/pty/tools/write.ts'\n6: import { ptyRead } from './plugin/pty/tools/read.ts'\n7: import { ptyList } from './plugin/pty/tools/list.ts'\n8: import { ptyKill } from './plugin/pty/tools/kill.ts'"
+          },
+          {
+            "range": "L2-L9",
+            "snippet": "2: import { initManager, manager } from './plugin/pty/manager.ts'\n3: import { initPermissions } from './plugin/pty/permissions.ts'\n4: import { ptySpawn } from './plugin/pty/tools/spawn.ts'\n5: import { ptyWrite } from './plugin/pty/tools/write.ts'\n6: import { ptyRead } from './plugin/pty/tools/read.ts'\n7: import { ptyList } from './plugin/pty/tools/list.ts'\n8: import { ptyKill } from './plugin/pty/tools/kill.ts'\n9: import { PTYServer } from './web/server/server.ts'"
+          }
+        ]
+      },
+      {
+        "path": "src/plugin/pty/tools/spawn.ts",
+        "html_url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/src/plugin/pty/tools/spawn.ts",
+        "line_count": 80,
+        "hits": [
+          {
+            "range": "L1-L6",
+            "snippet": "1: import { tool } from '@opencode-ai/plugin'\n2: import { manager } from '../manager.ts'\n3: import { checkCommandPermission, checkWorkdirPermission } from '../permissions.ts'\n4: import DESCRIPTION from './spawn.txt'\n5: \n6: const NOTIFY_ON_EXIT_INSTRUCTIONS = ["
+          },
+          {
+            "range": "L13-L20",
+            "snippet": "13: ].join('\\n')\n14: \n15: export const ptySpawn = tool({\n16:   description: DESCRIPTION,\n17:   args: {\n18:     command: tool.schema.string().describe('The command/executable to run'),\n19:     args: tool.schema.array(tool.schema.string()).describe('Arguments to pass to the command'),\n20:     workdir: tool.schema.string().optional().describe('Working directory for the PTY session'),"
+          }
+        ]
+      },
+      {
+        "path": "test/pty-tools.test.ts",
+        "html_url": "https://github.com/shekohex/opencode-pty/blob/9b2b7eb43a31c21a5102d1e11f26b96f86949991/test/pty-tools.test.ts",
+        "line_count": 404,
+        "hits": [
+          {
+            "range": "L1-L7",
+            "snippet": "1: import { describe, it, expect, beforeEach, mock, spyOn, afterAll } from 'bun:test'\n2: import { ptySpawn } from '../src/plugin/pty/tools/spawn.ts'\n3: import { ptyRead } from '../src/plugin/pty/tools/read.ts'\n4: import { ptyList } from '../src/plugin/pty/tools/list.ts'\n5: import { RingBuffer } from '../src/plugin/pty/buffer.ts'\n6: import { manager } from '../src/plugin/pty/manager.ts'\n7: "
+          },
+          {
+            "range": "L1-L8",
+            "snippet": "1: import { describe, it, expect, beforeEach, mock, spyOn, afterAll } from 'bun:test'\n2: import { ptySpawn } from '../src/plugin/pty/tools/spawn.ts'\n3: import { ptyRead } from '../src/plugin/pty/tools/read.ts'\n4: import { ptyList } from '../src/plugin/pty/tools/list.ts'\n5: import { RingBuffer } from '../src/plugin/pty/buffer.ts'\n6: import { manager } from '../src/plugin/pty/manager.ts'\n7: \n8: describe('PTY Tools', () => {"
+          },
+          {
+            "range": "L2-L9",
+            "snippet": "2: import { ptySpawn } from '../src/plugin/pty/tools/spawn.ts'\n3: import { ptyRead } from '../src/plugin/pty/tools/read.ts'\n4: import { ptyList } from '../src/plugin/pty/tools/list.ts'\n5: import { RingBuffer } from '../src/plugin/pty/buffer.ts'\n6: import { manager } from '../src/plugin/pty/manager.ts'\n7: \n8: describe('PTY Tools', () => {\n9:   afterAll(() => {"
+          },
+          {
+            "range": "L3-L10",
+            "snippet": "3: import { ptyRead } from '../src/plugin/pty/tools/read.ts'\n4: import { ptyList } from '../src/plugin/pty/tools/list.ts'\n5: import { RingBuffer } from '../src/plugin/pty/buffer.ts'\n6: import { manager } from '../src/plugin/pty/manager.ts'\n7: \n8: describe('PTY Tools', () => {\n9:   afterAll(() => {\n10:     mock.restore()"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "sdwolf4103/opencode-working-memory",
+    "sha": "dbc5c01818971208b3fe1a7fad00674a959b9373",
+    "branch": "main",
+    "pushed_at": "2026-05-31T06:45:03Z",
+    "stars": 147,
+    "description": "Automatic memory for OpenCode agents: persistent workspace memory, hot session context, and compaction-based memory extraction — with zero extra API calls.",
+    "topics": [
+      "ai-memory-system",
+      "opencode",
+      "opencode-plugin"
+    ],
+    "files": [
+      {
+        "path": "index.ts",
+        "html_url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/index.ts",
+        "line_count": 6,
+        "hits": [
+          {
+            "range": "L1-L6",
+            "snippet": "1: import { MemoryV2Plugin } from \"./src/plugin.ts\";\n2: \n3: export default {\n4:   id: \"working-memory\",\n5:   server: MemoryV2Plugin,\n6: };"
+          },
+          {
+            "range": "L1-L6",
+            "snippet": "1: import { MemoryV2Plugin } from \"./src/plugin.ts\";\n2: \n3: export default {\n4:   id: \"working-memory\",\n5:   server: MemoryV2Plugin,\n6: };"
+          },
+          {
+            "range": "L3-L6",
+            "snippet": "3: export default {\n4:   id: \"working-memory\",\n5:   server: MemoryV2Plugin,\n6: };"
+          }
+        ]
+      },
+      {
+        "path": "src/plugin.ts",
+        "html_url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/plugin.ts",
+        "line_count": 1162,
+        "hits": [
+          {
+            "range": "L1-L7",
+            "snippet": "1: /**\n2:  * Memory V2 Plugin for OpenCode\n3:  *\n4:  * Architecture:\n5:  * - Layer 1: Stable Workspace Memory (frozen per session cache epoch, refreshed at compaction)\n6:  * - Layer 2: Frozen Hot Session State (active files, open errors, recent decisions, pending memories)\n7:  * - Layer 3: Native OpenCode State (todos owned by OpenCode, read during compaction)"
+          },
+          {
+            "range": "L18-L25",
+            "snippet": "18:  *   visible in the hot snapshot only if processed before epoch creation, promoted after compaction.\n19:  *\n20:  * This plugin:\n21:  * - Caches frozen workspace memory and hot session state per sessionID epoch\n22:  * - Processes explicit memory from latest user text once per message id\n23:  * - Injects frozen workspace memory and frozen hot session state into system prompt\n24:  * - Updates session state after tool execution\n25:  * - Augments compaction context with numbered memory refs, todos, and instruction"
+          },
+          {
+            "range": "L29-L36",
+            "snippet": "29: import { createHash, randomUUID } from \"node:crypto\";\n30: import { realpath, rm } from \"fs/promises\";\n31: import type { Plugin } from \"@opencode-ai/plugin\";\n32: import {\n33:   extractExplicitMemoriesWithEvidence,\n34:   extractActiveFiles,\n35:   extractErrorsFromBash,\n36:   parseWorkspaceMemoryCandidatesWithEvidence,"
+          },
+          {
+            "range": "L85-L92",
+            "snippet": "85:  *\n86:  * @param privateContext - Background context (numbered workspace memory refs,\n87:  *   pending todos) from our plugin and any other plugins. Shown to the model to\n88:  *   inform the summary but not copied verbatim.\n89:  */\n90: function buildCompactionPrompt(privateContext: string, compactionId?: string): string {\n91:   const snapshotInstruction = compactionId\n92:     ? `- If you emit any REINFORCE or REPLACE command, include \\`Memory ref snapshot id: ${compactionId}\\` as the first line under \\\"Memory candidates:\\\" so numbered refs match the correct compaction snapshot.`"
+          }
+        ]
+      },
+      {
+        "path": "src/tui-plugin.ts",
+        "html_url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/src/tui-plugin.ts",
+        "line_count": 304,
+        "hits": [
+          {
+            "range": "L56-L63",
+            "snippet": "56:   | { name: string; params?: Record<string, unknown> };\n57: \n58: type TuiPluginApi = {\n59:   command: {\n60:     register: (cb: () => TuiCommand[]) => () => void;\n61:   };\n62:   route: ({ readonly current: TuiRouteCurrent } | TuiRouteCurrent);\n63:   ui: {"
+          },
+          {
+            "range": "L75-L82",
+            "snippet": "75: };\n76: \n77: type TuiPlugin = (api: TuiPluginApi, options: unknown, meta: unknown) => Promise<void>;\n78: \n79: function currentRoute(api: TuiPluginApi): TuiRouteCurrent {\n80:   const route = api.route as ({ readonly current?: TuiRouteCurrent } & Partial<TuiRouteCurrent>);\n81:   return route.current ?? (route as TuiRouteCurrent);\n82: }"
+          },
+          {
+            "range": "L77-L84",
+            "snippet": "77: type TuiPlugin = (api: TuiPluginApi, options: unknown, meta: unknown) => Promise<void>;\n78: \n79: function currentRoute(api: TuiPluginApi): TuiRouteCurrent {\n80:   const route = api.route as ({ readonly current?: TuiRouteCurrent } & Partial<TuiRouteCurrent>);\n81:   return route.current ?? (route as TuiRouteCurrent);\n82: }\n83: \n84: function renderErrorReport(error: unknown): string {"
+          },
+          {
+            "range": "L121-L128",
+            "snippet": "121: }\n122: \n123: function getDialogApi(api: TuiPluginApi): {\n124:   DialogAlert: DialogAlertComponent;\n125:   DialogSelect: DialogSelectComponent;\n126:   dialog: Required<Pick<DialogStackContext, \"replace\" | \"setSize\">>;\n127: } | undefined {\n128:   if ("
+          }
+        ]
+      },
+      {
+        "path": "tests/plugin.test.ts",
+        "html_url": "https://github.com/sdwolf4103/opencode-working-memory/blob/dbc5c01818971208b3fe1a7fad00674a959b9373/tests/plugin.test.ts",
+        "line_count": 3715,
+        "hits": [
+          {
+            "range": "L4-L11",
+            "snippet": "4: import { tmpdir } from \"node:os\";\n5: import { dirname, join } from \"node:path\";\n6: import { MemoryV2Plugin } from \"../src/plugin.ts\";\n7: import { loadSessionState, saveSessionState } from \"../src/session-state.ts\";\n8: import { parseWorkspaceMemoryCandidates } from \"../src/extractors.ts\";\n9: import type { CompactionMemoryRef, LongTermMemoryEntry, OpenError } from \"../src/types.ts\";\n10: import { PROMOTION_RETRY_LIMITS, WORKSPACE_MEMORY_CACHE_LIMITS } from \"../src/types.ts\";\n11: import { sessionStatePath, workspaceKey, workspaceMemoryPath, workspacePendingJournalPath } from \"../src/paths.ts\";"
+          },
+          {
+            "range": "L118-L125",
+            "snippet": "118:   }) => Promise<void> | void,\n119: ): Promise<void> {\n120:   const tmpDir = await mkdtemp(join(tmpdir(), \"memory-plugin-test-\"));\n121:   try {\n122:     await updateWorkspaceMemory(tmpDir, store => {\n123:       store.entries.push(options.existing);\n124:       return store;\n125:     });"
+          },
+          {
+            "range": "L136-L143",
+            "snippet": "136:     });\n137: \n138:     const plugin = await MemoryV2Plugin({\n139:       directory: tmpDir,\n140:       client: mockClientWithCompactionSummary(options.summary ?? \"Memory candidates:\\nREINFORCE [M1]\"),\n141:     });\n142:     await withMockedDateNow(options.nowMs, async () => {\n143:       await (plugin as Record<string, Function>)[\"event\"]({"
+          },
+          {
+            "range": "L141-L148",
+            "snippet": "141:     });\n142:     await withMockedDateNow(options.nowMs, async () => {\n143:       await (plugin as Record<string, Function>)[\"event\"]({\n144:         event: { type: \"session.compacted\", properties: { sessionID: options.sessionID } },\n145:       });\n146:     });\n147: \n148:     await assertions({"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "angristan/opencode-wakatime",
+    "sha": "4f8a98f700d4a1135a369572c005461a24923dd8",
+    "branch": "master",
+    "pushed_at": "2026-05-13T21:25:09Z",
+    "stars": 166,
+    "description": "Track Opencode usage with Wakatime",
+    "topics": [
+      "coding-agent",
+      "opencode",
+      "opencode-plugin",
+      "wakatime"
+    ],
+    "files": [
+      {
+        "path": "src/index.ts",
+        "html_url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/src/index.ts",
+        "line_count": 485,
+        "hits": [
+          {
+            "range": "L1-L8",
+            "snippet": "1: import * as fs from \"node:fs\";\n2: import * as path from \"node:path\";\n3: import type { Hooks, Plugin } from \"@opencode-ai/plugin\";\n4: import { LogLevel, logger } from \"./logger.js\";\n5: import {\n6:   initState,\n7:   shouldSendHeartbeat,\n8:   updateLastHeartbeat,"
+          },
+          {
+            "range": "L46-L53",
+            "snippet": "46:  * Type guard to check if an event is a MessagePartUpdatedEvent\n47:  */\n48: function isMessagePartUpdatedEvent(event: {\n49:   type: string;\n50: }): event is MessagePartUpdatedEvent {\n51:   return event.type === \"message.part.updated\";\n52: }\n53: "
+          },
+          {
+            "range": "L68-L75",
+            "snippet": "68: const fileChanges = new Map<string, FileChangeInfo>();\n69: \n70: // Cache opencode version - written to a file so all plugin instances can share it\n71: const OPENCODE_VERSION_CACHE = path.join(\n72:   getWakatimeResourcesDir(),\n73:   \"opencode-version-cache.json\",\n74: );\n75: "
+          },
+          {
+            "range": "L305-L312",
+            "snippet": "305: }\n306: \n307: export const plugin: Plugin = async (ctx) => {\n308:   // Read debug setting from ~/.wakatime.cfg (or $WAKATIME_HOME/.wakatime.cfg)\n309:   const wakatimeCfgPath = getWakatimeConfigFilePath();\n310:   try {\n311:     const cfg = fs.readFileSync(wakatimeCfgPath, \"utf-8\");\n312:     const debugMatch = cfg.match(/^\\s*debug\\s*=\\s*true\\s*$/m);"
+          }
+        ]
+      },
+      {
+        "path": "src/__tests__/index.test.ts",
+        "html_url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/src/__tests__/index.test.ts",
+        "line_count": 291,
+        "hits": []
+      },
+      {
+        "path": "package.json",
+        "html_url": "https://github.com/angristan/opencode-wakatime/blob/4f8a98f700d4a1135a369572c005461a24923dd8/package.json",
+        "line_count": 78,
+        "hits": [
+          {
+            "range": "L7-L14",
+            "snippet": "7:   },\n8:   \"version\": \"1.3.8\",\n9:   \"description\": \"WakaTime plugin for OpenCode - Track AI coding activity and time spent\",\n10:   \"type\": \"module\",\n11:   \"main\": \"dist/index.js\",\n12:   \"types\": \"dist/index.d.ts\",\n13:   \"exports\": {\n14:     \".\": {"
+          },
+          {
+            "range": "L48-L55",
+            "snippet": "48:   \"license\": \"MIT\",\n49:   \"peerDependencies\": {\n50:     \"@opencode-ai/plugin\": \">=1.0.0\"\n51:   },\n52:   \"devDependencies\": {\n53:     \"@biomejs/biome\": \"2.4.8\",\n54:     \"@commitlint/cli\": \"^20.0.0\",\n55:     \"@commitlint/config-conventional\": \"^20.0.0\","
+          },
+          {
+            "range": "L54-L61",
+            "snippet": "54:     \"@commitlint/cli\": \"^20.0.0\",\n55:     \"@commitlint/config-conventional\": \"^20.0.0\",\n56:     \"@opencode-ai/plugin\": \"^1.0.0\",\n57:     \"@semantic-release/changelog\": \"^6.0.3\",\n58:     \"@semantic-release/git\": \"^10.0.1\",\n59:     \"@types/node\": \"^25.0.3\",\n60:     \"@vitest/coverage-v8\": \"^4.1.0\",\n61:     \"conventional-changelog-conventionalcommits\": \"^9.3.1\","
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "kdcokenny/opencode-worktree",
+    "sha": "77c2262f1c2c71077284643232cc85f6d05e06c0",
+    "branch": "main",
+    "pushed_at": "2026-05-24T00:01:19Z",
+    "stars": 579,
+    "description": "Zero-friction git worktrees for OpenCode. Auto-spawns terminals, syncs files, cleans up on exit.",
+    "topics": [
+      "ai",
+      "ai-assistant",
+      "ai-coding",
+      "developer-tools",
+      "git",
+      "git-worktree",
+      "opencode",
+      "opencode-plugin",
+      "terminal-automation",
+      "worktree"
+    ],
+    "files": [
+      {
+        "path": "src/plugin/worktree.ts",
+        "html_url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/src/plugin/worktree.ts",
+        "line_count": 1216,
+        "hits": [
+          {
+            "range": "L1-L7",
+            "snippet": "1: /**\n2:  * OCX Worktree Plugin\n3:  *\n4:  * Creates isolated git worktrees for AI development sessions with\n5:  * seamless terminal spawning across macOS, Windows, and Linux.\n6:  *\n7:  * Inspired by opencode-worktree-session by Felix Anhalt"
+          },
+          {
+            "range": "L17-L24",
+            "snippet": "17: import * as os from \"node:os\"\n18: import * as path from \"node:path\"\n19: import { type Plugin, tool } from \"@opencode-ai/plugin\"\n20: import type { Event } from \"@opencode-ai/sdk\"\n21: import type { OpencodeClient } from \"./kdco-primitives/types\"\n22: \n23: /** Logger interface for structured logging */\n24: interface Logger {"
+          },
+          {
+            "range": "L124-L131",
+            "snippet": "124: \n125: /**\n126:  * Worktree plugin configuration schema.\n127:  * Config file: .opencode/worktree.jsonc\n128:  */\n129: const worktreeConfigSchema = z.object({\n130: \t/** Custom base path for worktree storage. Supports ~ for home directory. */\n131: \tworktreePath: z.string().optional(),"
+          },
+          {
+            "range": "L518-L525",
+            "snippet": "518: // =============================================================================\n519: \n520: /** Database instance - initialized once per plugin lifecycle */\n521: let db: Database | null = null\n522: \n523: /** Project root path - stored on first initialization */\n524: let projectRoot: string | null = null\n525: "
+          }
+        ]
+      },
+      {
+        "path": "README.md",
+        "html_url": "https://github.com/kdcokenny/opencode-worktree/blob/77c2262f1c2c71077284643232cc85f6d05e06c0/README.md",
+        "line_count": 255,
+        "hits": [
+          {
+            "range": "L3-L10",
+            "snippet": "3: > Git worktrees that spawn their own terminal. Zero-friction isolation for AI-driven development.\n4: \n5: An [OpenCode](https://github.com/sst/opencode) plugin that creates isolated git worktrees—where each worktree automatically opens its own terminal with OpenCode running inside. No manual setup, no context switching, no cleanup work.\n6: \n7: ## Why This Exists\n8: \n9: You already know you can create git worktrees manually. Or use OpenCode Desktop's UI. So why this plugin?\n10: "
+          },
+          {
+            "range": "L7-L14",
+            "snippet": "7: ## Why This Exists\n8: \n9: You already know you can create git worktrees manually. Or use OpenCode Desktop's UI. So why this plugin?\n10: \n11: Manual worktrees require setup: create the worktree, open a terminal, navigate to it, start OpenCode. OpenCode Desktop gives you worktrees, but locks you into the GUI workflow. Each approach has friction.\n12: \n13: This plugin eliminates that friction. When the AI calls `worktree_create`, your terminal spawns automatically, OpenCode is already running, and files are synchronized. When it calls `worktree_delete`, changes commit automatically and the worktree cleans itself up. It's the difference between having a tool and having a workflow.\n14: "
+          },
+          {
+            "range": "L11-L18",
+            "snippet": "11: Manual worktrees require setup: create the worktree, open a terminal, navigate to it, start OpenCode. OpenCode Desktop gives you worktrees, but locks you into the GUI workflow. Each approach has friction.\n12: \n13: This plugin eliminates that friction. When the AI calls `worktree_create`, your terminal spawns automatically, OpenCode is already running, and files are synchronized. When it calls `worktree_delete`, changes commit automatically and the worktree cleans itself up. It's the difference between having a tool and having a workflow.\n14: \n15: Works great standalone, but pairs especially well with **[cmux](https://www.cmux.dev/)** for agentic workflows. cmux provides native workspace management and programmatic control that fits naturally into automated development workflows. tmux is also supported if you prefer a traditional multiplexer setup.\n16: \n17: ## When to Use This\n18: "
+          },
+          {
+            "range": "L21-L28",
+            "snippet": "21: | **Manual git worktree** | One-off experiments, full control | Manual setup, no auto-cleanup, context switching |\n22: | **OpenCode Desktop UI** | Visual workflow, integrated experience | Tied to desktop app, less automation |\n23: | **This plugin** | AI-driven workflows, automation, CLI-first users | Adds plugin dependency to your project |\n24: \n25: If you prefer manual control or work exclusively in OpenCode Desktop, you may not need this. **But if you want AI agents to seamlessly create and manage isolated development sessions—complete with automatic terminal spawning and state cleanup—this is what you're looking for.**\n26: \n27: ## How It Works\n28: "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "kdcokenny/opencode-notify",
+    "sha": "4d744f07b2654ecd39a602859f50a117b189cdab",
+    "branch": "main",
+    "pushed_at": "2026-05-20T15:02:58Z",
+    "stars": 219,
+    "description": "Native OS notifications for OpenCode – know when tasks complete",
+    "topics": [
+      "linux",
+      "macos",
+      "notifications",
+      "ocx",
+      "opencode",
+      "opencode-plugin",
+      "typescript",
+      "windows"
+    ],
+    "files": [
+      {
+        "path": "src/notify.ts",
+        "html_url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/src/notify.ts",
+        "line_count": 1007,
+        "hits": [
+          {
+            "range": "L23-L30",
+            "snippet": "23: import * as os from \"node:os\"\n24: import * as path from \"node:path\"\n25: import type { Plugin } from \"@opencode-ai/plugin\"\n26: import type { Event } from \"@opencode-ai/sdk\"\n27: // @ts-expect-error - installed at runtime by OCX\n28: import detectTerminal from \"detect-terminal\"\n29: // @ts-expect-error - installed at runtime by OCX\n30: import notifier from \"node-notifier\""
+          },
+          {
+            "range": "L550-L557",
+            "snippet": "550: \n551: // ==========================================\n552: // PLUGIN EXPORT\n553: // ==========================================\n554: \n555: const NotifyPlugin: Plugin = async (ctx) => {\n556: \tconst { client } = ctx\n557: "
+          },
+          {
+            "range": "L553-L560",
+            "snippet": "553: // ==========================================\n554: \n555: const NotifyPlugin: Plugin = async (ctx) => {\n556: \tconst { client } = ctx\n557: \n558: \t// Load config once at startup\n559: \tconst config = await loadConfig()\n560: "
+          },
+          {
+            "range": "L948-L955",
+            "snippet": "948: \n949: \treturn {\n950: \t\t\"tool.execute.before\": async (input: { tool: string; sessionID: string; callID: string }) => {\n951: \t\t\tif (input.tool === \"question\") {\n952: \t\t\t\tapplyRuntimeSessionStatusTransition(\n953: \t\t\t\t\tbuildCmuxSessionStatusTransitionForQuestionTool(input.sessionID),\n954: \t\t\t\t)\n955: \t\t\t\tawait notifyQuestionIfNeeded(buildQuestionToolDedupeKey(input.sessionID, input.callID))"
+          }
+        ]
+      },
+      {
+        "path": "README.md",
+        "html_url": "https://github.com/kdcokenny/opencode-notify/blob/4d744f07b2654ecd39a602859f50a117b189cdab/README.md",
+        "line_count": 184,
+        "hits": [
+          {
+            "range": "L3-L10",
+            "snippet": "3: > Native OS notifications for OpenCode.\n4: \n5: A plugin for [OpenCode](https://github.com/sst/opencode) that delivers Native OS notifications when tasks complete, errors occur, or the AI needs your input. It uses native OS notification delivery on macOS, Windows, and Linux, with an additional [cmux](https://www.cmux.dev/)-native path when available.\n6: \n7: ## Why This Exists\n8: \n9: You delegate a task and switch to another window. Now you're checking back every 30 seconds. Did it finish? Did it error? Is it waiting for permission?\n10: "
+          },
+          {
+            "range": "L9-L16",
+            "snippet": "9: You delegate a task and switch to another window. Now you're checking back every 30 seconds. Did it finish? Did it error? Is it waiting for permission?\n10: \n11: This plugin solves that:\n12: \n13: - **Stay focused** - Work in other apps. A notification arrives when the AI needs you.\n14: - **Native OS notifications first** - Uses macOS Notification Center via `alerter`, plus Windows Toast and Linux notify-send via `node-notifier`.\n15: - **Smart defaults** - Won't spam you. Only notifies for meaningful events, with parent-session filtering and quiet-hours support.\n16: - **Additional [cmux](https://www.cmux.dev/)-native path** - When running in [cmux](https://www.cmux.dev/), can route through `cmux notify` and still falls back safely to desktop notifications."
+          },
+          {
+            "range": "L42-L49",
+            "snippet": "42: | Sub-task complete / error | No (default) | - | Set `notifyChildSessions: true` to include child-session `session.idle` and `session.error` events |\n43: \n44: The plugin automatically:\n45: 1. Detects your terminal emulator (supports 37+ terminals)\n46: 2. Suppresses `session.idle`, `session.error`, and `permission.updated` notifications when your terminal is focused on macOS\n47: 3. Enables click-to-focus on macOS (click notification → terminal foregrounds)\n48: \n49: Question notifications intentionally bypass macOS focus suppression so direct prompts are not missed."
+          },
+          {
+            "range": "L61-L68",
+            "snippet": "61: ### Additional [cmux](https://www.cmux.dev/)-native path\n62: \n63: When running inside [cmux](https://www.cmux.dev/) (with `CMUX_WORKSPACE_ID` set), the plugin can also send notifications via [cmux](https://www.cmux.dev/):\n64: \n65: ```bash\n66: cmux notify --title \"...\" --subtitle \"...\" --body \"...\"\n67: ```\n68: "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "Octane0411/opencode-plugin-openspec",
+    "sha": "54864428bd0cb2afeb36f6558ca714b7bbc1203f",
+    "branch": "main",
+    "pushed_at": "2026-03-24T08:21:37Z",
+    "stars": 114,
+    "description": "An OpenCode plugin that integrates OpenSpec, adding a dedicated 'openspec-plan' mode for creating and editing spec files.",
+    "topics": [
+      "ai-agent",
+      "architecture-planning",
+      "open-code",
+      "opencode",
+      "opencode-plugin",
+      "openspec",
+      "sdd",
+      "spec",
+      "spec-driven-development",
+      "specification",
+      "specify"
+    ],
+    "files": [
+      {
+        "path": "src/index.ts",
+        "html_url": "https://github.com/Octane0411/opencode-plugin-openspec/blob/54864428bd0cb2afeb36f6558ca714b7bbc1203f/src/index.ts",
+        "line_count": 18,
+        "hits": [
+          {
+            "range": "L1-L6",
+            "snippet": "1: import type { Plugin } from \"@opencode-ai/plugin\";\n2: import { createConfigHook } from \"./config\";\n3: import { isOpenSpecProject } from \"./utils/detection\";\n4: \n5: const OpenSpecPlugin: Plugin = async (ctx) => {\n6:   const isActive = await isOpenSpecProject(ctx);"
+          },
+          {
+            "range": "L3-L10",
+            "snippet": "3: import { isOpenSpecProject } from \"./utils/detection\";\n4: \n5: const OpenSpecPlugin: Plugin = async (ctx) => {\n6:   const isActive = await isOpenSpecProject(ctx);\n7: \n8:   if (!isActive) {\n9:     return {};\n10:   }"
+          },
+          {
+            "range": "L15-L18",
+            "snippet": "15: };\n16: \n17: export default OpenSpecPlugin;\n18: "
+          }
+        ]
+      },
+      {
+        "path": "package.json",
+        "html_url": "https://github.com/Octane0411/opencode-plugin-openspec/blob/54864428bd0cb2afeb36f6558ca714b7bbc1203f/package.json",
+        "line_count": 42,
+        "hits": [
+          {
+            "range": "L1-L7",
+            "snippet": "1: {\n2:   \"name\": \"opencode-plugin-openspec\",\n3:   \"version\": \"0.1.4\",\n4:   \"description\": \"An OpenCode plugin that integrates OpenSpec, providing a dedicated agent for planning and specifying software architecture.\",\n5:   \"type\": \"module\",\n6:   \"main\": \"dist/index.js\",\n7:   \"files\": ["
+          },
+          {
+            "range": "L2-L9",
+            "snippet": "2:   \"name\": \"opencode-plugin-openspec\",\n3:   \"version\": \"0.1.4\",\n4:   \"description\": \"An OpenCode plugin that integrates OpenSpec, providing a dedicated agent for planning and specifying software architecture.\",\n5:   \"type\": \"module\",\n6:   \"main\": \"dist/index.js\",\n7:   \"files\": [\n8:     \"dist\"\n9:   ],"
+          },
+          {
+            "range": "L15-L22",
+            "snippet": "15:   \"repository\": {\n16:     \"type\": \"git\",\n17:     \"url\": \"git+https://github.com/Octane0411/opencode-plugin-openspec.git\"\n18:   },\n19:   \"keywords\": [\n20:     \"opencode\",\n21:     \"plugin\",\n22:     \"openspec\","
+          },
+          {
+            "range": "L19-L26",
+            "snippet": "19:   \"keywords\": [\n20:     \"opencode\",\n21:     \"plugin\",\n22:     \"openspec\",\n23:     \"agent\",\n24:     \"architecture\",\n25:     \"planning\"\n26:   ],"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "repo": "slkiser/opencode-quota",
+    "sha": "f0ce5c65cbe26a6b367a1d9bd19cb9d1682d3b41",
+    "branch": "main",
+    "pushed_at": "2026-05-22T14:06:44Z",
+    "stars": 544,
+    "description": "OpenCode quota & tokens usage with zero context window pollution. Supports OpenCode Go, Cursor, GitHub Copilot, OpenAl (Plus/Pro), Kimi Code, Alibaba Coding Plan, Chutes Al, Google Antigravity, Z.ai Coding Plan and more.",
+    "topics": [
+      "opencode",
+      "opencode-plugin",
+      "opencode-plugins",
+      "quota",
+      "quota-monitor",
+      "token-usage",
+      "tokens",
+      "usage"
+    ],
+    "files": [
+      {
+        "path": "package.json",
+        "html_url": "https://github.com/slkiser/opencode-quota/blob/f0ce5c65cbe26a6b367a1d9bd19cb9d1682d3b41/package.json",
+        "line_count": 96,
+        "hits": [
+          {
+            "range": "L15-L22",
+            "snippet": "15:       \"default\": \"./dist/index.js\"\n16:     },\n17:     \"./server\": {\n18:       \"types\": \"./dist/index.d.ts\",\n19:       \"default\": \"./dist/index.js\"\n20:     },\n21:     \"./tui\": {\n22:       \"types\": \"./dist/tui.d.ts\","
+          },
+          {
+            "range": "L24-L31",
+            "snippet": "24:     }\n25:   },\n26:   \"oc-plugin\": [\n27:     \"server\",\n28:     \"tui\"\n29:   ],\n30:   \"files\": [\n31:     \"dist\","
+          },
+          {
+            "range": "L25-L32",
+            "snippet": "25:   },\n26:   \"oc-plugin\": [\n27:     \"server\",\n28:     \"tui\"\n29:   ],\n30:   \"files\": [\n31:     \"dist\",\n32:     \"README.md\","
+          },
+          {
+            "range": "L38-L45",
+            "snippet": "38:     \"pricing:refresh\": \"node scripts/refresh-modelsdev-pricing.mjs\",\n39:     \"pricing:refresh:if-stale\": \"node scripts/refresh-modelsdev-pricing-if-stale.mjs\",\n40:     \"upstream:check\": \"node scripts/check-upstream-plugin-updates.mjs\",\n41:     \"upstream:prepare-review\": \"node scripts/prepare-upstream-plugin-review.mjs\",\n42:     \"upstream:sync\": \"node scripts/sync-upstream-plugin-references.mjs\",\n43:     \"verify:release-version\": \"node scripts/verify-release-version.mjs\",\n44:     \"typecheck\": \"tsc --noEmit\",\n45:     \"test\": \"vitest run\","
+          }
+        ]
+      },
+      {
+        "path": "README.md",
+        "html_url": "https://github.com/slkiser/opencode-quota/blob/f0ce5c65cbe26a6b367a1d9bd19cb9d1682d3b41/README.md",
+        "line_count": 741,
+        "hits": [
+          {
+            "range": "L29-L36",
+            "snippet": "29: > OpenCode `>= 1.4.3` and Node.js `>= 18` are required.\n30: \n31: The installer adds missing plugin/config entries and keeps your unrelated settings. Re-running it updates only installer-owned Quota UI choices.\n32: \n33: ### What the installer asks\n34: \n35: | Question | Pick this when you want... |\n36: | --- | --- |"
+          },
+          {
+            "range": "L37-L44",
+            "snippet": "37: | Install scope | This repo/worktree only, or your global OpenCode config. |\n38: | Quota UI | Sidebar panel, toasts, compact status line, terminal/slash-command only, or a mix. |\n39: | Provider mode | Auto-detect providers, or choose a provider list yourself. |\n40: | Quota reset periods | Show one reset period per provider, or all known reset periods. |\n41: | Quota percentage meaning | Show quota remaining, or quota already used. |\n42: | Session token details | Hide token counts for shorter output, or show them when available. |\n43: | Maintainer announcements | Keep bundled maintainer announcements enabled, or opt out. Yes is the default; Sidebar or Compact status installs the TUI plugin, where home notices can appear. |\n44: "
+          },
+          {
+            "range": "L38-L45",
+            "snippet": "38: | Quota UI | Sidebar panel, toasts, compact status line, terminal/slash-command only, or a mix. |\n39: | Provider mode | Auto-detect providers, or choose a provider list yourself. |\n40: | Quota reset periods | Show one reset period per provider, or all known reset periods. |\n41: | Quota percentage meaning | Show quota remaining, or quota already used. |\n42: | Session token details | Hide token counts for shorter output, or show them when available. |\n43: | Maintainer announcements | Keep bundled maintainer announcements enabled, or opt out. Yes is the default; Sidebar or Compact status installs the TUI plugin, where home notices can appear. |\n44: \n45: ### After install"
+          },
+          {
+            "range": "L41-L48",
+            "snippet": "41: | Quota percentage meaning | Show quota remaining, or quota already used. |\n42: | Session token details | Hide token counts for shorter output, or show them when available. |\n43: | Maintainer announcements | Keep bundled maintainer announcements enabled, or opt out. Yes is the default; Sidebar or Compact status installs the TUI plugin, where home notices can appear. |\n44: \n45: ### After install\n46: \n47: 1. Restart OpenCode.\n48: 2. Run `/quota`."
+          }
+        ]
+      }
+    ]
+  }
+]

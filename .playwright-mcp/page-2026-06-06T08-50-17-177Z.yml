@@ -1,0 +1,1287 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Ftopics%2Fopencode-plugin
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2Ftopics%2Fopencode-plugin&source=header
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e61]:
+    - navigation "Explore navigation" [ref=e63]:
+      - generic [ref=e64]:
+        - link "Explore" [ref=e65] [cursor=pointer]:
+          - /url: /explore
+        - link "Topics" [ref=e66] [cursor=pointer]:
+          - /url: /topics
+        - link "Trending" [ref=e67] [cursor=pointer]:
+          - /url: /trending
+        - link "Collections" [ref=e68] [cursor=pointer]:
+          - /url: /collections
+        - link "Events" [ref=e69] [cursor=pointer]:
+          - /url: /events
+        - link "GitHub Sponsors" [ref=e70] [cursor=pointer]:
+          - /url: /sponsors/explore
+    - generic [ref=e71]:
+      - generic [ref=e74]:
+        - generic [ref=e75]:
+          - generic [ref=e76]: "#"
+          - heading "opencode-plugin" [level=1] [ref=e77]
+        - link "You must be signed in to star a repository" [ref=e80] [cursor=pointer]:
+          - /url: /login?return_to=%2Ftopic.opencode-plugin
+          - img [ref=e81]
+          - text: Star
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - heading "Here are 355 public repositories matching this topic..." [level=2] [ref=e86]
+          - generic [ref=e87]:
+            - group [ref=e88]:
+              - 'button "Language: All" [ref=e89] [cursor=pointer]'
+            - group [ref=e90]:
+              - 'button "Sort: Most stars" [ref=e91] [cursor=pointer]'
+          - article [ref=e92]:
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - img [ref=e97]
+                - heading "vbgate / learn-opencode" [level=3] [ref=e99]:
+                  - link "vbgate" [ref=e100] [cursor=pointer]:
+                    - /url: /vbgate
+                  - text: /
+                  - link "learn-opencode" [ref=e101] [cursor=pointer]:
+                    - /url: /vbgate/learn-opencode
+              - link "You must be signed in to star a repository" [ref=e104] [cursor=pointer]:
+                - /url: /login?return_to=%2Fvbgate%2Flearn-opencode
+                - img [ref=e105]
+                - text: Star
+                - generic "1537 users starred this repository" [ref=e107]: 1.5k
+            - 'navigation "Repository menu: vbgate/learn-opencode" [ref=e108]':
+              - list [ref=e109]:
+                - listitem [ref=e110]:
+                  - link "Code" [ref=e111] [cursor=pointer]:
+                    - /url: /vbgate/learn-opencode
+                    - img [ref=e112]
+                    - text: Code
+                - listitem [ref=e114]:
+                  - link "Issues" [ref=e115] [cursor=pointer]:
+                    - /url: /vbgate/learn-opencode/issues
+                    - img [ref=e116]
+                    - text: Issues
+                - listitem [ref=e119]:
+                  - link "Pull requests" [ref=e120] [cursor=pointer]:
+                    - /url: /vbgate/learn-opencode/pulls
+                    - img [ref=e121]
+                    - text: Pull requests
+            - generic [ref=e123]:
+              - paragraph [ref=e125]: OpenCode 中文实战课源码与内容仓库：一课一页，覆盖入门到实战工作流。
+              - generic [ref=e126]:
+                - link "opencode" [ref=e127] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "opencode-ai" [ref=e128] [cursor=pointer]:
+                  - /url: /topics/opencode-ai
+                - link "opencode-plugins" [ref=e129] [cursor=pointer]:
+                  - /url: /topics/opencode-plugins
+                - link "opencode-cluster" [ref=e130] [cursor=pointer]:
+                  - /url: /topics/opencode-cluster
+                - link "opencode-plugin" [ref=e131] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e133]:
+                - listitem [ref=e134]: Updated May 6, 2026on May 6
+                - listitem [ref=e135]:
+                  - generic [ref=e136]: Shell
+          - article [ref=e138]:
+            - generic [ref=e140]:
+              - generic [ref=e141]:
+                - img [ref=e143]
+                - heading "rynfar / meridian" [level=3] [ref=e145]:
+                  - link "rynfar" [ref=e146] [cursor=pointer]:
+                    - /url: /rynfar
+                  - text: /
+                  - link "meridian" [ref=e147] [cursor=pointer]:
+                    - /url: /rynfar/meridian
+              - link "You must be signed in to star a repository" [ref=e150] [cursor=pointer]:
+                - /url: /login?return_to=%2Frynfar%2Fmeridian
+                - img [ref=e151]
+                - text: Star
+                - generic "1382 users starred this repository" [ref=e153]: 1.4k
+            - 'navigation "Repository menu: rynfar/meridian" [ref=e154]':
+              - list [ref=e155]:
+                - listitem [ref=e156]:
+                  - link "Code" [ref=e157] [cursor=pointer]:
+                    - /url: /rynfar/meridian
+                    - img [ref=e158]
+                    - text: Code
+                - listitem [ref=e160]:
+                  - link "Issues" [ref=e161] [cursor=pointer]:
+                    - /url: /rynfar/meridian/issues
+                    - img [ref=e162]
+                    - text: Issues
+                - listitem [ref=e165]:
+                  - link "Pull requests" [ref=e166] [cursor=pointer]:
+                    - /url: /rynfar/meridian/pulls
+                    - img [ref=e167]
+                    - text: Pull requests
+            - generic [ref=e169]:
+              - paragraph [ref=e171]: Use your Claude Max subscription with OpenCode, Pi, Droid, Aider, Crush, Cline. Proxy that bridges Anthropic's official SDK to enable Claude Max in third-party tools.
+              - generic [ref=e172]:
+                - link "proxy" [ref=e173] [cursor=pointer]:
+                  - /url: /topics/proxy
+                - link "opencode" [ref=e174] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "cline" [ref=e175] [cursor=pointer]:
+                  - /url: /topics/cline
+                - link "bun" [ref=e176] [cursor=pointer]:
+                  - /url: /topics/bun
+                - link "claude" [ref=e177] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "whatsapp-automation" [ref=e178] [cursor=pointer]:
+                  - /url: /topics/whatsapp-automation
+                - link "llm" [ref=e179] [cursor=pointer]:
+                  - /url: /topics/llm
+                - link "charmbracelet" [ref=e180] [cursor=pointer]:
+                  - /url: /topics/charmbracelet
+                - link "aider" [ref=e181] [cursor=pointer]:
+                  - /url: /topics/aider
+                - link "anthropic" [ref=e182] [cursor=pointer]:
+                  - /url: /topics/anthropic
+                - link "ai-coding" [ref=e183] [cursor=pointer]:
+                  - /url: /topics/ai-coding
+                - link "claude-max" [ref=e184] [cursor=pointer]:
+                  - /url: /topics/claude-max
+                - link "crush-cli" [ref=e185] [cursor=pointer]:
+                  - /url: /topics/crush-cli
+                - link "claude-agent-sdk" [ref=e186] [cursor=pointer]:
+                  - /url: /topics/claude-agent-sdk
+                - link "opencode-plugin" [ref=e187] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+                - link "pi-coding-agent" [ref=e188] [cursor=pointer]:
+                  - /url: /topics/pi-coding-agent
+                - link "pylon-orchestrator" [ref=e189] [cursor=pointer]:
+                  - /url: /topics/pylon-orchestrator
+              - list [ref=e191]:
+                - listitem [ref=e192]: Updated May 29, 2026last week
+                - listitem [ref=e193]:
+                  - generic [ref=e194]: TypeScript
+          - article [ref=e196]:
+            - generic [ref=e198]:
+              - generic [ref=e199]:
+                - img [ref=e201]
+                - heading "griffinmartin / opencode-claude-auth" [level=3] [ref=e203]:
+                  - link "griffinmartin" [ref=e204] [cursor=pointer]:
+                    - /url: /griffinmartin
+                  - text: /
+                  - link "opencode-claude-auth" [ref=e205] [cursor=pointer]:
+                    - /url: /griffinmartin/opencode-claude-auth
+              - generic [ref=e206]:
+                - link "Sponsor @griffinmartin" [ref=e207] [cursor=pointer]:
+                  - /url: /sponsors/griffinmartin
+                  - generic [ref=e209]:
+                    - img [ref=e210]
+                    - text: Sponsor
+                - link "You must be signed in to star a repository" [ref=e213] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fgriffinmartin%2Fopencode-claude-auth
+                  - img [ref=e214]
+                  - text: Star
+                  - generic "1053 users starred this repository" [ref=e216]: 1.1k
+            - 'navigation "Repository menu: griffinmartin/opencode-claude-auth" [ref=e217]':
+              - list [ref=e218]:
+                - listitem [ref=e219]:
+                  - link "Code" [ref=e220] [cursor=pointer]:
+                    - /url: /griffinmartin/opencode-claude-auth
+                    - img [ref=e221]
+                    - text: Code
+                - listitem [ref=e223]:
+                  - link "Issues" [ref=e224] [cursor=pointer]:
+                    - /url: /griffinmartin/opencode-claude-auth/issues
+                    - img [ref=e225]
+                    - text: Issues
+                - listitem [ref=e228]:
+                  - link "Pull requests" [ref=e229] [cursor=pointer]:
+                    - /url: /griffinmartin/opencode-claude-auth/pulls
+                    - img [ref=e230]
+                    - text: Pull requests
+            - generic [ref=e232]:
+              - paragraph [ref=e234]: OpenCode plugin that uses your existing Claude Code credentials — no separate login needed.
+              - generic [ref=e235]:
+                - link "nodejs" [ref=e236] [cursor=pointer]:
+                  - /url: /topics/nodejs
+                - link "homebrew" [ref=e237] [cursor=pointer]:
+                  - /url: /topics/homebrew
+                - link "oauth" [ref=e238] [cursor=pointer]:
+                  - /url: /topics/oauth
+                - link "typescript" [ref=e239] [cursor=pointer]:
+                  - /url: /topics/typescript
+                - link "ai" [ref=e240] [cursor=pointer]:
+                  - /url: /topics/ai
+                - link "authentication" [ref=e241] [cursor=pointer]:
+                  - /url: /topics/authentication
+                - link "opencode" [ref=e242] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "claude" [ref=e243] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "anthropic" [ref=e244] [cursor=pointer]:
+                  - /url: /topics/anthropic
+                - link "claude-code" [ref=e245] [cursor=pointer]:
+                  - /url: /topics/claude-code
+                - link "opencode-plugin" [ref=e246] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e248]:
+                - listitem [ref=e249]: Updated May 15, 20263 weeks ago
+                - listitem [ref=e250]:
+                  - generic [ref=e251]: TypeScript
+          - article [ref=e253]:
+            - generic [ref=e255]:
+              - generic [ref=e256]:
+                - img [ref=e258]
+                - heading "kdcokenny / opencode-worktree" [level=3] [ref=e260]:
+                  - link "kdcokenny" [ref=e261] [cursor=pointer]:
+                    - /url: /kdcokenny
+                  - text: /
+                  - link "opencode-worktree" [ref=e262] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-worktree
+              - link "You must be signed in to star a repository" [ref=e265] [cursor=pointer]:
+                - /url: /login?return_to=%2Fkdcokenny%2Fopencode-worktree
+                - img [ref=e266]
+                - text: Star
+                - generic "579 users starred this repository" [ref=e268]: "579"
+            - 'navigation "Repository menu: kdcokenny/opencode-worktree" [ref=e269]':
+              - list [ref=e270]:
+                - listitem [ref=e271]:
+                  - link "Code" [ref=e272] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-worktree
+                    - img [ref=e273]
+                    - text: Code
+                - listitem [ref=e275]:
+                  - link "Issues" [ref=e276] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-worktree/issues
+                    - img [ref=e277]
+                    - text: Issues
+                - listitem [ref=e280]:
+                  - link "Pull requests" [ref=e281] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-worktree/pulls
+                    - img [ref=e282]
+                    - text: Pull requests
+            - generic [ref=e284]:
+              - paragraph [ref=e286]: Zero-friction git worktrees for OpenCode. Auto-spawns terminals, syncs files, cleans up on exit.
+              - generic [ref=e287]:
+                - link "git" [ref=e288] [cursor=pointer]:
+                  - /url: /topics/git
+                - link "ai" [ref=e289] [cursor=pointer]:
+                  - /url: /topics/ai
+                - link "opencode" [ref=e290] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "developer-tools" [ref=e291] [cursor=pointer]:
+                  - /url: /topics/developer-tools
+                - link "worktree" [ref=e292] [cursor=pointer]:
+                  - /url: /topics/worktree
+                - link "git-worktree" [ref=e293] [cursor=pointer]:
+                  - /url: /topics/git-worktree
+                - link "ai-assistant" [ref=e294] [cursor=pointer]:
+                  - /url: /topics/ai-assistant
+                - link "terminal-automation" [ref=e295] [cursor=pointer]:
+                  - /url: /topics/terminal-automation
+                - link "ai-coding" [ref=e296] [cursor=pointer]:
+                  - /url: /topics/ai-coding
+                - link "opencode-plugin" [ref=e297] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e299]:
+                - listitem [ref=e300]: Updated May 24, 20262 weeks ago
+                - listitem [ref=e301]:
+                  - generic [ref=e302]: TypeScript
+          - article [ref=e304]:
+            - generic [ref=e306]:
+              - generic [ref=e307]:
+                - img [ref=e309]
+                - heading "slkiser / opencode-quota" [level=3] [ref=e311]:
+                  - link "slkiser" [ref=e312] [cursor=pointer]:
+                    - /url: /slkiser
+                  - text: /
+                  - link "opencode-quota" [ref=e313] [cursor=pointer]:
+                    - /url: /slkiser/opencode-quota
+              - link "You must be signed in to star a repository" [ref=e316] [cursor=pointer]:
+                - /url: /login?return_to=%2Fslkiser%2Fopencode-quota
+                - img [ref=e317]
+                - text: Star
+                - generic "544 users starred this repository" [ref=e319]: "544"
+            - 'navigation "Repository menu: slkiser/opencode-quota" [ref=e320]':
+              - list [ref=e321]:
+                - listitem [ref=e322]:
+                  - link "Code" [ref=e323] [cursor=pointer]:
+                    - /url: /slkiser/opencode-quota
+                    - img [ref=e324]
+                    - text: Code
+                - listitem [ref=e326]:
+                  - link "Issues" [ref=e327] [cursor=pointer]:
+                    - /url: /slkiser/opencode-quota/issues
+                    - img [ref=e328]
+                    - text: Issues
+                - listitem [ref=e331]:
+                  - link "Pull requests" [ref=e332] [cursor=pointer]:
+                    - /url: /slkiser/opencode-quota/pulls
+                    - img [ref=e333]
+                    - text: Pull requests
+            - generic [ref=e335]:
+              - paragraph [ref=e337]: OpenCode quota & tokens usage with zero context window pollution. Supports OpenCode Go, Cursor, GitHub Copilot, OpenAl (Plus/Pro), Kimi Code, Alibaba Coding Plan, Chutes Al, Google Antigravity, Z.ai Coding Plan and more.
+              - generic [ref=e338]:
+                - link "opencode" [ref=e339] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "tokens" [ref=e340] [cursor=pointer]:
+                  - /url: /topics/tokens
+                - link "usage" [ref=e341] [cursor=pointer]:
+                  - /url: /topics/usage
+                - link "quota" [ref=e342] [cursor=pointer]:
+                  - /url: /topics/quota
+                - link "token-usage" [ref=e343] [cursor=pointer]:
+                  - /url: /topics/token-usage
+                - link "opencode-plugins" [ref=e344] [cursor=pointer]:
+                  - /url: /topics/opencode-plugins
+                - link "opencode-plugin" [ref=e345] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+                - link "quota-monitor" [ref=e346] [cursor=pointer]:
+                  - /url: /topics/quota-monitor
+              - list [ref=e348]:
+                - listitem [ref=e349]: Updated May 22, 20262 weeks ago
+                - listitem [ref=e350]:
+                  - generic [ref=e351]: TypeScript
+          - article [ref=e353]:
+            - generic [ref=e355]:
+              - generic [ref=e356]:
+                - img [ref=e358]
+                - heading "Nomadcxx / opencode-cursor" [level=3] [ref=e360]:
+                  - link "Nomadcxx" [ref=e361] [cursor=pointer]:
+                    - /url: /Nomadcxx
+                  - text: /
+                  - link "opencode-cursor" [ref=e362] [cursor=pointer]:
+                    - /url: /Nomadcxx/opencode-cursor
+              - link "You must be signed in to star a repository" [ref=e365] [cursor=pointer]:
+                - /url: /login?return_to=%2FNomadcxx%2Fopencode-cursor
+                - img [ref=e366]
+                - text: Star
+                - generic "488 users starred this repository" [ref=e368]: "488"
+            - 'navigation "Repository menu: Nomadcxx/opencode-cursor" [ref=e369]':
+              - list [ref=e370]:
+                - listitem [ref=e371]:
+                  - link "Code" [ref=e372] [cursor=pointer]:
+                    - /url: /Nomadcxx/opencode-cursor
+                    - img [ref=e373]
+                    - text: Code
+                - listitem [ref=e375]:
+                  - link "Issues" [ref=e376] [cursor=pointer]:
+                    - /url: /Nomadcxx/opencode-cursor/issues
+                    - img [ref=e377]
+                    - text: Issues
+                - listitem [ref=e380]:
+                  - link "Pull requests" [ref=e381] [cursor=pointer]:
+                    - /url: /Nomadcxx/opencode-cursor/pulls
+                    - img [ref=e382]
+                    - text: Pull requests
+            - generic [ref=e384]:
+              - paragraph [ref=e386]: Use Cursor Pro models in OpenCode via HTTP proxy with OAuth
+              - generic [ref=e387]:
+                - link "opencode" [ref=e388] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "cursor" [ref=e389] [cursor=pointer]:
+                  - /url: /topics/cursor
+                - link "cursor-pro" [ref=e390] [cursor=pointer]:
+                  - /url: /topics/cursor-pro
+                - link "cursor-agent" [ref=e391] [cursor=pointer]:
+                  - /url: /topics/cursor-agent
+                - link "opencode-plugins" [ref=e392] [cursor=pointer]:
+                  - /url: /topics/opencode-plugins
+                - link "opencode-plugin" [ref=e393] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e395]:
+                - listitem [ref=e396]: Updated May 24, 20262 weeks ago
+                - listitem [ref=e397]:
+                  - generic [ref=e398]: TypeScript
+          - article [ref=e400]:
+            - generic [ref=e402]:
+              - generic [ref=e403]:
+                - img [ref=e405]
+                - heading "kdcokenny / opencode-workspace" [level=3] [ref=e407]:
+                  - link "kdcokenny" [ref=e408] [cursor=pointer]:
+                    - /url: /kdcokenny
+                  - text: /
+                  - link "opencode-workspace" [ref=e409] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-workspace
+              - link "You must be signed in to star a repository" [ref=e412] [cursor=pointer]:
+                - /url: /login?return_to=%2Fkdcokenny%2Fopencode-workspace
+                - img [ref=e413]
+                - text: Star
+                - generic "476 users starred this repository" [ref=e415]: "476"
+            - 'navigation "Repository menu: kdcokenny/opencode-workspace" [ref=e416]':
+              - list [ref=e417]:
+                - listitem [ref=e418]:
+                  - link "Code" [ref=e419] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-workspace
+                    - img [ref=e420]
+                    - text: Code
+                - listitem [ref=e422]:
+                  - link "Issues" [ref=e423] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-workspace/issues
+                    - img [ref=e424]
+                    - text: Issues
+                - listitem [ref=e427]:
+                  - link "Pull requests" [ref=e428] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-workspace/pulls
+                    - img [ref=e429]
+                    - text: Pull requests
+            - generic [ref=e431]:
+              - paragraph [ref=e433]: Bundled multi-agent orchestration harness for OpenCode. One install, complete control.
+              - generic [ref=e434]:
+                - link "ai" [ref=e435] [cursor=pointer]:
+                  - /url: /topics/ai
+                - link "opencode" [ref=e436] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "planning" [ref=e437] [cursor=pointer]:
+                  - /url: /topics/planning
+                - link "developer-tools" [ref=e438] [cursor=pointer]:
+                  - /url: /topics/developer-tools
+                - link "opencode-plugin" [ref=e439] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e441]:
+                - listitem [ref=e442]: Updated Jun 5, 202617 hours ago
+                - listitem [ref=e443]:
+                  - generic [ref=e444]: TypeScript
+          - article [ref=e446]:
+            - generic [ref=e448]:
+              - generic [ref=e449]:
+                - img [ref=e451]
+                - heading "shekohex / opencode-pty" [level=3] [ref=e453]:
+                  - link "shekohex" [ref=e454] [cursor=pointer]:
+                    - /url: /shekohex
+                  - text: /
+                  - link "opencode-pty" [ref=e455] [cursor=pointer]:
+                    - /url: /shekohex/opencode-pty
+              - link "You must be signed in to star a repository" [ref=e458] [cursor=pointer]:
+                - /url: /login?return_to=%2Fshekohex%2Fopencode-pty
+                - img [ref=e459]
+                - text: Star
+                - generic "461 users starred this repository" [ref=e461]: "461"
+            - 'navigation "Repository menu: shekohex/opencode-pty" [ref=e462]':
+              - list [ref=e463]:
+                - listitem [ref=e464]:
+                  - link "Code" [ref=e465] [cursor=pointer]:
+                    - /url: /shekohex/opencode-pty
+                    - img [ref=e466]
+                    - text: Code
+                - listitem [ref=e468]:
+                  - link "Issues" [ref=e469] [cursor=pointer]:
+                    - /url: /shekohex/opencode-pty/issues
+                    - img [ref=e470]
+                    - text: Issues
+                - listitem [ref=e473]:
+                  - link "Pull requests" [ref=e474] [cursor=pointer]:
+                    - /url: /shekohex/opencode-pty/pulls
+                    - img [ref=e475]
+                    - text: Pull requests
+            - generic [ref=e477]:
+              - paragraph [ref=e479]: OpenCode plugin for interactive PTY management - run background processes, send input, read output with regex filtering
+              - generic [ref=e480]:
+                - link "cli" [ref=e481] [cursor=pointer]:
+                  - /url: /topics/cli
+                - link "typescript" [ref=e482] [cursor=pointer]:
+                  - /url: /topics/typescript
+                - link "terminal" [ref=e483] [cursor=pointer]:
+                  - /url: /topics/terminal
+                - link "opencode" [ref=e484] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "pty" [ref=e485] [cursor=pointer]:
+                  - /url: /topics/pty
+                - link "bun" [ref=e486] [cursor=pointer]:
+                  - /url: /topics/bun
+                - link "background-process" [ref=e487] [cursor=pointer]:
+                  - /url: /topics/background-process
+                - link "opencode-plugin" [ref=e488] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e490]:
+                - listitem [ref=e491]: Updated Apr 20, 2026on Apr 20
+                - listitem [ref=e492]:
+                  - generic [ref=e493]: TypeScript
+          - article [ref=e495]:
+            - generic [ref=e497]:
+              - generic [ref=e498]:
+                - img [ref=e500]
+                - heading "Ark0N / Codeman" [level=3] [ref=e502]:
+                  - link "Ark0N" [ref=e503] [cursor=pointer]:
+                    - /url: /Ark0N
+                  - text: /
+                  - link "Codeman" [ref=e504] [cursor=pointer]:
+                    - /url: /Ark0N/Codeman
+              - link "You must be signed in to star a repository" [ref=e507] [cursor=pointer]:
+                - /url: /login?return_to=%2FArk0N%2FCodeman
+                - img [ref=e508]
+                - text: Star
+                - generic "418 users starred this repository" [ref=e510]: "418"
+            - 'navigation "Repository menu: Ark0N/Codeman" [ref=e511]':
+              - list [ref=e512]:
+                - listitem [ref=e513]:
+                  - link "Code" [ref=e514] [cursor=pointer]:
+                    - /url: /Ark0N/Codeman
+                    - img [ref=e515]
+                    - text: Code
+                - listitem [ref=e517]:
+                  - link "Issues" [ref=e518] [cursor=pointer]:
+                    - /url: /Ark0N/Codeman/issues
+                    - img [ref=e519]
+                    - text: Issues
+                - listitem [ref=e522]:
+                  - link "Pull requests" [ref=e523] [cursor=pointer]:
+                    - /url: /Ark0N/Codeman/pulls
+                    - img [ref=e524]
+                    - text: Pull requests
+            - generic [ref=e526]:
+              - paragraph [ref=e528]: Manage Claude Code & Opencode in Tmux Sessions in a modern WebUI
+              - generic [ref=e529]:
+                - link "tmux" [ref=e530] [cursor=pointer]:
+                  - /url: /topics/tmux
+                - link "opencode" [ref=e531] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "claude" [ref=e532] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "mosh" [ref=e533] [cursor=pointer]:
+                  - /url: /topics/mosh
+                - link "local-echo" [ref=e534] [cursor=pointer]:
+                  - /url: /topics/local-echo
+                - link "claude-ai" [ref=e535] [cursor=pointer]:
+                  - /url: /topics/claude-ai
+                - link "claude-api" [ref=e536] [cursor=pointer]:
+                  - /url: /topics/claude-api
+                - link "claude-cli" [ref=e537] [cursor=pointer]:
+                  - /url: /topics/claude-cli
+                - link "claude-code" [ref=e538] [cursor=pointer]:
+                  - /url: /topics/claude-code
+                - link "claudecode" [ref=e539] [cursor=pointer]:
+                  - /url: /topics/claudecode
+                - link "claudecodeing" [ref=e540] [cursor=pointer]:
+                  - /url: /topics/claudecodeing
+                - link "opencode-ai" [ref=e541] [cursor=pointer]:
+                  - /url: /topics/opencode-ai
+                - link "todowrite" [ref=e542] [cursor=pointer]:
+                  - /url: /topics/todowrite
+                - link "claude-code-plugin" [ref=e543] [cursor=pointer]:
+                  - /url: /topics/claude-code-plugin
+                - link "claudecode-monitoring" [ref=e544] [cursor=pointer]:
+                  - /url: /topics/claudecode-monitoring
+                - link "opencode-plugin" [ref=e545] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+                - link "ralph-loop" [ref=e546] [cursor=pointer]:
+                  - /url: /topics/ralph-loop
+                - link "xterm-zerolag-input" [ref=e547] [cursor=pointer]:
+                  - /url: /topics/xterm-zerolag-input
+              - list [ref=e549]:
+                - listitem [ref=e550]: Updated Jun 6, 20266 hours ago
+                - listitem [ref=e551]:
+                  - generic [ref=e552]: TypeScript
+          - article [ref=e554]:
+            - generic [ref=e556]:
+              - generic [ref=e557]:
+                - img [ref=e559]
+                - heading "boshu2 / agentops" [level=3] [ref=e561]:
+                  - link "boshu2" [ref=e562] [cursor=pointer]:
+                    - /url: /boshu2
+                  - text: /
+                  - link "agentops" [ref=e563] [cursor=pointer]:
+                    - /url: /boshu2/agentops
+              - link "You must be signed in to star a repository" [ref=e566] [cursor=pointer]:
+                - /url: /login?return_to=%2Fboshu2%2Fagentops
+                - img [ref=e567]
+                - text: Star
+                - generic "382 users starred this repository" [ref=e569]: "382"
+            - 'navigation "Repository menu: boshu2/agentops" [ref=e570]':
+              - list [ref=e571]:
+                - listitem [ref=e572]:
+                  - link "Code" [ref=e573] [cursor=pointer]:
+                    - /url: /boshu2/agentops
+                    - img [ref=e574]
+                    - text: Code
+                - listitem [ref=e576]:
+                  - link "Issues" [ref=e577] [cursor=pointer]:
+                    - /url: /boshu2/agentops/issues
+                    - img [ref=e578]
+                    - text: Issues
+                - listitem [ref=e581]:
+                  - link "Pull requests" [ref=e582] [cursor=pointer]:
+                    - /url: /boshu2/agentops/pulls
+                    - img [ref=e583]
+                    - text: Pull requests
+                - listitem [ref=e585]:
+                  - link "Discussions" [ref=e586] [cursor=pointer]:
+                    - /url: /boshu2/agentops/discussions
+                    - img [ref=e587]
+                    - text: Discussions
+            - generic [ref=e589]:
+              - paragraph [ref=e591]: The operational layer for coding agents. Memory, validation, and feedback loops that compound between sessions.
+              - generic [ref=e592]:
+                - link "devops" [ref=e593] [cursor=pointer]:
+                  - /url: /topics/devops
+                - link "cursor" [ref=e594] [cursor=pointer]:
+                  - /url: /topics/cursor
+                - link "codex" [ref=e595] [cursor=pointer]:
+                  - /url: /topics/codex
+                - link "ai-agents" [ref=e596] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "claude" [ref=e597] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "vibe-coding" [ref=e598] [cursor=pointer]:
+                  - /url: /topics/vibe-coding
+                - link "claude-code" [ref=e599] [cursor=pointer]:
+                  - /url: /topics/claude-code
+                - link "claude-code-plugins" [ref=e600] [cursor=pointer]:
+                  - /url: /topics/claude-code-plugins
+                - link "claude-skills" [ref=e601] [cursor=pointer]:
+                  - /url: /topics/claude-skills
+                - link "claude-marketplace" [ref=e602] [cursor=pointer]:
+                  - /url: /topics/claude-marketplace
+                - link "codex-plugin" [ref=e603] [cursor=pointer]:
+                  - /url: /topics/codex-plugin
+                - link "opencode-plugin" [ref=e604] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e606]:
+                - listitem [ref=e607]: Updated Jun 6, 2026now
+                - listitem [ref=e608]:
+                  - generic [ref=e609]: Go
+          - article [ref=e611]:
+            - generic [ref=e613]:
+              - generic [ref=e614]:
+                - img [ref=e616]
+                - heading "zaxbysauce / opencode-swarm" [level=3] [ref=e618]:
+                  - link "zaxbysauce" [ref=e619] [cursor=pointer]:
+                    - /url: /zaxbysauce
+                  - text: /
+                  - link "opencode-swarm" [ref=e620] [cursor=pointer]:
+                    - /url: /zaxbysauce/opencode-swarm
+              - link "You must be signed in to star a repository" [ref=e623] [cursor=pointer]:
+                - /url: /login?return_to=%2Fzaxbysauce%2Fopencode-swarm
+                - img [ref=e624]
+                - text: Star
+                - generic "344 users starred this repository" [ref=e626]: "344"
+            - 'navigation "Repository menu: zaxbysauce/opencode-swarm" [ref=e627]':
+              - list [ref=e628]:
+                - listitem [ref=e629]:
+                  - link "Code" [ref=e630] [cursor=pointer]:
+                    - /url: /zaxbysauce/opencode-swarm
+                    - img [ref=e631]
+                    - text: Code
+                - listitem [ref=e633]:
+                  - link "Issues" [ref=e634] [cursor=pointer]:
+                    - /url: /zaxbysauce/opencode-swarm/issues
+                    - img [ref=e635]
+                    - text: Issues
+                - listitem [ref=e638]:
+                  - link "Pull requests" [ref=e639] [cursor=pointer]:
+                    - /url: /zaxbysauce/opencode-swarm/pulls
+                    - img [ref=e640]
+                    - text: Pull requests
+            - generic [ref=e642]:
+              - paragraph [ref=e644]: Architect-centric agentic swarm plugin for OpenCode. Hub-and-spoke orchestration with SME consultation, code generation, and QA review.
+              - generic [ref=e645]:
+                - link "github" [ref=e646] [cursor=pointer]:
+                  - /url: /topics/github
+                - link "cli" [ref=e647] [cursor=pointer]:
+                  - /url: /topics/cli
+                - link "open-source" [ref=e648] [cursor=pointer]:
+                  - /url: /topics/open-source
+                - link "automation" [ref=e649] [cursor=pointer]:
+                  - /url: /topics/automation
+                - link "typescript" [ref=e650] [cursor=pointer]:
+                  - /url: /topics/typescript
+                - link "mcp" [ref=e651] [cursor=pointer]:
+                  - /url: /topics/mcp
+                - link "opencode" [ref=e652] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "planning" [ref=e653] [cursor=pointer]:
+                  - /url: /topics/planning
+                - link "multi-agent" [ref=e654] [cursor=pointer]:
+                  - /url: /topics/multi-agent
+                - link "developer-tools" [ref=e655] [cursor=pointer]:
+                  - /url: /topics/developer-tools
+                - link "code-review" [ref=e656] [cursor=pointer]:
+                  - /url: /topics/code-review
+                - link "software-engineering" [ref=e657] [cursor=pointer]:
+                  - /url: /topics/software-engineering
+                - link "ai-agents" [ref=e658] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "bun" [ref=e659] [cursor=pointer]:
+                  - /url: /topics/bun
+                - link "guardrails" [ref=e660] [cursor=pointer]:
+                  - /url: /topics/guardrails
+                - link "llm" [ref=e661] [cursor=pointer]:
+                  - /url: /topics/llm
+                - link "agent-swarm" [ref=e662] [cursor=pointer]:
+                  - /url: /topics/agent-swarm
+                - link "ai-coding" [ref=e663] [cursor=pointer]:
+                  - /url: /topics/ai-coding
+                - link "coding-agent" [ref=e664] [cursor=pointer]:
+                  - /url: /topics/coding-agent
+                - link "opencode-plugin" [ref=e665] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e667]:
+                - listitem [ref=e668]: Updated Jun 6, 20265 hours ago
+                - listitem [ref=e669]:
+                  - generic [ref=e670]: TypeScript
+          - article [ref=e672]:
+            - generic [ref=e674]:
+              - generic [ref=e675]:
+                - img [ref=e677]
+                - heading "ianjwhite99 / opencode-with-claude" [level=3] [ref=e679]:
+                  - link "ianjwhite99" [ref=e680] [cursor=pointer]:
+                    - /url: /ianjwhite99
+                  - text: /
+                  - link "opencode-with-claude" [ref=e681] [cursor=pointer]:
+                    - /url: /ianjwhite99/opencode-with-claude
+              - link "You must be signed in to star a repository" [ref=e684] [cursor=pointer]:
+                - /url: /login?return_to=%2Fianjwhite99%2Fopencode-with-claude
+                - img [ref=e685]
+                - text: Star
+                - generic "299 users starred this repository" [ref=e687]: "299"
+            - 'navigation "Repository menu: ianjwhite99/opencode-with-claude" [ref=e688]':
+              - list [ref=e689]:
+                - listitem [ref=e690]:
+                  - link "Code" [ref=e691] [cursor=pointer]:
+                    - /url: /ianjwhite99/opencode-with-claude
+                    - img [ref=e692]
+                    - text: Code
+                - listitem [ref=e694]:
+                  - link "Issues" [ref=e695] [cursor=pointer]:
+                    - /url: /ianjwhite99/opencode-with-claude/issues
+                    - img [ref=e696]
+                    - text: Issues
+                - listitem [ref=e699]:
+                  - link "Pull requests" [ref=e700] [cursor=pointer]:
+                    - /url: /ianjwhite99/opencode-with-claude/pulls
+                    - img [ref=e701]
+                    - text: Pull requests
+            - generic [ref=e703]:
+              - paragraph [ref=e705]: OpenCode plugin to use your Claude Max/Pro subscription with OpenCode via Meridian
+              - generic [ref=e706]:
+                - link "opencode" [ref=e707] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "bun" [ref=e708] [cursor=pointer]:
+                  - /url: /topics/bun
+                - link "claude" [ref=e709] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "anthropic" [ref=e710] [cursor=pointer]:
+                  - /url: /topics/anthropic
+                - link "ai-coding" [ref=e711] [cursor=pointer]:
+                  - /url: /topics/ai-coding
+                - link "claude-code" [ref=e712] [cursor=pointer]:
+                  - /url: /topics/claude-code
+                - link "claude-max" [ref=e713] [cursor=pointer]:
+                  - /url: /topics/claude-max
+                - link "claude-agent-sdk" [ref=e714] [cursor=pointer]:
+                  - /url: /topics/claude-agent-sdk
+                - link "opencode-plugin" [ref=e715] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e717]:
+                - listitem [ref=e718]: Updated May 12, 20263 weeks ago
+                - listitem [ref=e719]:
+                  - generic [ref=e720]: JavaScript
+          - article [ref=e722]:
+            - generic [ref=e724]:
+              - generic [ref=e725]:
+                - img [ref=e727]
+                - heading "kdcokenny / opencode-background-agents" [level=3] [ref=e729]:
+                  - link "kdcokenny" [ref=e730] [cursor=pointer]:
+                    - /url: /kdcokenny
+                  - text: /
+                  - link "opencode-background-agents" [ref=e731] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-background-agents
+              - link "You must be signed in to star a repository" [ref=e734] [cursor=pointer]:
+                - /url: /login?return_to=%2Fkdcokenny%2Fopencode-background-agents
+                - img [ref=e735]
+                - text: Star
+                - generic "281 users starred this repository" [ref=e737]: "281"
+            - 'navigation "Repository menu: kdcokenny/opencode-background-agents" [ref=e738]':
+              - list [ref=e739]:
+                - listitem [ref=e740]:
+                  - link "Code" [ref=e741] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-background-agents
+                    - img [ref=e742]
+                    - text: Code
+                - listitem [ref=e744]:
+                  - link "Issues" [ref=e745] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-background-agents/issues
+                    - img [ref=e746]
+                    - text: Issues
+                - listitem [ref=e749]:
+                  - link "Pull requests" [ref=e750] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-background-agents/pulls
+                    - img [ref=e751]
+                    - text: Pull requests
+            - generic [ref=e753]:
+              - paragraph [ref=e755]: Claude Code-style background agents for OpenCode – async delegation with context persistence
+              - generic [ref=e756]:
+                - link "typescript" [ref=e757] [cursor=pointer]:
+                  - /url: /topics/typescript
+                - link "async" [ref=e758] [cursor=pointer]:
+                  - /url: /topics/async
+                - link "opencode" [ref=e759] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "delegation" [ref=e760] [cursor=pointer]:
+                  - /url: /topics/delegation
+                - link "ai-agents" [ref=e761] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "ocx" [ref=e762] [cursor=pointer]:
+                  - /url: /topics/ocx
+                - link "claude-code" [ref=e763] [cursor=pointer]:
+                  - /url: /topics/claude-code
+                - link "background-agents" [ref=e764] [cursor=pointer]:
+                  - /url: /topics/background-agents
+                - link "opencode-plugin" [ref=e765] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e767]:
+                - listitem [ref=e768]: Updated Jun 5, 202617 hours ago
+                - listitem [ref=e769]:
+                  - generic [ref=e770]: TypeScript
+          - article [ref=e772]:
+            - generic [ref=e774]:
+              - generic [ref=e775]:
+                - img [ref=e777]
+                - heading "marcusquinn / aidevops" [level=3] [ref=e779]:
+                  - link "marcusquinn" [ref=e780] [cursor=pointer]:
+                    - /url: /marcusquinn
+                  - text: /
+                  - link "aidevops" [ref=e781] [cursor=pointer]:
+                    - /url: /marcusquinn/aidevops
+              - link "You must be signed in to star a repository" [ref=e784] [cursor=pointer]:
+                - /url: /login?return_to=%2Fmarcusquinn%2Faidevops
+                - img [ref=e785]
+                - text: Star
+                - generic "262 users starred this repository" [ref=e787]: "262"
+            - 'navigation "Repository menu: marcusquinn/aidevops" [ref=e788]':
+              - list [ref=e789]:
+                - listitem [ref=e790]:
+                  - link "Code" [ref=e791] [cursor=pointer]:
+                    - /url: /marcusquinn/aidevops
+                    - img [ref=e792]
+                    - text: Code
+                - listitem [ref=e794]:
+                  - link "Issues" [ref=e795] [cursor=pointer]:
+                    - /url: /marcusquinn/aidevops/issues
+                    - img [ref=e796]
+                    - text: Issues
+                - listitem [ref=e799]:
+                  - link "Pull requests" [ref=e800] [cursor=pointer]:
+                    - /url: /marcusquinn/aidevops/pulls
+                    - img [ref=e801]
+                    - text: Pull requests
+            - generic [ref=e803]:
+              - paragraph [ref=e805]: Vibe-Coding is easy. DevOps is hard. OpenCode & Git token-efficient AI agent automation for your app, business, and personal development. Opinionated tools, services, CLI & API stack for speed, security, and 24/7 results. Open-source first. SOTA everything. Try on your repos for money-making magic.
+              - generic [ref=e806]:
+                - link "devops" [ref=e807] [cursor=pointer]:
+                  - /url: /topics/devops
+                - link "ai" [ref=e808] [cursor=pointer]:
+                  - /url: /topics/ai
+                - link "opencode" [ref=e809] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "git-workflow" [ref=e810] [cursor=pointer]:
+                  - /url: /topics/git-workflow
+                - link "devops-tools" [ref=e811] [cursor=pointer]:
+                  - /url: /topics/devops-tools
+                - link "agents" [ref=e812] [cursor=pointer]:
+                  - /url: /topics/agents
+                - link "ai-assistants" [ref=e813] [cursor=pointer]:
+                  - /url: /topics/ai-assistants
+                - link "ai-agents" [ref=e814] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "claude" [ref=e815] [cursor=pointer]:
+                  - /url: /topics/claude
+                - link "ai-assisted-development" [ref=e816] [cursor=pointer]:
+                  - /url: /topics/ai-assisted-development
+                - link "ai-assistant" [ref=e817] [cursor=pointer]:
+                  - /url: /topics/ai-assistant
+                - link "ai-code-review" [ref=e818] [cursor=pointer]:
+                  - /url: /topics/ai-code-review
+                - link "ai-coding" [ref=e819] [cursor=pointer]:
+                  - /url: /topics/ai-coding
+                - link "agents-md" [ref=e820] [cursor=pointer]:
+                  - /url: /topics/agents-md
+                - link "ai-devops" [ref=e821] [cursor=pointer]:
+                  - /url: /topics/ai-devops
+                - link "git-worktrees" [ref=e822] [cursor=pointer]:
+                  - /url: /topics/git-worktrees
+                - link "ai-dev-ops" [ref=e823] [cursor=pointer]:
+                  - /url: /topics/ai-dev-ops
+                - link "ai-system-admin" [ref=e824] [cursor=pointer]:
+                  - /url: /topics/ai-system-admin
+                - link "opencode-plugin" [ref=e825] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e827]:
+                - listitem [ref=e828]: Updated Jun 6, 20264 hours ago
+                - listitem [ref=e829]:
+                  - generic [ref=e830]: Shell
+          - article [ref=e832]:
+            - generic [ref=e834]:
+              - generic [ref=e835]:
+                - img [ref=e837]
+                - heading "vbgate / opencode-mystatus" [level=3] [ref=e839]:
+                  - link "vbgate" [ref=e840] [cursor=pointer]:
+                    - /url: /vbgate
+                  - text: /
+                  - link "opencode-mystatus" [ref=e841] [cursor=pointer]:
+                    - /url: /vbgate/opencode-mystatus
+              - link "You must be signed in to star a repository" [ref=e844] [cursor=pointer]:
+                - /url: /login?return_to=%2Fvbgate%2Fopencode-mystatus
+                - img [ref=e845]
+                - text: Star
+                - generic "254 users starred this repository" [ref=e847]: "254"
+            - 'navigation "Repository menu: vbgate/opencode-mystatus" [ref=e848]':
+              - list [ref=e849]:
+                - listitem [ref=e850]:
+                  - link "Code" [ref=e851] [cursor=pointer]:
+                    - /url: /vbgate/opencode-mystatus
+                    - img [ref=e852]
+                    - text: Code
+                - listitem [ref=e854]:
+                  - link "Issues" [ref=e855] [cursor=pointer]:
+                    - /url: /vbgate/opencode-mystatus/issues
+                    - img [ref=e856]
+                    - text: Issues
+                - listitem [ref=e859]:
+                  - link "Pull requests" [ref=e860] [cursor=pointer]:
+                    - /url: /vbgate/opencode-mystatus/pulls
+                    - img [ref=e861]
+                    - text: Pull requests
+            - generic [ref=e863]:
+              - paragraph [ref=e865]: Check all your AI subscription quotas in one command. Supports OpenAI, Zhipu AI, and Google Antigravity. More platforms coming soon.
+              - generic [ref=e866]:
+                - link "opencode" [ref=e867] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "opencode-plugins" [ref=e868] [cursor=pointer]:
+                  - /url: /topics/opencode-plugins
+                - link "opencode-plugin" [ref=e869] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e871]:
+                - listitem [ref=e872]: Updated Jan 20, 2026on Jan 21
+                - listitem [ref=e873]:
+                  - generic [ref=e874]: TypeScript
+          - article [ref=e876]:
+            - generic [ref=e878]:
+              - generic [ref=e879]:
+                - img [ref=e881]
+                - heading "ttalkkak-lab / opencode-contexty" [level=3] [ref=e883]:
+                  - link "ttalkkak-lab" [ref=e884] [cursor=pointer]:
+                    - /url: /ttalkkak-lab
+                  - text: /
+                  - link "opencode-contexty" [ref=e885] [cursor=pointer]:
+                    - /url: /ttalkkak-lab/opencode-contexty
+              - link "You must be signed in to star a repository" [ref=e888] [cursor=pointer]:
+                - /url: /login?return_to=%2Fttalkkak-lab%2Fopencode-contexty
+                - img [ref=e889]
+                - text: Star
+                - generic "220 users starred this repository" [ref=e891]: "220"
+            - 'navigation "Repository menu: ttalkkak-lab/opencode-contexty" [ref=e892]':
+              - list [ref=e893]:
+                - listitem [ref=e894]:
+                  - link "Code" [ref=e895] [cursor=pointer]:
+                    - /url: /ttalkkak-lab/opencode-contexty
+                    - img [ref=e896]
+                    - text: Code
+                - listitem [ref=e898]:
+                  - link "Issues" [ref=e899] [cursor=pointer]:
+                    - /url: /ttalkkak-lab/opencode-contexty/issues
+                    - img [ref=e900]
+                    - text: Issues
+                - listitem [ref=e903]:
+                  - link "Pull requests" [ref=e904] [cursor=pointer]:
+                    - /url: /ttalkkak-lab/opencode-contexty/pulls
+                    - img [ref=e905]
+                    - text: Pull requests
+            - generic [ref=e907]:
+              - paragraph [ref=e909]: OpenCode에 컨텍스트 엔지니어링을 더하는 플러그인 — 컨텍스트 시각화, 아키텍처 감독, 접근 권한 관리를 하나로.
+              - generic [ref=e910]:
+                - link "opencode" [ref=e911] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "ai-agents" [ref=e912] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "opencode-plugin" [ref=e913] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e915]:
+                - listitem [ref=e916]: Updated Apr 25, 2026on Apr 25
+                - listitem [ref=e917]:
+                  - generic [ref=e918]: TypeScript
+          - article [ref=e920]:
+            - generic [ref=e922]:
+              - generic [ref=e923]:
+                - img [ref=e925]
+                - heading "kdcokenny / opencode-notify" [level=3] [ref=e927]:
+                  - link "kdcokenny" [ref=e928] [cursor=pointer]:
+                    - /url: /kdcokenny
+                  - text: /
+                  - link "opencode-notify" [ref=e929] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-notify
+              - link "You must be signed in to star a repository" [ref=e932] [cursor=pointer]:
+                - /url: /login?return_to=%2Fkdcokenny%2Fopencode-notify
+                - img [ref=e933]
+                - text: Star
+                - generic "219 users starred this repository" [ref=e935]: "219"
+            - 'navigation "Repository menu: kdcokenny/opencode-notify" [ref=e936]':
+              - list [ref=e937]:
+                - listitem [ref=e938]:
+                  - link "Code" [ref=e939] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-notify
+                    - img [ref=e940]
+                    - text: Code
+                - listitem [ref=e942]:
+                  - link "Issues" [ref=e943] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-notify/issues
+                    - img [ref=e944]
+                    - text: Issues
+                - listitem [ref=e947]:
+                  - link "Pull requests" [ref=e948] [cursor=pointer]:
+                    - /url: /kdcokenny/opencode-notify/pulls
+                    - img [ref=e949]
+                    - text: Pull requests
+            - generic [ref=e951]:
+              - paragraph [ref=e953]: Native OS notifications for OpenCode – know when tasks complete
+              - generic [ref=e954]:
+                - link "notifications" [ref=e955] [cursor=pointer]:
+                  - /url: /topics/notifications
+                - link "windows" [ref=e956] [cursor=pointer]:
+                  - /url: /topics/windows
+                - link "macos" [ref=e957] [cursor=pointer]:
+                  - /url: /topics/macos
+                - link "linux" [ref=e958] [cursor=pointer]:
+                  - /url: /topics/linux
+                - link "typescript" [ref=e959] [cursor=pointer]:
+                  - /url: /topics/typescript
+                - link "opencode" [ref=e960] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "ocx" [ref=e961] [cursor=pointer]:
+                  - /url: /topics/ocx
+                - link "opencode-plugin" [ref=e962] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e964]:
+                - listitem [ref=e965]: Updated May 20, 20262 weeks ago
+                - listitem [ref=e966]:
+                  - generic [ref=e967]: TypeScript
+          - article [ref=e969]:
+            - generic [ref=e971]:
+              - generic [ref=e972]:
+                - img [ref=e974]
+                - heading "angristan / opencode-wakatime" [level=3] [ref=e976]:
+                  - link "angristan" [ref=e977] [cursor=pointer]:
+                    - /url: /angristan
+                  - text: /
+                  - link "opencode-wakatime" [ref=e978] [cursor=pointer]:
+                    - /url: /angristan/opencode-wakatime
+              - link "You must be signed in to star a repository" [ref=e981] [cursor=pointer]:
+                - /url: /login?return_to=%2Fangristan%2Fopencode-wakatime
+                - img [ref=e982]
+                - text: Star
+                - generic "166 users starred this repository" [ref=e984]: "166"
+            - 'navigation "Repository menu: angristan/opencode-wakatime" [ref=e985]':
+              - list [ref=e986]:
+                - listitem [ref=e987]:
+                  - link "Code" [ref=e988] [cursor=pointer]:
+                    - /url: /angristan/opencode-wakatime
+                    - img [ref=e989]
+                    - text: Code
+                - listitem [ref=e991]:
+                  - link "Issues" [ref=e992] [cursor=pointer]:
+                    - /url: /angristan/opencode-wakatime/issues
+                    - img [ref=e993]
+                    - text: Issues
+                - listitem [ref=e996]:
+                  - link "Pull requests" [ref=e997] [cursor=pointer]:
+                    - /url: /angristan/opencode-wakatime/pulls
+                    - img [ref=e998]
+                    - text: Pull requests
+            - generic [ref=e1000]:
+              - paragraph [ref=e1002]: Track Opencode usage with Wakatime
+              - generic [ref=e1003]:
+                - link "opencode" [ref=e1004] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "wakatime" [ref=e1005] [cursor=pointer]:
+                  - /url: /topics/wakatime
+                - link "coding-agent" [ref=e1006] [cursor=pointer]:
+                  - /url: /topics/coding-agent
+                - link "opencode-plugin" [ref=e1007] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e1009]:
+                - listitem [ref=e1010]: Updated May 13, 20263 weeks ago
+                - listitem [ref=e1011]:
+                  - generic [ref=e1012]: TypeScript
+          - article [ref=e1014]:
+            - generic [ref=e1016]:
+              - generic [ref=e1017]:
+                - img [ref=e1019]
+                - heading "wtfzambo / spotme" [level=3] [ref=e1021]:
+                  - link "wtfzambo" [ref=e1022] [cursor=pointer]:
+                    - /url: /wtfzambo
+                  - text: /
+                  - link "spotme" [ref=e1023] [cursor=pointer]:
+                    - /url: /wtfzambo/spotme
+              - link "You must be signed in to star a repository" [ref=e1026] [cursor=pointer]:
+                - /url: /login?return_to=%2Fwtfzambo%2Fspotme
+                - img [ref=e1027]
+                - text: Star
+                - generic "150 users starred this repository" [ref=e1029]: "150"
+            - 'navigation "Repository menu: wtfzambo/spotme" [ref=e1030]':
+              - list [ref=e1031]:
+                - listitem [ref=e1032]:
+                  - link "Code" [ref=e1033] [cursor=pointer]:
+                    - /url: /wtfzambo/spotme
+                    - img [ref=e1034]
+                    - text: Code
+                - listitem [ref=e1036]:
+                  - link "Issues" [ref=e1037] [cursor=pointer]:
+                    - /url: /wtfzambo/spotme/issues
+                    - img [ref=e1038]
+                    - text: Issues
+                - listitem [ref=e1041]:
+                  - link "Pull requests" [ref=e1042] [cursor=pointer]:
+                    - /url: /wtfzambo/spotme/pulls
+                    - img [ref=e1043]
+                    - text: Pull requests
+            - generic [ref=e1045]:
+              - paragraph [ref=e1047]: Gym mode for agentic coding. OpenCode plugin that scaffolds exercises and reviews your work. Keep your edge.
+              - generic [ref=e1048]:
+                - link "opencode" [ref=e1049] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "pi" [ref=e1050] [cursor=pointer]:
+                  - /url: /topics/pi
+                - link "ai-agents" [ref=e1051] [cursor=pointer]:
+                  - /url: /topics/ai-agents
+                - link "opencode-plugin" [ref=e1052] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e1054]:
+                - listitem [ref=e1055]: Updated May 26, 2026last week
+                - listitem [ref=e1056]:
+                  - generic [ref=e1057]: TypeScript
+          - article [ref=e1059]:
+            - generic [ref=e1061]:
+              - generic [ref=e1062]:
+                - img [ref=e1064]
+                - heading "sdwolf4103 / opencode-working-memory" [level=3] [ref=e1066]:
+                  - link "sdwolf4103" [ref=e1067] [cursor=pointer]:
+                    - /url: /sdwolf4103
+                  - text: /
+                  - link "opencode-working-memory" [ref=e1068] [cursor=pointer]:
+                    - /url: /sdwolf4103/opencode-working-memory
+              - link "You must be signed in to star a repository" [ref=e1071] [cursor=pointer]:
+                - /url: /login?return_to=%2Fsdwolf4103%2Fopencode-working-memory
+                - img [ref=e1072]
+                - text: Star
+                - generic "147 users starred this repository" [ref=e1074]: "147"
+            - 'navigation "Repository menu: sdwolf4103/opencode-working-memory" [ref=e1075]':
+              - list [ref=e1076]:
+                - listitem [ref=e1077]:
+                  - link "Code" [ref=e1078] [cursor=pointer]:
+                    - /url: /sdwolf4103/opencode-working-memory
+                    - img [ref=e1079]
+                    - text: Code
+                - listitem [ref=e1081]:
+                  - link "Issues" [ref=e1082] [cursor=pointer]:
+                    - /url: /sdwolf4103/opencode-working-memory/issues
+                    - img [ref=e1083]
+                    - text: Issues
+                - listitem [ref=e1086]:
+                  - link "Pull requests" [ref=e1087] [cursor=pointer]:
+                    - /url: /sdwolf4103/opencode-working-memory/pulls
+                    - img [ref=e1088]
+                    - text: Pull requests
+            - generic [ref=e1090]:
+              - paragraph [ref=e1092]: "Automatic memory for OpenCode agents: persistent workspace memory, hot session context, and compaction-based memory extraction — with zero extra API calls."
+              - generic [ref=e1093]:
+                - link "opencode" [ref=e1094] [cursor=pointer]:
+                  - /url: /topics/opencode
+                - link "ai-memory-system" [ref=e1095] [cursor=pointer]:
+                  - /url: /topics/ai-memory-system
+                - link "opencode-plugin" [ref=e1096] [cursor=pointer]:
+                  - /url: /topics/opencode-plugin
+              - list [ref=e1098]:
+                - listitem [ref=e1099]: Updated May 31, 2026last week
+                - listitem [ref=e1100]:
+                  - generic [ref=e1101]: TypeScript
+          - button "Load more…" [ref=e1104] [cursor=pointer]
+        - generic [ref=e1105]:
+          - generic [ref=e1106]:
+            - heading "Improve this page" [level=2] [ref=e1107]
+            - paragraph [ref=e1108]: Add a description, image, and links to the opencode-plugin topic page so that developers can more easily learn about it.
+            - paragraph [ref=e1109]:
+              - link "Curate this topic" [ref=e1110] [cursor=pointer]:
+                - /url: https://github.com/github/explore/tree/master/CONTRIBUTING.md?source=add-description-opencode-plugin
+                - text: Curate this topic
+                - img [ref=e1111]
+          - generic [ref=e1113]:
+            - heading "Add this topic to your repo" [level=2] [ref=e1114]
+            - paragraph [ref=e1115]: To associate your repository with the opencode-plugin topic, visit your repo's landing page and select "manage topics."
+            - paragraph [ref=e1116]:
+              - link "Learn more" [ref=e1117] [cursor=pointer]:
+                - /url: https://docs.github.com/en/articles/classifying-your-repository-with-topics
+                - text: Learn more
+                - img [ref=e1118]
+  - contentinfo [ref=e1120]:
+    - heading "Footer" [level=2] [ref=e1121]
+    - generic [ref=e1122]:
+      - generic [ref=e1123]:
+        - link "GitHub Homepage" [ref=e1124] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e1125]
+        - generic [ref=e1127]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e1128]:
+        - heading "Footer navigation" [level=3] [ref=e1129]
+        - list "Footer navigation" [ref=e1130]:
+          - listitem [ref=e1131]:
+            - link "Terms" [ref=e1132] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e1133]:
+            - link "Privacy" [ref=e1134] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e1135]:
+            - link "Security" [ref=e1136] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e1137]:
+            - link "Status" [ref=e1138] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e1139]:
+            - link "Community" [ref=e1140] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e1141]:
+            - link "Docs" [ref=e1142] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e1143]:
+            - link "Contact" [ref=e1144] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e1145]:
+            - button "Manage cookies" [ref=e1147] [cursor=pointer]
+          - listitem [ref=e1148]:
+            - button "Do not share my personal information" [ref=e1150] [cursor=pointer]

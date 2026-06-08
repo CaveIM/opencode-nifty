@@ -1,0 +1,1 @@
+export { stripTrailingContinuationTokens, stripMergeOperatorChars, restoreOldWrappedLines, maybeExpandSingleLineMerge, restoreIndentForPairedReplacement, autocorrectReplacementLines, } from "@cave-meister/hashline-core";

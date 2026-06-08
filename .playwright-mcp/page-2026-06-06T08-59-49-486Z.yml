@@ -1,0 +1,2275 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "Skip to content" [ref=e4] [cursor=pointer]:
+        - /url: "#start-of-content"
+      - banner [ref=e6]:
+        - heading "Navigation Menu" [level=2] [ref=e7]
+        - generic [ref=e8]:
+          - link "Homepage" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=e11]
+          - generic [ref=e13]:
+            - navigation "Global" [ref=e16]:
+              - list [ref=e17]:
+                - listitem [ref=e18]:
+                  - button "Platform" [ref=e20] [cursor=pointer]:
+                    - text: Platform
+                    - img [ref=e21]
+                - listitem [ref=e23]:
+                  - button "Solutions" [ref=e25] [cursor=pointer]:
+                    - text: Solutions
+                    - img [ref=e26]
+                - listitem [ref=e28]:
+                  - button "Resources" [ref=e30] [cursor=pointer]:
+                    - text: Resources
+                    - img [ref=e31]
+                - listitem [ref=e33]:
+                  - button "Open Source" [ref=e35] [cursor=pointer]:
+                    - text: Open Source
+                    - img [ref=e36]
+                - listitem [ref=e38]:
+                  - button "Enterprise" [ref=e40] [cursor=pointer]:
+                    - text: Enterprise
+                    - img [ref=e41]
+                - listitem [ref=e43]:
+                  - link "Pricing" [ref=e44] [cursor=pointer]:
+                    - /url: https://github.com/pricing
+                    - generic [ref=e45]: Pricing
+            - generic [ref=e46]:
+              - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+                - img [ref=e51]
+              - link "Sign in" [ref=e54] [cursor=pointer]:
+                - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fanomalyco%2Fopencode%2Fblob%2Fdev%2Fpackages%2Fopencode%2Fspecs%2Ftui-plugins.md
+              - link "Sign up" [ref=e55] [cursor=pointer]:
+                - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Fblob%2Fshow&source=header-repo&source_repo=anomalyco%2Fopencode
+              - button "Appearance settings" [ref=e58] [cursor=pointer]:
+                - img
+    - main [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e66]:
+            - img [ref=e67]
+            - link "anomalyco" [ref=e70] [cursor=pointer]:
+              - /url: /anomalyco
+            - generic [ref=e71]: /
+            - strong [ref=e72]:
+              - link "opencode" [ref=e73] [cursor=pointer]:
+                - /url: /anomalyco/opencode
+            - generic [ref=e74]: Public
+          - generic [ref=e75]:
+            - list:
+              - listitem [ref=e76]:
+                - link "You must be signed in to change notification settings" [ref=e77] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e78]
+                  - text: Notifications
+              - listitem [ref=e80]:
+                - link "Fork 20.4k" [ref=e81] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e82]
+                  - text: Fork
+                  - generic "20,428" [ref=e84]: 20.4k
+              - listitem [ref=e85]:
+                - link "You must be signed in to star a repository" [ref=e87] [cursor=pointer]:
+                  - /url: /login?return_to=%2Fanomalyco%2Fopencode
+                  - img [ref=e88]
+                  - text: Star
+                  - generic "170619 users starred this repository" [ref=e90]: 171k
+        - navigation "Repository" [ref=e91]:
+          - list [ref=e92]:
+            - listitem [ref=e93]:
+              - link "Code" [ref=e94] [cursor=pointer]:
+                - /url: /anomalyco/opencode
+                - img [ref=e95]
+                - generic [ref=e97]: Code
+            - listitem [ref=e98]:
+              - link "Issues 5k+" [ref=e99] [cursor=pointer]:
+                - /url: /anomalyco/opencode/issues
+                - img [ref=e100]
+                - generic [ref=e103]: Issues
+                - generic "5,000+" [ref=e104]: 5k+
+            - listitem [ref=e105]:
+              - link "Pull requests 985" [ref=e106] [cursor=pointer]:
+                - /url: /anomalyco/opencode/pulls
+                - img [ref=e107]
+                - generic [ref=e109]: Pull requests
+                - generic "985" [ref=e110]
+            - listitem [ref=e111]:
+              - link "Actions" [ref=e112] [cursor=pointer]:
+                - /url: /anomalyco/opencode/actions
+                - img [ref=e113]
+                - generic [ref=e115]: Actions
+            - listitem [ref=e116]:
+              - link "Projects" [ref=e117] [cursor=pointer]:
+                - /url: /anomalyco/opencode/projects
+                - img [ref=e118]
+                - generic [ref=e120]: Projects
+            - listitem [ref=e121]:
+              - link "Security and quality 2" [ref=e122] [cursor=pointer]:
+                - /url: /anomalyco/opencode/security
+                - img [ref=e123]
+                - generic [ref=e125]: Security and quality
+                - generic "2" [ref=e126]
+            - listitem [ref=e127]:
+              - link "Insights" [ref=e128] [cursor=pointer]:
+                - /url: /anomalyco/opencode/pulse
+                - img [ref=e129]
+                - generic [ref=e131]: Insights
+      - generic [ref=e139]:
+        - generic [ref=e141]:
+          - generic [ref=e144]:
+            - generic [ref=e145]:
+              - generic [ref=e146]:
+                - heading "Collapse file tree" [level=2] [ref=e147]:
+                  - button "Collapse file tree" [expanded] [ref=e148] [cursor=pointer]:
+                    - img [ref=e149]
+                - heading "Files" [level=2] [ref=e152]
+              - generic [ref=e153]:
+                - button "dev branch" [ref=e155] [cursor=pointer]:
+                  - generic [ref=e156]:
+                    - generic [ref=e158]:
+                      - img [ref=e160]
+                      - generic [ref=e163]: dev
+                    - generic:
+                      - img
+                - button "Search this repository (forward slash)" [ref=e165] [cursor=pointer]:
+                  - img [ref=e166]
+            - generic [ref=e169]:
+              - img [ref=e171]
+              - combobox "Go to file" [ref=e173]
+            - navigation "File Tree Navigation" [ref=e179]:
+              - tree "Files" [ref=e181]:
+                - treeitem ".changeset" [level=1] [ref=e182]:
+                  - generic [ref=e183] [cursor=pointer]:
+                    - img [ref=e185]
+                    - generic [ref=e187]:
+                      - img [ref=e191]
+                      - generic [ref=e193]: .changeset
+                - treeitem ".github" [level=1] [ref=e194]:
+                  - generic [ref=e195] [cursor=pointer]:
+                    - img [ref=e197]
+                    - generic [ref=e199]:
+                      - img [ref=e203]
+                      - generic [ref=e205]: .github
+                - treeitem ".husky" [level=1] [ref=e206]:
+                  - generic [ref=e207] [cursor=pointer]:
+                    - img [ref=e209]
+                    - generic [ref=e211]:
+                      - img [ref=e215]
+                      - generic [ref=e217]: .husky
+                - treeitem ".opencode" [level=1] [ref=e218]:
+                  - generic [ref=e219] [cursor=pointer]:
+                    - img [ref=e221]
+                    - generic [ref=e223]:
+                      - img [ref=e227]
+                      - generic [ref=e229]: .opencode
+                - treeitem ".vscode" [level=1] [ref=e230]:
+                  - generic [ref=e231] [cursor=pointer]:
+                    - img [ref=e233]
+                    - generic [ref=e235]:
+                      - img [ref=e239]
+                      - generic [ref=e241]: .vscode
+                - treeitem ".zed" [level=1] [ref=e242]:
+                  - generic [ref=e243] [cursor=pointer]:
+                    - img [ref=e245]
+                    - generic [ref=e247]:
+                      - img [ref=e251]
+                      - generic [ref=e253]: .zed
+                - treeitem "github" [level=1] [ref=e254]:
+                  - generic [ref=e255] [cursor=pointer]:
+                    - img [ref=e257]
+                    - generic [ref=e259]:
+                      - img [ref=e263]
+                      - generic [ref=e265]: github
+                - treeitem "infra" [level=1] [ref=e266]:
+                  - generic [ref=e267] [cursor=pointer]:
+                    - img [ref=e269]
+                    - generic [ref=e271]:
+                      - img [ref=e275]
+                      - generic [ref=e277]: infra
+                - treeitem "nix" [level=1] [ref=e278]:
+                  - generic [ref=e279] [cursor=pointer]:
+                    - img [ref=e281]
+                    - generic [ref=e283]:
+                      - img [ref=e287]
+                      - generic [ref=e289]: nix
+                - treeitem "packages" [expanded] [level=1] [ref=e290]:
+                  - generic [ref=e291] [cursor=pointer]:
+                    - img [ref=e293]
+                    - generic [ref=e295]:
+                      - img [ref=e299]
+                      - generic [ref=e301]: packages
+                  - group "packages" [ref=e302]:
+                    - treeitem "app" [level=2] [ref=e303]:
+                      - generic [ref=e304] [cursor=pointer]:
+                        - img [ref=e309]
+                        - generic [ref=e311]:
+                          - img [ref=e315]
+                          - generic [ref=e317]: app
+                    - treeitem "cli" [level=2] [ref=e318]:
+                      - generic [ref=e319] [cursor=pointer]:
+                        - img [ref=e324]
+                        - generic [ref=e326]:
+                          - img [ref=e330]
+                          - generic [ref=e332]: cli
+                    - treeitem "console" [level=2] [ref=e333]:
+                      - generic [ref=e334] [cursor=pointer]:
+                        - img [ref=e339]
+                        - generic [ref=e341]:
+                          - img [ref=e345]
+                          - generic [ref=e347]: console
+                    - treeitem "containers" [level=2] [ref=e348]:
+                      - generic [ref=e349] [cursor=pointer]:
+                        - img [ref=e354]
+                        - generic [ref=e356]:
+                          - img [ref=e360]
+                          - generic [ref=e362]: containers
+                    - treeitem "core" [level=2] [ref=e363]:
+                      - generic [ref=e364] [cursor=pointer]:
+                        - img [ref=e369]
+                        - generic [ref=e371]:
+                          - img [ref=e375]
+                          - generic [ref=e377]: core
+                    - treeitem "desktop" [level=2] [ref=e378]:
+                      - generic [ref=e379] [cursor=pointer]:
+                        - img [ref=e384]
+                        - generic [ref=e386]:
+                          - img [ref=e390]
+                          - generic [ref=e392]: desktop
+                    - treeitem "docs" [level=2] [ref=e393]:
+                      - generic [ref=e394] [cursor=pointer]:
+                        - img [ref=e399]
+                        - generic [ref=e401]:
+                          - img [ref=e405]
+                          - generic [ref=e407]: docs
+                    - treeitem "effect-drizzle-sqlite" [level=2] [ref=e408]:
+                      - generic [ref=e409] [cursor=pointer]:
+                        - img [ref=e414]
+                        - generic [ref=e416]:
+                          - img [ref=e420]
+                          - generic [ref=e422]: effect-drizzle-sqlite
+                    - treeitem "effect-sqlite-node" [level=2] [ref=e423]:
+                      - generic [ref=e424] [cursor=pointer]:
+                        - img [ref=e429]
+                        - generic [ref=e431]:
+                          - img [ref=e435]
+                          - generic [ref=e437]: effect-sqlite-node
+                    - treeitem "enterprise" [level=2] [ref=e438]:
+                      - generic [ref=e439] [cursor=pointer]:
+                        - img [ref=e444]
+                        - generic [ref=e446]:
+                          - img [ref=e450]
+                          - generic [ref=e452]: enterprise
+                    - treeitem "function" [level=2] [ref=e453]:
+                      - generic [ref=e454] [cursor=pointer]:
+                        - img [ref=e459]
+                        - generic [ref=e461]:
+                          - img [ref=e465]
+                          - generic [ref=e467]: function
+                    - treeitem "http-recorder" [level=2] [ref=e468]:
+                      - generic [ref=e469] [cursor=pointer]:
+                        - img [ref=e474]
+                        - generic [ref=e476]:
+                          - img [ref=e480]
+                          - generic [ref=e482]: http-recorder
+                    - treeitem "identity" [level=2] [ref=e483]:
+                      - generic [ref=e484] [cursor=pointer]:
+                        - img [ref=e489]
+                        - generic [ref=e491]:
+                          - img [ref=e495]
+                          - generic [ref=e497]: identity
+                    - treeitem "llm" [level=2] [ref=e498]:
+                      - generic [ref=e499] [cursor=pointer]:
+                        - img [ref=e504]
+                        - generic [ref=e506]:
+                          - img [ref=e510]
+                          - generic [ref=e512]: llm
+                    - treeitem "opencode" [expanded] [level=2] [ref=e513]:
+                      - generic [ref=e514] [cursor=pointer]:
+                        - img [ref=e519]
+                        - generic [ref=e521]:
+                          - img [ref=e525]
+                          - generic [ref=e527]: opencode
+                      - group "opencode" [ref=e528]:
+                        - treeitem "bin" [level=3] [ref=e529]:
+                          - generic [ref=e530] [cursor=pointer]:
+                            - img [ref=e536]
+                            - generic [ref=e538]:
+                              - img [ref=e542]
+                              - generic [ref=e544]: bin
+                        - treeitem "migration" [level=3] [ref=e545]:
+                          - generic [ref=e546] [cursor=pointer]:
+                            - img [ref=e552]
+                            - generic [ref=e554]:
+                              - img [ref=e558]
+                              - generic [ref=e560]: migration
+                        - treeitem "script" [level=3] [ref=e561]:
+                          - generic [ref=e562] [cursor=pointer]:
+                            - img [ref=e568]
+                            - generic [ref=e570]:
+                              - img [ref=e574]
+                              - generic [ref=e576]: script
+                        - treeitem "specs" [expanded] [level=3] [ref=e577]:
+                          - generic [ref=e578] [cursor=pointer]:
+                            - img [ref=e584]
+                            - generic [ref=e586]:
+                              - img [ref=e590]
+                              - generic [ref=e592]: specs
+                          - group "specs" [ref=e593]:
+                            - treeitem "effect" [level=4] [ref=e594]:
+                              - generic [ref=e595] [cursor=pointer]:
+                                - img [ref=e602]
+                                - generic [ref=e604]:
+                                  - img [ref=e608]
+                                  - generic [ref=e610]: effect
+                            - treeitem "v2" [level=4] [ref=e611]:
+                              - generic [ref=e612] [cursor=pointer]:
+                                - img [ref=e619]
+                                - generic [ref=e621]:
+                                  - img [ref=e625]
+                                  - generic [ref=e627]: v2
+                            - treeitem "openapi-translation-cleanup.md" [level=4] [ref=e628]:
+                              - generic [ref=e635] [cursor=pointer]:
+                                - img [ref=e638]
+                                - generic [ref=e640]: openapi-translation-cleanup.md
+                            - treeitem "tui-plugins.md" [level=4] [ref=e641]:
+                              - generic [ref=e648] [cursor=pointer]:
+                                - img [ref=e651]
+                                - generic [ref=e653]: tui-plugins.md
+                        - treeitem "src" [level=3] [ref=e654]:
+                          - generic [ref=e655] [cursor=pointer]:
+                            - img [ref=e661]
+                            - generic [ref=e663]:
+                              - img [ref=e667]
+                              - generic [ref=e669]: src
+                        - treeitem "test" [level=3] [ref=e670]:
+                          - generic [ref=e671] [cursor=pointer]:
+                            - img [ref=e677]
+                            - generic [ref=e679]:
+                              - img [ref=e683]
+                              - generic [ref=e685]: test
+                        - treeitem ".gitignore" [level=3] [ref=e686]:
+                          - generic [ref=e692] [cursor=pointer]:
+                            - img [ref=e695]
+                            - generic [ref=e697]: .gitignore
+                        - treeitem "AGENTS.md" [level=3] [ref=e698]:
+                          - generic [ref=e704] [cursor=pointer]:
+                            - img [ref=e707]
+                            - generic [ref=e709]: AGENTS.md
+                        - treeitem "BUN_SHELL_MIGRATION_PLAN.md" [level=3] [ref=e710]:
+                          - generic [ref=e716] [cursor=pointer]:
+                            - img [ref=e719]
+                            - generic [ref=e721]: BUN_SHELL_MIGRATION_PLAN.md
+                        - treeitem "Dockerfile" [level=3] [ref=e722]:
+                          - generic [ref=e728] [cursor=pointer]:
+                            - img [ref=e731]
+                            - generic [ref=e733]: Dockerfile
+                        - treeitem "README.md" [level=3] [ref=e734]:
+                          - generic [ref=e740] [cursor=pointer]:
+                            - img [ref=e743]
+                            - generic [ref=e745]: README.md
+                        - treeitem "bunfig.toml" [level=3] [ref=e746]:
+                          - generic [ref=e752] [cursor=pointer]:
+                            - img [ref=e755]
+                            - generic [ref=e757]: bunfig.toml
+                        - treeitem "git" [level=3] [ref=e758]:
+                          - generic [ref=e764] [cursor=pointer]:
+                            - img [ref=e767]
+                            - generic [ref=e769]: git
+                        - treeitem "package.json" [level=3] [ref=e770]:
+                          - generic [ref=e776] [cursor=pointer]:
+                            - img [ref=e779]
+                            - generic [ref=e781]: package.json
+                        - treeitem "parsers-config.ts" [level=3] [ref=e782]:
+                          - generic [ref=e788] [cursor=pointer]:
+                            - img [ref=e791]
+                            - generic [ref=e793]: parsers-config.ts
+                        - treeitem "sst-env.d.ts" [level=3] [ref=e794]:
+                          - generic [ref=e800] [cursor=pointer]:
+                            - img [ref=e803]
+                            - generic [ref=e805]: sst-env.d.ts
+                        - treeitem "tsconfig.json" [level=3] [ref=e806]:
+                          - generic [ref=e812] [cursor=pointer]:
+                            - img [ref=e815]
+                            - generic [ref=e817]: tsconfig.json
+                    - treeitem "plugin" [level=2] [ref=e818]:
+                      - generic [ref=e819] [cursor=pointer]:
+                        - img [ref=e824]
+                        - generic [ref=e826]:
+                          - img [ref=e830]
+                          - generic [ref=e832]: plugin
+                    - treeitem "script" [level=2] [ref=e833]:
+                      - generic [ref=e834] [cursor=pointer]:
+                        - img [ref=e839]
+                        - generic [ref=e841]:
+                          - img [ref=e845]
+                          - generic [ref=e847]: script
+                    - treeitem "sdk" [level=2] [ref=e848]:
+                      - generic [ref=e849] [cursor=pointer]:
+                        - img [ref=e854]
+                        - generic [ref=e856]:
+                          - img [ref=e860]
+                          - generic [ref=e862]: sdk
+                    - treeitem "server" [level=2] [ref=e863]:
+                      - generic [ref=e864] [cursor=pointer]:
+                        - img [ref=e869]
+                        - generic [ref=e871]:
+                          - img [ref=e875]
+                          - generic [ref=e877]: server
+                    - treeitem "slack" [level=2] [ref=e878]:
+                      - generic [ref=e879] [cursor=pointer]:
+                        - img [ref=e884]
+                        - generic [ref=e886]:
+                          - img [ref=e890]
+                          - generic [ref=e892]: slack
+                    - treeitem "stats" [level=2] [ref=e893]:
+                      - generic [ref=e894] [cursor=pointer]:
+                        - img [ref=e899]
+                        - generic [ref=e901]:
+                          - img [ref=e905]
+                          - generic [ref=e907]: stats
+                    - treeitem "storybook" [level=2] [ref=e908]:
+                      - generic [ref=e909] [cursor=pointer]:
+                        - img [ref=e914]
+                        - generic [ref=e916]:
+                          - img [ref=e920]
+                          - generic [ref=e922]: storybook
+                    - treeitem "ui" [level=2] [ref=e923]:
+                      - generic [ref=e924] [cursor=pointer]:
+                        - img [ref=e929]
+                        - generic [ref=e931]:
+                          - img [ref=e935]
+                          - generic [ref=e937]: ui
+                    - treeitem "web" [level=2] [ref=e938]:
+                      - generic [ref=e939] [cursor=pointer]:
+                        - img [ref=e944]
+                        - generic [ref=e946]:
+                          - img [ref=e950]
+                          - generic [ref=e952]: web
+                - treeitem "patches" [level=1] [ref=e953]:
+                  - generic [ref=e954] [cursor=pointer]:
+                    - img [ref=e956]
+                    - generic [ref=e958]:
+                      - img [ref=e962]
+                      - generic [ref=e964]: patches
+                - treeitem "perf" [level=1] [ref=e965]:
+                  - generic [ref=e966] [cursor=pointer]:
+                    - img [ref=e968]
+                    - generic [ref=e970]:
+                      - img [ref=e974]
+                      - generic [ref=e976]: perf
+                - treeitem "script" [level=1] [ref=e977]:
+                  - generic [ref=e978] [cursor=pointer]:
+                    - img [ref=e980]
+                    - generic [ref=e982]:
+                      - img [ref=e986]
+                      - generic [ref=e988]: script
+                - treeitem "sdks" [level=1] [ref=e989]:
+                  - generic [ref=e990] [cursor=pointer]:
+                    - img [ref=e992]
+                    - generic [ref=e994]:
+                      - img [ref=e998]
+                      - generic [ref=e1000]: sdks
+                - treeitem "specs" [level=1] [ref=e1001]:
+                  - generic [ref=e1002] [cursor=pointer]:
+                    - img [ref=e1004]
+                    - generic [ref=e1006]:
+                      - img [ref=e1010]
+                      - generic [ref=e1012]: specs
+                - treeitem ".dockerignore" [level=1] [ref=e1013]:
+                  - generic [ref=e1015] [cursor=pointer]:
+                    - img [ref=e1018]
+                    - generic [ref=e1020]: .dockerignore
+                - treeitem ".editorconfig" [level=1] [ref=e1021]:
+                  - generic [ref=e1023] [cursor=pointer]:
+                    - img [ref=e1026]
+                    - generic [ref=e1028]: .editorconfig
+                - treeitem ".gitattributes" [level=1] [ref=e1029]:
+                  - generic [ref=e1031] [cursor=pointer]:
+                    - img [ref=e1034]
+                    - generic [ref=e1036]: .gitattributes
+                - treeitem ".gitignore" [level=1] [ref=e1037]:
+                  - generic [ref=e1039] [cursor=pointer]:
+                    - img [ref=e1042]
+                    - generic [ref=e1044]: .gitignore
+                - treeitem ".gitleaksignore" [level=1] [ref=e1045]:
+                  - generic [ref=e1047] [cursor=pointer]:
+                    - img [ref=e1050]
+                    - generic [ref=e1052]: .gitleaksignore
+                - treeitem ".oxlintrc.json" [level=1] [ref=e1053]:
+                  - generic [ref=e1055] [cursor=pointer]:
+                    - img [ref=e1058]
+                    - generic [ref=e1060]: .oxlintrc.json
+                - treeitem ".prettierignore" [level=1] [ref=e1061]:
+                  - generic [ref=e1063] [cursor=pointer]:
+                    - img [ref=e1066]
+                    - generic [ref=e1068]: .prettierignore
+                - treeitem "AGENTS.md" [level=1] [ref=e1069]:
+                  - generic [ref=e1071] [cursor=pointer]:
+                    - img [ref=e1074]
+                    - generic [ref=e1076]: AGENTS.md
+                - treeitem "CONTEXT.md" [level=1] [ref=e1077]:
+                  - generic [ref=e1079] [cursor=pointer]:
+                    - img [ref=e1082]
+                    - generic [ref=e1084]: CONTEXT.md
+                - treeitem "CONTRIBUTING.md" [level=1] [ref=e1085]:
+                  - generic [ref=e1087] [cursor=pointer]:
+                    - img [ref=e1090]
+                    - generic [ref=e1092]: CONTRIBUTING.md
+                - treeitem "LICENSE" [level=1] [ref=e1093]:
+                  - generic [ref=e1095] [cursor=pointer]:
+                    - img [ref=e1098]
+                    - generic [ref=e1100]: LICENSE
+                - treeitem "README.ar.md" [level=1] [ref=e1101]:
+                  - generic [ref=e1103] [cursor=pointer]:
+                    - img [ref=e1106]
+                    - generic [ref=e1108]: README.ar.md
+                - treeitem "README.bn.md" [level=1] [ref=e1109]:
+                  - generic [ref=e1111] [cursor=pointer]:
+                    - img [ref=e1114]
+                    - generic [ref=e1116]: README.bn.md
+                - treeitem "README.br.md" [level=1] [ref=e1117]:
+                  - generic [ref=e1119] [cursor=pointer]:
+                    - img [ref=e1122]
+                    - generic [ref=e1124]: README.br.md
+                - treeitem "README.bs.md" [level=1] [ref=e1125]:
+                  - generic [ref=e1127] [cursor=pointer]:
+                    - img [ref=e1130]
+                    - generic [ref=e1132]: README.bs.md
+                - treeitem "README.da.md" [level=1] [ref=e1133]:
+                  - generic [ref=e1135] [cursor=pointer]:
+                    - img [ref=e1138]
+                    - generic [ref=e1140]: README.da.md
+                - treeitem "README.de.md" [level=1] [ref=e1141]:
+                  - generic [ref=e1143] [cursor=pointer]:
+                    - img [ref=e1146]
+                    - generic [ref=e1148]: README.de.md
+                - treeitem "README.es.md" [level=1] [ref=e1149]:
+                  - generic [ref=e1151] [cursor=pointer]:
+                    - img [ref=e1154]
+                    - generic [ref=e1156]: README.es.md
+                - treeitem "README.fr.md" [level=1] [ref=e1157]:
+                  - generic [ref=e1159] [cursor=pointer]:
+                    - img [ref=e1162]
+                    - generic [ref=e1164]: README.fr.md
+                - treeitem "README.gr.md" [level=1] [ref=e1165]:
+                  - generic [ref=e1167] [cursor=pointer]:
+                    - img [ref=e1170]
+                    - generic [ref=e1172]: README.gr.md
+                - treeitem "README.it.md" [level=1] [ref=e1173]:
+                  - generic [ref=e1175] [cursor=pointer]:
+                    - img [ref=e1178]
+                    - generic [ref=e1180]: README.it.md
+                - treeitem "README.ja.md" [level=1] [ref=e1181]:
+                  - generic [ref=e1183] [cursor=pointer]:
+                    - img [ref=e1186]
+                    - generic [ref=e1188]: README.ja.md
+                - treeitem "README.ko.md" [level=1] [ref=e1189]:
+                  - generic [ref=e1191] [cursor=pointer]:
+                    - img [ref=e1194]
+                    - generic [ref=e1196]: README.ko.md
+                - treeitem "README.md" [level=1] [ref=e1197]:
+                  - generic [ref=e1199] [cursor=pointer]:
+                    - img [ref=e1202]
+                    - generic [ref=e1204]: README.md
+                - treeitem "README.no.md" [level=1] [ref=e1205]:
+                  - generic [ref=e1207] [cursor=pointer]:
+                    - img [ref=e1210]
+                    - generic [ref=e1212]: README.no.md
+                - treeitem "README.pl.md" [level=1] [ref=e1213]:
+                  - generic [ref=e1215] [cursor=pointer]:
+                    - img [ref=e1218]
+                    - generic [ref=e1220]: README.pl.md
+                - treeitem "README.ru.md" [level=1] [ref=e1221]:
+                  - generic [ref=e1223] [cursor=pointer]:
+                    - img [ref=e1226]
+                    - generic [ref=e1228]: README.ru.md
+                - treeitem "README.th.md" [level=1] [ref=e1229]:
+                  - generic [ref=e1231] [cursor=pointer]:
+                    - img [ref=e1234]
+                    - generic [ref=e1236]: README.th.md
+                - treeitem "README.tr.md" [level=1] [ref=e1237]:
+                  - generic [ref=e1239] [cursor=pointer]:
+                    - img [ref=e1242]
+                    - generic [ref=e1244]: README.tr.md
+                - treeitem "README.uk.md" [level=1] [ref=e1245]:
+                  - generic [ref=e1247] [cursor=pointer]:
+                    - img [ref=e1250]
+                    - generic [ref=e1252]: README.uk.md
+                - treeitem "README.vi.md" [level=1] [ref=e1253]:
+                  - generic [ref=e1255] [cursor=pointer]:
+                    - img [ref=e1258]
+                    - generic [ref=e1260]: README.vi.md
+                - treeitem "README.zh.md" [level=1] [ref=e1261]:
+                  - generic [ref=e1263] [cursor=pointer]:
+                    - img [ref=e1266]
+                    - generic [ref=e1268]: README.zh.md
+                - treeitem "README.zht.md" [level=1] [ref=e1269]:
+                  - generic [ref=e1271] [cursor=pointer]:
+                    - img [ref=e1274]
+                    - generic [ref=e1276]: README.zht.md
+                - treeitem "SECURITY.md" [level=1] [ref=e1277]:
+                  - generic [ref=e1279] [cursor=pointer]:
+                    - img [ref=e1282]
+                    - generic [ref=e1284]: SECURITY.md
+                - treeitem "STATS.md" [level=1] [ref=e1285]:
+                  - generic [ref=e1287] [cursor=pointer]:
+                    - img [ref=e1290]
+                    - generic [ref=e1292]: STATS.md
+                - treeitem "bun.lock" [level=1] [ref=e1293]:
+                  - generic [ref=e1295] [cursor=pointer]:
+                    - img [ref=e1298]
+                    - generic [ref=e1300]: bun.lock
+                - treeitem "bunfig.toml" [level=1] [ref=e1301]:
+                  - generic [ref=e1303] [cursor=pointer]:
+                    - img [ref=e1306]
+                    - generic [ref=e1308]: bunfig.toml
+                - treeitem "flake.lock" [level=1] [ref=e1309]:
+                  - generic [ref=e1311] [cursor=pointer]:
+                    - img [ref=e1314]
+                    - generic [ref=e1316]: flake.lock
+                - treeitem "flake.nix" [level=1] [ref=e1317]:
+                  - generic [ref=e1319] [cursor=pointer]:
+                    - img [ref=e1322]
+                    - generic [ref=e1324]: flake.nix
+                - treeitem "install" [level=1] [ref=e1325]:
+                  - generic [ref=e1327] [cursor=pointer]:
+                    - img [ref=e1330]
+                    - generic [ref=e1332]: install
+                - treeitem "package.json" [level=1] [ref=e1333]:
+                  - generic [ref=e1335] [cursor=pointer]:
+                    - img [ref=e1338]
+                    - generic [ref=e1340]: package.json
+                - treeitem "screenshot-uk.png" [level=1] [ref=e1341]:
+                  - generic [ref=e1343] [cursor=pointer]:
+                    - img [ref=e1346]
+                    - generic [ref=e1348]: screenshot-uk.png
+                - treeitem "sst-env.d.ts" [level=1] [ref=e1349]:
+                  - generic [ref=e1351] [cursor=pointer]:
+                    - img [ref=e1354]
+                    - generic [ref=e1356]: sst-env.d.ts
+                - treeitem "sst.config.ts" [level=1] [ref=e1357]:
+                  - generic [ref=e1359] [cursor=pointer]:
+                    - img [ref=e1362]
+                    - generic [ref=e1364]: sst.config.ts
+                - treeitem "tsconfig.json" [level=1] [ref=e1365]:
+                  - generic [ref=e1367] [cursor=pointer]:
+                    - img [ref=e1370]
+                    - generic [ref=e1372]: tsconfig.json
+                - treeitem "turbo.json" [level=1] [ref=e1373]:
+                  - generic [ref=e1375] [cursor=pointer]:
+                    - img [ref=e1378]
+                    - generic [ref=e1380]: turbo.json
+          - slider "Draggable pane splitter" [ref=e1382]
+        - generic [ref=e1385]:
+          - generic [ref=e1389]:
+            - generic [ref=e1391]:
+              - navigation "Breadcrumbs" [ref=e1392]:
+                - heading "Breadcrumbs" [level=2] [ref=e1393]
+                - list [ref=e1394]:
+                  - listitem [ref=e1395]:
+                    - link "opencode" [ref=e1396] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev
+                  - listitem [ref=e1397]:
+                    - text: /
+                    - link "packages" [ref=e1398] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev/packages
+                  - listitem [ref=e1399]:
+                    - text: /
+                    - link "opencode" [ref=e1400] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev/packages/opencode
+                  - listitem [ref=e1401]:
+                    - text: /
+                    - link "specs" [ref=e1402] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/tree/dev/packages/opencode/specs
+              - generic [ref=e1403]:
+                - text: /
+                - heading "tui-plugins.md" [level=1] [ref=e1404]
+              - button "Copy path" [ref=e1405] [cursor=pointer]:
+                - img [ref=e1406]
+            - button "More file actions" [ref=e1412] [cursor=pointer]:
+              - img [ref=e1413]
+          - generic [ref=e1415]:
+            - generic [ref=e1417]:
+              - heading "Latest commit" [level=2] [ref=e1418]
+              - generic [ref=e1419]:
+                - generic [ref=e1421]:
+                  - link "kommander" [ref=e1422] [cursor=pointer]:
+                    - /url: /kommander
+                    - img "kommander" [ref=e1423]
+                  - link "commits by kommander" [ref=e1424] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commits?author=kommander
+                    - text: kommander
+                - generic [ref=e1425]:
+                  - generic [ref=e1427]:
+                    - link "use keymap state for layer visibility (" [ref=e1428] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/commit/8dd6448c90d6f21b77e4454b57acf7bd152bd557
+                    - link "#26246" [ref=e1429] [cursor=pointer]:
+                      - /url: https://github.com/anomalyco/opencode/pull/26246
+                    - link ")" [ref=e1430] [cursor=pointer]:
+                      - /url: /anomalyco/opencode/commit/8dd6448c90d6f21b77e4454b57acf7bd152bd557
+                  - button "failure" [ref=e1431] [cursor=pointer]:
+                    - img [ref=e1432]
+              - generic [ref=e1434]:
+                - generic [ref=e1436]:
+                  - link "Commit 8dd6448" [ref=e1437] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commit/8dd6448c90d6f21b77e4454b57acf7bd152bd557
+                    - text: 8dd6448
+                  - text: ·
+                  - generic "May 19, 2026, 11:07 PM GMT+8" [ref=e1438]: May 19, 20263 weeks ago
+                - generic [ref=e1439]:
+                  - heading "History" [level=2] [ref=e1440]
+                  - link "History" [ref=e1441] [cursor=pointer]:
+                    - /url: /anomalyco/opencode/commits/dev/packages/opencode/specs/tui-plugins.md
+                    - generic [ref=e1442]:
+                      - generic:
+                        - img
+                      - generic [ref=e1443]: History
+            - generic [ref=e1445]:
+              - generic [ref=e1447]:
+                - heading "File metadata and controls" [level=2] [ref=e1448]
+                - list "File view" [ref=e1450]:
+                  - listitem [ref=e1451]:
+                    - button "Preview" [ref=e1452] [cursor=pointer]:
+                      - generic [ref=e1454]: Preview
+                  - listitem [ref=e1455]:
+                    - button "Code" [ref=e1456] [cursor=pointer]:
+                      - generic [ref=e1458]: Code
+                  - listitem [ref=e1459]:
+                    - button "Blame" [ref=e1460] [cursor=pointer]:
+                      - generic [ref=e1462]: Blame
+                - generic [ref=e1463]:
+                  - generic [ref=e1465]:
+                    - link "Raw" [ref=e1467] [cursor=pointer]:
+                      - /url: https://github.com/anomalyco/opencode/raw/refs/heads/dev/packages/opencode/specs/tui-plugins.md
+                      - generic [ref=e1469]: Raw
+                    - button "Copy raw file" [ref=e1471] [cursor=pointer]:
+                      - img [ref=e1472]
+                    - button "Download raw file" [ref=e1476] [cursor=pointer]:
+                      - img [ref=e1477]
+                  - button "Outline" [ref=e1480] [cursor=pointer]:
+                    - img [ref=e1481]
+              - region "tui-plugins.md" [ref=e1484]:
+                - article [ref=e1486]:
+                  - generic [ref=e1487]:
+                    - heading "TUI plugins" [level=1] [ref=e1488]
+                    - 'link "Permalink: TUI plugins" [ref=e1489] [cursor=pointer]':
+                      - /url: "#tui-plugins"
+                      - img [ref=e1490]
+                  - paragraph [ref=e1492]: Technical reference for the current TUI plugin system.
+                  - generic [ref=e1493]:
+                    - heading "Overview" [level=2] [ref=e1494]
+                    - 'link "Permalink: Overview" [ref=e1495] [cursor=pointer]':
+                      - /url: "#overview"
+                      - img [ref=e1496]
+                  - list [ref=e1498]:
+                    - listitem [ref=e1499]:
+                      - text: TUI plugin config lives in
+                      - code [ref=e1500]: tui.json
+                      - text: .
+                    - listitem [ref=e1501]:
+                      - text: Author package entrypoint is
+                      - code [ref=e1502]: "@opencode-ai/plugin/tui"
+                      - text: .
+                    - listitem [ref=e1503]: Internal plugins load inside the CLI app the same way external TUI plugins do.
+                    - listitem [ref=e1504]: Package plugins can be installed from CLI or TUI.
+                    - listitem [ref=e1505]:
+                      - text: "v1 plugin modules are target-exclusive: a module can export"
+                      - code [ref=e1506]: server
+                      - text: or
+                      - code [ref=e1507]: tui
+                      - text: ", never both."
+                    - listitem [ref=e1508]: Server runtime keeps v0 legacy fallback (function exports / enumerated exports) after v1 parsing.
+                    - listitem [ref=e1509]:
+                      - text: npm packages can be TUI theme-only via
+                      - code [ref=e1510]: package.json["oc-themes"]
+                      - text: without a
+                      - code [ref=e1511]: ./tui
+                      - text: entrypoint.
+                  - generic [ref=e1512]:
+                    - heading "TUI config" [level=2] [ref=e1513]
+                    - 'link "Permalink: TUI config" [ref=e1514] [cursor=pointer]':
+                      - /url: "#tui-config"
+                      - img [ref=e1515]
+                  - paragraph [ref=e1517]: "Example:"
+                  - generic [ref=e1518]:
+                    - generic [ref=e1519]:
+                      - text: "{ \"$schema\":"
+                      - generic [ref=e1520]: "\"https://opencode.ai/tui.json\""
+                      - text: ", \"theme\":"
+                      - generic [ref=e1521]: "\"smoke-theme\""
+                      - text: ", \"leader_timeout\": 2000, \"keybinds\": { \"leader\":"
+                      - generic [ref=e1522]: "\"ctrl+x\""
+                      - text: ", \"command_list\":"
+                      - generic [ref=e1523]: "\"ctrl+p\""
+                      - text: ", \"session_new\":"
+                      - generic [ref=e1524]: "\"<leader>n\""
+                      - text: "}, \"plugin\": ["
+                      - generic [ref=e1525]: "\"@acme/opencode-plugin@1.2.3\""
+                      - text: ", ["
+                      - generic [ref=e1526]: "\"./plugins/demo.tsx\""
+                      - text: ", { \"label\":"
+                      - generic [ref=e1527]: "\"demo\""
+                      - text: "}]], \"plugin_enabled\": { \"acme.demo\": false }, \"attention\": { \"enabled\": true, \"notifications\": true, \"sound\": true, \"volume\": 0.4, \"sound_pack\":"
+                      - generic [ref=e1528]: "\"opencode.default\""
+                      - text: ", \"sounds\": { \"error\":"
+                      - generic [ref=e1529]: "\"/Users/me/sounds/error.mp3\""
+                      - text: "} } }"
+                    - button "Copy code to clipboard" [ref=e1531] [cursor=pointer]:
+                      - img [ref=e1532]
+                  - list [ref=e1535]:
+                    - listitem [ref=e1536]:
+                      - code [ref=e1537]: plugin
+                      - text: entries can be either a string spec or
+                      - code [ref=e1538]: "[spec, options]"
+                      - text: .
+                    - listitem [ref=e1539]:
+                      - text: Plugin specs can be npm specs,
+                      - code [ref=e1540]: file://
+                      - text: URLs, relative paths, or absolute paths.
+                    - listitem [ref=e1541]: Relative path specs are resolved relative to the config file that declared them.
+                    - listitem [ref=e1542]:
+                      - text: A file module listed in
+                      - code [ref=e1543]: tui.json
+                      - text: must be a TUI module (
+                      - code [ref=e1544]: "default export { id?, tui }"
+                      - text: ) and must not export
+                      - code [ref=e1545]: server
+                      - text: .
+                    - listitem [ref=e1546]: Duplicate npm plugins are deduped by package name; higher-precedence config wins.
+                    - listitem [ref=e1547]: Duplicate file plugins are deduped by exact resolved file spec. This happens while merging config, before plugin modules are loaded.
+                    - listitem [ref=e1548]:
+                      - code [ref=e1549]: plugin_enabled
+                      - text: is keyed by plugin id, not by plugin spec.
+                    - listitem [ref=e1550]:
+                      - text: For file plugins, that id must come from the plugin module's exported
+                      - code [ref=e1551]: id
+                      - text: . For npm plugins, it is the exported
+                      - code [ref=e1552]: id
+                      - text: or the package name if
+                      - code [ref=e1553]: id
+                      - text: is omitted.
+                    - listitem [ref=e1554]:
+                      - text: Plugins are enabled by default.
+                      - code [ref=e1555]: plugin_enabled
+                      - text: is only for explicit overrides, usually to disable a plugin with
+                      - code [ref=e1556]: "false"
+                      - text: .
+                    - listitem [ref=e1557]:
+                      - text: Internal plugins can declare
+                      - code [ref=e1558]: "enabled: false"
+                      - text: to be registered but inactive by default;
+                      - code [ref=e1559]: plugin_enabled
+                      - text: and runtime KV can still enable them by id.
+                    - listitem [ref=e1560]:
+                      - code [ref=e1561]: plugin_enabled
+                      - text: is merged across config layers.
+                    - listitem [ref=e1562]:
+                      - text: Runtime enable/disable state is also stored in KV under
+                      - code [ref=e1563]: plugin_enabled
+                      - text: ; that KV state overrides config on startup.
+                    - listitem [ref=e1564]:
+                      - code [ref=e1565]: attention.enabled
+                      - text: defaults to
+                      - code [ref=e1566]: "false"
+                      - text: ; when
+                      - code [ref=e1567]: "false"
+                      - text: ", it disables all"
+                      - code [ref=e1568]: api.attention.notify(...)
+                      - text: delivery.
+                    - listitem [ref=e1569]:
+                      - code [ref=e1570]: attention.notifications
+                      - text: and
+                      - code [ref=e1571]: attention.sound
+                      - text: independently control terminal-mediated desktop notifications and built-in sounds.
+                    - listitem [ref=e1572]:
+                      - code [ref=e1573]: attention.volume
+                      - text: sets the default built-in sound volume from
+                      - code [ref=e1574]: "0"
+                      - text: to
+                      - code [ref=e1575]: "1"
+                      - text: .
+                    - listitem [ref=e1576]:
+                      - code [ref=e1577]: attention.sound_pack
+                      - text: selects the initial semantic sound pack. Persisted runtime selection in KV can override it.
+                    - listitem [ref=e1578]:
+                      - code [ref=e1579]: attention.sounds
+                      - text: overrides individual semantic sound slots such as
+                      - code [ref=e1580]: error
+                      - text: ","
+                      - code [ref=e1581]: done
+                      - text: ", or"
+                      - code [ref=e1582]: subagent_done
+                      - text: .
+                    - listitem [ref=e1583]:
+                      - code [ref=e1584]: leader_timeout
+                      - text: is a top-level TUI setting.
+                    - listitem [ref=e1585]:
+                      - code [ref=e1586]: keybinds
+                      - text: is a flat object keyed by command id; values are key binding values (
+                      - code [ref=e1587]: "false"
+                      - text: ","
+                      - code [ref=e1588]: "\"none\""
+                      - text: ", a key string/object, a binding object, or an array of key strings/objects/binding objects)."
+                    - listitem [ref=e1589]:
+                      - code [ref=e1590]: keybinds.leader
+                      - text: sets the key used by
+                      - code [ref=e1591]: <leader>
+                      - text: shortcuts.
+                  - generic [ref=e1592]:
+                    - heading "Author package shape" [level=2] [ref=e1593]
+                    - 'link "Permalink: Author package shape" [ref=e1594] [cursor=pointer]':
+                      - /url: "#author-package-shape"
+                      - img [ref=e1595]
+                  - paragraph [ref=e1597]: "Package entrypoint:"
+                  - list [ref=e1598]:
+                    - listitem [ref=e1599]:
+                      - text: Import types from
+                      - code [ref=e1600]: "@opencode-ai/plugin/tui"
+                      - text: .
+                    - listitem [ref=e1601]:
+                      - code [ref=e1602]: "@opencode-ai/plugin"
+                      - text: exports
+                      - code [ref=e1603]: ./tui
+                      - text: and declares optional peer deps on
+                      - code [ref=e1604]: "@opentui/core"
+                      - text: and
+                      - code [ref=e1605]: "@opentui/solid"
+                      - text: .
+                  - paragraph [ref=e1606]: "Minimal module shape:"
+                  - generic [ref=e1607]:
+                    - generic [ref=e1608]:
+                      - generic [ref=e1609]: /** @jsxImportSource @opentui/solid */
+                      - text: "import type { TuiPlugin, TuiPluginModule } from \"@opencode-ai/plugin/tui\" const tui: TuiPlugin = async (api, options, meta) => { api.keymap.registerLayer({ commands: [ { name: \"demo.open\", title: \"Demo\", category: \"Plugin\", namespace: \"palette\", slashName: \"demo\", run() { api.route.navigate(\"demo\") }, }, ], bindings: [{ key: \"ctrl+shift+m\", cmd: \"demo.open\", desc: \"Open demo\" }], }) api.route.register([ { name: \"demo\", render: () => ( <box> <text>demo</text> </box> ), }, ]) } const plugin: TuiPluginModule & { id: string } = { id: \"acme.demo\", tui, } export default plugin"
+                    - button "Copy code to clipboard" [ref=e1611] [cursor=pointer]:
+                      - img [ref=e1612]
+                  - list [ref=e1615]:
+                    - listitem [ref=e1616]: Loader only reads the module default export object. Named exports are ignored.
+                    - listitem [ref=e1617]:
+                      - text: TUI shape is
+                      - code [ref=e1618]: "default export { id?, tui }"
+                      - text: ; including
+                      - code [ref=e1619]: server
+                      - text: is rejected.
+                    - listitem [ref=e1620]:
+                      - text: A single module cannot export both
+                      - code [ref=e1621]: server
+                      - text: and
+                      - code [ref=e1622]: tui
+                      - text: .
+                    - listitem [ref=e1623]:
+                      - code [ref=e1624]: tui
+                      - text: signature is
+                      - code [ref=e1625]: (api, options, meta) => Promise<void>
+                      - text: .
+                    - listitem [ref=e1626]:
+                      - text: If package
+                      - code [ref=e1627]: exports
+                      - text: contains
+                      - code [ref=e1628]: ./tui
+                      - text: ", the loader resolves that entrypoint."
+                    - listitem [ref=e1629]:
+                      - text: If package
+                      - code [ref=e1630]: exports
+                      - text: exists, loader only resolves
+                      - code [ref=e1631]: ./tui
+                      - text: or
+                      - code [ref=e1632]: ./server
+                      - text: ; it never falls back to
+                      - code [ref=e1633]: exports["."]
+                      - text: .
+                    - listitem [ref=e1634]:
+                      - text: For npm package specs, TUI does not use
+                      - code [ref=e1635]: package.json
+                      - code [ref=e1636]: main
+                      - text: as a fallback entry.
+                    - listitem [ref=e1637]:
+                      - code [ref=e1638]: package.json
+                      - code [ref=e1639]: main
+                      - text: is only used for server plugin entrypoint resolution.
+                    - listitem [ref=e1640]:
+                      - text: If a configured TUI package has no
+                      - code [ref=e1641]: ./tui
+                      - text: entrypoint and no valid
+                      - code [ref=e1642]: oc-themes
+                      - text: ", it is skipped with a warning (not a load failure)."
+                    - listitem [ref=e1643]:
+                      - text: If a configured TUI package has no
+                      - code [ref=e1644]: ./tui
+                      - text: entrypoint but has valid
+                      - code [ref=e1645]: oc-themes
+                      - text: ", runtime creates a no-op module record and still loads it for theme sync and plugin state."
+                    - listitem [ref=e1646]:
+                      - text: If a package supports both server and TUI, use separate files and package
+                      - code [ref=e1647]: exports
+                      - text: (
+                      - code [ref=e1648]: ./server
+                      - text: and
+                      - code [ref=e1649]: ./tui
+                      - text: ) so each target resolves to a target-only module.
+                    - listitem [ref=e1650]:
+                      - text: File/path plugins must export a non-empty
+                      - code [ref=e1651]: id
+                      - text: .
+                    - listitem [ref=e1652]:
+                      - text: npm plugins may omit
+                      - code [ref=e1653]: id
+                      - text: ; package
+                      - code [ref=e1654]: name
+                      - text: is used.
+                    - listitem [ref=e1655]: Runtime identity is the resolved plugin id. Later plugins with the same id are rejected, including collisions with internal plugin ids.
+                    - listitem [ref=e1656]:
+                      - text: If a path spec points at a directory, server loading can use
+                      - code [ref=e1657]: package.json
+                      - code [ref=e1658]: main
+                      - text: .
+                    - listitem [ref=e1659]:
+                      - text: TUI path loading never uses
+                      - code [ref=e1660]: package.json
+                      - code [ref=e1661]: main
+                      - text: .
+                    - listitem [ref=e1662]:
+                      - text: "Legacy compatibility: path specs like"
+                      - code [ref=e1663]: ./plugin
+                      - text: can resolve to
+                      - code [ref=e1664]: ./plugin/index.ts
+                      - text: (or
+                      - code [ref=e1665]: index.js
+                      - text: ) when
+                      - code [ref=e1666]: package.json
+                      - text: is missing.
+                    - listitem [ref=e1667]:
+                      - text: The
+                      - code [ref=e1668]: ./plugin -> ./plugin/index.*
+                      - text: fallback applies to both server and TUI v1 loading.
+                    - listitem [ref=e1669]:
+                      - text: There is no directory auto-discovery for TUI plugins; they must be listed in
+                      - code [ref=e1670]: tui.json
+                      - text: .
+                  - generic [ref=e1671]:
+                    - heading "Package manifest and install" [level=2] [ref=e1672]
+                    - 'link "Permalink: Package manifest and install" [ref=e1673] [cursor=pointer]':
+                      - /url: "#package-manifest-and-install"
+                      - img [ref=e1674]
+                  - paragraph [ref=e1676]:
+                    - text: Install target detection is inferred from
+                    - code [ref=e1677]: package.json
+                    - text: "entrypoints and theme metadata:"
+                  - list [ref=e1678]:
+                    - listitem [ref=e1679]:
+                      - code [ref=e1680]: server
+                      - text: target when
+                      - code [ref=e1681]: exports["./server"]
+                      - text: exists or
+                      - code [ref=e1682]: main
+                      - text: is set.
+                    - listitem [ref=e1683]:
+                      - code [ref=e1684]: tui
+                      - text: target when
+                      - code [ref=e1685]: exports["./tui"]
+                      - text: exists.
+                    - listitem [ref=e1686]:
+                      - code [ref=e1687]: tui
+                      - text: target when
+                      - code [ref=e1688]: oc-themes
+                      - text: exists and resolves to a non-empty set of valid package-relative theme paths.
+                  - paragraph [ref=e1689]:
+                    - code [ref=e1690]: oc-themes
+                    - text: "rules:"
+                  - list [ref=e1691]:
+                    - listitem [ref=e1692]:
+                      - code [ref=e1693]: oc-themes
+                      - text: is an array of relative paths.
+                    - listitem [ref=e1694]:
+                      - text: Absolute paths and
+                      - code [ref=e1695]: file://
+                      - text: paths are rejected.
+                    - listitem [ref=e1696]: Resolved theme paths must stay inside the package directory.
+                    - listitem [ref=e1697]:
+                      - text: Invalid
+                      - code [ref=e1698]: oc-themes
+                      - text: causes manifest read failure for install.
+                  - paragraph [ref=e1699]: "Example:"
+                  - generic [ref=e1700]:
+                    - generic [ref=e1701]:
+                      - text: "{ \"name\":"
+                      - generic [ref=e1702]: "\"@acme/opencode-plugin\""
+                      - text: ", \"type\":"
+                      - generic [ref=e1703]: "\"module\""
+                      - text: ", \"main\":"
+                      - generic [ref=e1704]: "\"./dist/server.js\""
+                      - text: ", \"exports\": { \"./server\": { \"import\":"
+                      - generic [ref=e1705]: "\"./dist/server.js\""
+                      - text: ", \"config\": { \"custom\": true } }, \"./tui\": { \"import\":"
+                      - generic [ref=e1706]: "\"./dist/tui.js\""
+                      - text: ", \"config\": { \"compact\": true } } }, \"engines\": { \"opencode\":"
+                      - generic [ref=e1707]: "\"^1.0.0\""
+                      - text: "} }"
+                    - button "Copy code to clipboard" [ref=e1709] [cursor=pointer]:
+                      - img [ref=e1710]
+                  - generic [ref=e1713]:
+                    - heading "Version compatibility" [level=3] [ref=e1714]
+                    - 'link "Permalink: Version compatibility" [ref=e1715] [cursor=pointer]':
+                      - /url: "#version-compatibility"
+                      - img [ref=e1716]
+                  - paragraph [ref=e1718]:
+                    - text: npm plugins can declare a version compatibility range in
+                    - code [ref=e1719]: package.json
+                    - text: using the standard
+                    - code [ref=e1720]: engines
+                    - text: "field:"
+                  - generic [ref=e1721]:
+                    - generic [ref=e1722]:
+                      - text: "{ \"engines\": { \"opencode\":"
+                      - generic [ref=e1723]: "\"^1.0.0\""
+                      - text: "} }"
+                    - button "Copy code to clipboard" [ref=e1725] [cursor=pointer]:
+                      - img [ref=e1726]
+                  - list [ref=e1729]:
+                    - listitem [ref=e1730]:
+                      - paragraph [ref=e1731]: The value is a semver range checked against the running OpenCode version.
+                    - listitem [ref=e1732]:
+                      - paragraph [ref=e1733]: If the range is not satisfied, the plugin is skipped with a warning and a session error.
+                    - listitem [ref=e1734]:
+                      - paragraph [ref=e1735]:
+                        - text: If
+                        - code [ref=e1736]: engines.opencode
+                        - text: is absent, no check is performed (backward compatible).
+                    - listitem [ref=e1737]:
+                      - paragraph [ref=e1738]: File plugins are never checked; only npm package plugins are validated.
+                    - listitem [ref=e1739]:
+                      - paragraph [ref=e1740]:
+                        - text: Install flow is shared by CLI and TUI in
+                        - code [ref=e1741]: src/plugin/install.ts
+                        - text: .
+                    - listitem [ref=e1742]:
+                      - paragraph [ref=e1743]:
+                        - text: Shared helpers are
+                        - code [ref=e1744]: installPlugin
+                        - text: ","
+                        - code [ref=e1745]: readPluginManifest
+                        - text: ", and"
+                        - code [ref=e1746]: patchPluginConfig
+                        - text: .
+                    - listitem [ref=e1747]:
+                      - paragraph [ref=e1748]:
+                        - code [ref=e1749]: opencode plugin <module>
+                        - text: and TUI install both run install → manifest read → config patch.
+                    - listitem [ref=e1750]:
+                      - paragraph [ref=e1751]:
+                        - text: "Alias:"
+                        - code [ref=e1752]: opencode plug <module>
+                        - text: .
+                    - listitem [ref=e1753]:
+                      - paragraph [ref=e1754]:
+                        - code [ref=e1755]: "-g"
+                        - text: /
+                        - code [ref=e1756]: "--global"
+                        - text: writes into the global config dir.
+                    - listitem [ref=e1757]:
+                      - paragraph [ref=e1758]:
+                        - text: Local installs resolve target dir inside
+                        - code [ref=e1759]: patchPluginConfig
+                        - text: .
+                    - listitem [ref=e1760]:
+                      - paragraph [ref=e1761]:
+                        - text: For local scope, path is
+                        - code [ref=e1762]: <worktree>/.opencode
+                        - text: only when VCS is git and
+                        - code [ref=e1763]: worktree !== "/"
+                        - text: ; otherwise
+                        - code [ref=e1764]: <directory>/.opencode
+                        - text: .
+                    - listitem [ref=e1765]:
+                      - paragraph [ref=e1766]:
+                        - text: Root-worktree fallback (
+                        - code [ref=e1767]: worktree === "/"
+                        - text: uses
+                        - code [ref=e1768]: <directory>/.opencode
+                        - text: ) is covered by regression tests.
+                    - listitem [ref=e1769]:
+                      - paragraph [ref=e1770]:
+                        - code [ref=e1771]: patchPluginConfig
+                        - text: applies all detected targets (
+                        - code [ref=e1772]: server
+                        - text: and/or
+                        - code [ref=e1773]: tui
+                        - text: ) in one call.
+                    - listitem [ref=e1774]:
+                      - paragraph [ref=e1775]:
+                        - code [ref=e1776]: patchPluginConfig
+                        - text: returns structured result unions (
+                        - code [ref=e1777]: ok
+                        - text: ","
+                        - code [ref=e1778]: code
+                        - text: ", fields by error kind) instead of custom thrown errors."
+                    - listitem [ref=e1779]:
+                      - paragraph [ref=e1780]:
+                        - code [ref=e1781]: patchPluginConfig
+                        - text: serializes per-target config writes with
+                        - code [ref=e1782]: Flock.acquire(...)
+                        - text: .
+                    - listitem [ref=e1783]:
+                      - paragraph [ref=e1784]:
+                        - code [ref=e1785]: patchPluginConfig
+                        - text: uses targeted
+                        - code [ref=e1786]: jsonc-parser
+                        - text: edits, so existing JSONC comments are preserved when plugin entries are added or replaced.
+                    - listitem [ref=e1787]:
+                      - paragraph [ref=e1788]:
+                        - text: npm plugin package installs are executed with
+                        - code [ref=e1789]: "--ignore-scripts"
+                        - text: ", so package"
+                        - code [ref=e1790]: install
+                        - text: /
+                        - code [ref=e1791]: postinstall
+                        - text: lifecycle scripts are not run.
+                    - listitem [ref=e1792]:
+                      - paragraph [ref=e1793]:
+                        - code [ref=e1794]: exports["./server"].config
+                        - text: and
+                        - code [ref=e1795]: exports["./tui"].config
+                        - text: can provide default plugin options written on first install.
+                    - listitem [ref=e1796]:
+                      - paragraph [ref=e1797]:
+                        - text: Without
+                        - code [ref=e1798]: "--force"
+                        - text: ", an already-configured npm package name is a no-op."
+                    - listitem [ref=e1799]:
+                      - paragraph [ref=e1800]:
+                        - text: With
+                        - code [ref=e1801]: "--force"
+                        - text: ", replacement matches by package name. If the existing row is"
+                        - code [ref=e1802]: "[spec, options]"
+                        - text: ", those tuple options are kept."
+                    - listitem [ref=e1803]:
+                      - paragraph [ref=e1804]:
+                        - text: Explicit npm specs with a version suffix (for example
+                        - code [ref=e1805]: pkg@1.2.3
+                        - text: ) are pinned. Runtime install requests that exact version and does not run stale/latest checks for newer registry versions.
+                    - listitem [ref=e1806]:
+                      - paragraph [ref=e1807]:
+                        - text: Bare npm specs (
+                        - code [ref=e1808]: pkg
+                        - text: ) are treated as
+                        - code [ref=e1809]: latest
+                        - text: and can refresh when the cached version is stale.
+                    - listitem [ref=e1810]:
+                      - paragraph [ref=e1811]:
+                        - text: Tuple targets in
+                        - code [ref=e1812]: oc-plugin
+                        - text: provide default options written into config.
+                    - listitem [ref=e1813]:
+                      - paragraph [ref=e1814]:
+                        - text: A package can target
+                        - code [ref=e1815]: server
+                        - text: ","
+                        - code [ref=e1816]: tui
+                        - text: ", or both."
+                    - listitem [ref=e1817]:
+                      - paragraph [ref=e1818]:
+                        - text: If a package targets both, each target must still resolve to a separate target-only module. Do not export
+                        - code [ref=e1819]: "{ server, tui }"
+                        - text: from one module.
+                    - listitem [ref=e1820]:
+                      - paragraph [ref=e1821]: There is no uninstall, list, or update CLI command for external plugins.
+                    - listitem [ref=e1822]:
+                      - paragraph [ref=e1823]:
+                        - text: Local file plugins are configured directly in
+                        - code [ref=e1824]: tui.json
+                        - text: .
+                  - paragraph [ref=e1825]:
+                    - text: When
+                    - code [ref=e1826]: plugin
+                    - text: entries exist in a writable
+                    - code [ref=e1827]: .opencode
+                    - text: dir or
+                    - code [ref=e1828]: OPENCODE_CONFIG_DIR
+                    - text: ", OpenCode installs"
+                    - code [ref=e1829]: "@opencode-ai/plugin"
+                    - text: "into that dir and writes:"
+                  - list [ref=e1830]:
+                    - listitem [ref=e1831]:
+                      - code [ref=e1832]: package.json
+                    - listitem [ref=e1833]:
+                      - code [ref=e1834]: bun.lock
+                    - listitem [ref=e1835]:
+                      - code [ref=e1836]: node_modules/
+                    - listitem [ref=e1837]:
+                      - code [ref=e1838]: .gitignore
+                  - paragraph [ref=e1839]:
+                    - text: That is what makes local config-scoped plugins able to import
+                    - code [ref=e1840]: "@opencode-ai/plugin/tui"
+                    - text: .
+                  - generic [ref=e1841]:
+                    - heading "TUI plugin API" [level=2] [ref=e1842]
+                    - 'link "Permalink: TUI plugin API" [ref=e1843] [cursor=pointer]':
+                      - /url: "#tui-plugin-api"
+                      - img [ref=e1844]
+                  - paragraph [ref=e1846]:
+                    - text: Top-level API groups exposed to
+                    - code [ref=e1847]: tui(api, options, meta)
+                    - text: ":"
+                  - list [ref=e1848]:
+                    - listitem [ref=e1849]:
+                      - code [ref=e1850]: api.app.version
+                    - listitem [ref=e1851]:
+                      - code [ref=e1852]: api.attention.notify(input)
+                    - listitem [ref=e1853]:
+                      - code [ref=e1854]: api.keys.formatSequence(parts)
+                      - text: ","
+                      - code [ref=e1855]: formatBindings(bindings)
+                    - listitem [ref=e1856]:
+                      - code [ref=e1857]: api.keymap
+                    - listitem [ref=e1858]:
+                      - code [ref=e1859]: api.mode.current()
+                      - text: ","
+                      - code [ref=e1860]: api.mode.push(mode)
+                    - listitem [ref=e1861]:
+                      - code [ref=e1862]: api.route.register(routes)
+                      - text: /
+                      - code [ref=e1863]: api.route.navigate(name, params?)
+                      - text: /
+                      - code [ref=e1864]: api.route.current
+                    - listitem [ref=e1865]:
+                      - code [ref=e1866]: api.ui.Dialog
+                      - text: ","
+                      - code [ref=e1867]: DialogAlert
+                      - text: ","
+                      - code [ref=e1868]: DialogConfirm
+                      - text: ","
+                      - code [ref=e1869]: DialogPrompt
+                      - text: ","
+                      - code [ref=e1870]: DialogSelect
+                      - text: ","
+                      - code [ref=e1871]: Slot
+                      - text: ","
+                      - code [ref=e1872]: Prompt
+                      - text: ","
+                      - code [ref=e1873]: ui.toast
+                      - text: ","
+                      - code [ref=e1874]: ui.dialog
+                    - listitem [ref=e1875]:
+                      - code [ref=e1876]: api.tuiConfig
+                    - listitem [ref=e1877]:
+                      - code [ref=e1878]: api.kv.get
+                      - text: ","
+                      - code [ref=e1879]: set
+                      - text: ","
+                      - code [ref=e1880]: ready
+                    - listitem [ref=e1881]:
+                      - code [ref=e1882]: api.state
+                    - listitem [ref=e1883]:
+                      - code [ref=e1884]: api.theme.current
+                      - text: ","
+                      - code [ref=e1885]: selected
+                      - text: ","
+                      - code [ref=e1886]: has
+                      - text: ","
+                      - code [ref=e1887]: set
+                      - text: ","
+                      - code [ref=e1888]: install
+                      - text: ","
+                      - code [ref=e1889]: mode
+                      - text: ","
+                      - code [ref=e1890]: ready
+                    - listitem [ref=e1891]:
+                      - code [ref=e1892]: api.client
+                    - listitem [ref=e1893]:
+                      - code [ref=e1894]: api.event.on(type, handler)
+                    - listitem [ref=e1895]:
+                      - code [ref=e1896]: api.renderer
+                    - listitem [ref=e1897]:
+                      - code [ref=e1898]: api.slots.register(plugin)
+                    - listitem [ref=e1899]:
+                      - code [ref=e1900]: api.plugins.list()
+                      - text: ","
+                      - code [ref=e1901]: activate(id)
+                      - text: ","
+                      - code [ref=e1902]: deactivate(id)
+                      - text: ","
+                      - code [ref=e1903]: add(spec)
+                      - text: ","
+                      - code [ref=e1904]: install(spec, options?)
+                    - listitem [ref=e1905]:
+                      - code [ref=e1906]: api.lifecycle.signal
+                      - text: ","
+                      - code [ref=e1907]: api.lifecycle.onDispose(fn)
+                  - generic [ref=e1908]:
+                    - heading "Keymap" [level=3] [ref=e1909]
+                    - 'link "Permalink: Keymap" [ref=e1910] [cursor=pointer]':
+                      - /url: "#keymap"
+                      - img [ref=e1911]
+                  - list [ref=e1913]:
+                    - listitem [ref=e1914]:
+                      - code [ref=e1915]: api.keymap
+                      - text: exposes the raw
+                      - code [ref=e1916]: Keymap<Renderable, KeyEvent>
+                      - text: instance from the host.
+                    - listitem [ref=e1917]:
+                      - text: The host already installs the default OpenTUI bundle (
+                      - code [ref=e1918]: default keys
+                      - text: ", metadata fields, and enabled fields) plus OpenCode's comma bindings, leader token, base layout fallback, pending-sequence helpers, and managed textarea layer."
+                    - listitem [ref=e1919]:
+                      - text: Register commands with
+                      - code [ref=e1920]: "api.keymap.registerLayer({ commands: [...] })"
+                      - text: .
+                    - listitem [ref=e1921]:
+                      - text: Register key bindings with
+                      - code [ref=e1922]: "bindings: [{ key, cmd, desc }]"
+                      - text: in the same layer or a separate layer.
+                    - listitem [ref=e1923]:
+                      - text: Use
+                      - code [ref=e1924]: api.keymap.acquireResource(...)
+                      - text: for shared plugin addon setup that should ref-count against the host keymap.
+                    - listitem [ref=e1925]:
+                      - text: To surface a command in the host command palette, set
+                      - code [ref=e1926]: "namespace: \"palette\""
+                      - text: and provide metadata such as
+                      - code [ref=e1927]: title
+                      - text: ","
+                      - code [ref=e1928]: category
+                      - text: ","
+                      - code [ref=e1929]: desc
+                      - text: ","
+                      - code [ref=e1930]: suggested
+                      - text: ","
+                      - code [ref=e1931]: hidden
+                      - text: ","
+                      - code [ref=e1932]: enabled
+                      - text: ","
+                      - code [ref=e1933]: slashName
+                      - text: ", and"
+                      - code [ref=e1934]: slashAliases
+                      - text: on the command.
+                    - listitem [ref=e1935]:
+                      - text: Use
+                      - code [ref=e1936]: api.keymap.dispatchCommand(name)
+                      - text: for user-style execution semantics and
+                      - code [ref=e1937]: api.keymap.runCommand(name)
+                      - text: only for forced programmatic execution.
+                    - listitem [ref=e1938]:
+                      - text: Disposers returned by
+                      - code [ref=e1939]: api.keymap
+                      - text: registrations and
+                      - code [ref=e1940]: acquireResource(...)
+                      - text: are automatically cleaned up when the plugin deactivates. You do not need to add those disposers to
+                      - code [ref=e1941]: api.lifecycle.onDispose(...)
+                      - text: yourself.
+                    - listitem [ref=e1942]:
+                      - text: Built-in which-key shortcuts are resolved from flat
+                      - code [ref=e1943]: keybinds
+                      - text: command ids such as
+                      - code [ref=e1944]: which_key_toggle
+                      - text: ", not plugin options."
+                  - generic [ref=e1945]:
+                    - heading "Mode-aware layers" [level=4] [ref=e1946]
+                    - 'link "Permalink: Mode-aware layers" [ref=e1947] [cursor=pointer]':
+                      - /url: "#mode-aware-layers"
+                      - img [ref=e1948]
+                  - paragraph [ref=e1950]:
+                    - text: OpenCode registers a
+                    - code [ref=e1951]: mode
+                    - text: layer field on the host keymap. Plugins can use it to keep bindings active only in the relevant UI state.
+                  - paragraph [ref=e1952]: "Built-in modes:"
+                  - list [ref=e1953]:
+                    - listitem [ref=e1954]:
+                      - code [ref=e1955]: base
+                      - text: ": normal app, route, and prompt interaction."
+                    - listitem [ref=e1956]:
+                      - code [ref=e1957]: modal
+                      - text: ": host dialog stack is open, including dialogs rendered through"
+                      - code [ref=e1958]: api.ui.dialog
+                      - text: and
+                      - code [ref=e1959]: api.ui.Dialog*
+                      - text: components.
+                    - listitem [ref=e1960]:
+                      - code [ref=e1961]: autocomplete
+                      - text: ": host prompt autocomplete is open."
+                    - listitem [ref=e1962]:
+                      - code [ref=e1963]: api.mode.current()
+                      - text: returns the active top mode, or
+                      - code [ref=e1964]: base
+                      - text: when no pushed mode is active.
+                  - paragraph [ref=e1965]: "Example: register a command and shortcut that are active only in normal app mode:"
+                  - generic [ref=e1966]:
+                    - generic [ref=e1967]: "api.keymap.registerLayer({ mode: \"base\", commands: [ { name: \"demo.open\", title: \"Demo\", category: \"Plugin\", namespace: \"palette\", run() { api.route.navigate(\"demo\") }, }, ], bindings: [{ key: \"ctrl+shift+m\", cmd: \"demo.open\", desc: \"Open demo\" }], })"
+                    - button "Copy code to clipboard" [ref=e1969] [cursor=pointer]:
+                      - img [ref=e1970]
+                  - paragraph [ref=e1973]:
+                    - text: Layers without
+                    - code [ref=e1974]: mode
+                    - text: are not mode-gated and can remain active while dialogs or autocomplete are open. Use that only for intentionally global commands or low-level keymap extensions.
+                  - paragraph [ref=e1975]:
+                    - text: Plugins that own a full-screen route or modal-like UI can temporarily push a plugin-specific mode with
+                    - code [ref=e1976]: api.mode.push(...)
+                    - text: . Use a plugin-scoped mode name. The returned disposer pops that specific stack entry and is idempotent, so popping an older mode while a newer mode is on top leaves the newer mode active.
+                  - generic [ref=e1977]:
+                    - generic [ref=e1978]: "import { onCleanup } from \"solid-js\" api.route.register([ { name: \"demo\", render: () => { const popMode = api.mode.push(\"acme.demo\") onCleanup(popMode) return ( <box> <text>demo</text> </box> ) }, }, ]) api.keymap.registerLayer({ mode: \"acme.demo\", bindings: [{ key: \"escape\", cmd: () => api.route.navigate(\"home\"), desc: \"Close demo\" }], })"
+                    - button "Copy code to clipboard" [ref=e1980] [cursor=pointer]:
+                      - img [ref=e1981]
+                  - paragraph [ref=e1984]: Mode pushes are automatically tracked by the plugin runtime. If a plugin is disabled, fails during activation, or the TUI shuts down before the plugin calls the disposer, OpenCode pops the plugin's pushed modes during plugin cleanup. Calling the disposer yourself is still recommended for component lifetimes; cleanup remains idempotent.
+                  - generic [ref=e1985]:
+                    - heading "Keys" [level=3] [ref=e1986]
+                    - 'link "Permalink: Keys" [ref=e1987] [cursor=pointer]':
+                      - /url: "#keys"
+                      - img [ref=e1988]
+                  - list [ref=e1990]:
+                    - listitem [ref=e1991]:
+                      - code [ref=e1992]: api.keys
+                      - text: exposes host-formatted shortcut display helpers for plugin UI.
+                    - listitem [ref=e1993]:
+                      - code [ref=e1994]: formatSequence(parts)
+                      - text: formats parsed key sequence parts using the host's display policy.
+                    - listitem [ref=e1995]:
+                      - code [ref=e1996]: formatBindings(bindings)
+                      - text: formats binding lists and returns
+                      - code [ref=e1997]: undefined
+                      - text: when there is nothing to show.
+                    - listitem [ref=e1998]:
+                      - text: For generic config-to-bindings helpers, import
+                      - code [ref=e1999]: createBindingLookup
+                      - text: from
+                      - code [ref=e2000]: "@opencode-ai/plugin/tui"
+                      - text: .
+                  - generic [ref=e2001]:
+                    - heading "Attention" [level=3] [ref=e2002]
+                    - 'link "Permalink: Attention" [ref=e2003] [cursor=pointer]':
+                      - /url: "#attention"
+                      - img [ref=e2004]
+                  - list [ref=e2006]:
+                    - listitem [ref=e2007]:
+                      - code [ref=e2008]: "api.attention.notify({ title?, message, notification?, sound? })"
+                      - text: requests user attention while keeping terminal focus, notifications, and audio owned by the host.
+                    - listitem [ref=e2009]:
+                      - code [ref=e2010]: message
+                      - text: is required;
+                      - code [ref=e2011]: title
+                      - text: defaults to
+                      - code [ref=e2012]: "\"opencode\""
+                      - text: ;
+                      - code [ref=e2013]: notification
+                      - text: defaults to enabled with
+                      - code [ref=e2014]: "when: \"blurred\""
+                      - text: ;
+                      - code [ref=e2015]: sound
+                      - text: defaults to enabled with
+                      - code [ref=e2016]: "when: \"always\""
+                      - text: .
+                    - listitem [ref=e2017]:
+                      - code [ref=e2018]: "when: \"always\""
+                      - text: requests delivery regardless of terminal focus state.
+                    - listitem [ref=e2019]:
+                      - code [ref=e2020]: "when: \"focused\""
+                      - text: only requests delivery after the terminal is known focused;
+                      - code [ref=e2021]: "when: \"blurred\""
+                      - text: only requests delivery after the terminal is known blurred.
+                    - listitem [ref=e2022]:
+                      - text: "Example:"
+                      - code [ref=e2023]: "notification: { when: \"blurred\" }, sound: { name: \"question\", when: \"always\" }"
+                      - text: plays sound while focused but only triggers system notifications when blurred.
+                    - listitem [ref=e2024]:
+                      - text: Semantic sound names are
+                      - code [ref=e2025]: "\"default\""
+                      - text: ","
+                      - code [ref=e2026]: "\"question\""
+                      - text: ","
+                      - code [ref=e2027]: "\"permission\""
+                      - text: ","
+                      - code [ref=e2028]: "\"error\""
+                      - text: ","
+                      - code [ref=e2029]: "\"done\""
+                      - text: ", and"
+                      - code [ref=e2030]: "\"subagent_done\""
+                      - text: .
+                    - listitem [ref=e2031]:
+                      - code [ref=e2032]: "sound: true"
+                      - text: plays the
+                      - code [ref=e2033]: "\"default\""
+                      - text: sound;
+                      - code [ref=e2034]: "sound: { name: \"question\" }"
+                      - text: plays a named semantic sound.
+                    - listitem [ref=e2035]:
+                      - code [ref=e2036]: "sound: { volume }"
+                      - text: overrides volume for that call;
+                      - code [ref=e2037]: "sound: false"
+                      - text: disables sound for that call;
+                      - code [ref=e2038]: "notification: false"
+                      - text: disables system notification for that call.
+                    - listitem [ref=e2039]:
+                      - code [ref=e2040]: "api.attention.soundboard.registerPack({ id, name?, sounds })"
+                      - text: registers a sound pack and returns a disposer. Relative paths resolve from the plugin root and are cleaned up on plugin deactivation.
+                    - listitem [ref=e2041]:
+                      - code [ref=e2042]: "api.attention.soundboard.activate(id, { persist })"
+                      - text: selects the active pack.
+                      - code [ref=e2043]: "persist: true"
+                      - text: writes the selected pack id to TUI KV state, not
+                      - code [ref=e2044]: tui.json
+                      - text: .
+                    - listitem [ref=e2045]:
+                      - code [ref=e2046]: api.attention.soundboard.current()
+                      - text: and
+                      - code [ref=e2047]: list()
+                      - text: expose the active/registered packs for plugin UX.
+                    - listitem [ref=e2048]:
+                      - text: Config
+                      - code [ref=e2049]: attention.sounds
+                      - text: overrides active-pack sounds by slot. Failed loads fall back to the active pack and then
+                      - code [ref=e2050]: opencode.default
+                      - text: .
+                    - listitem [ref=e2051]: The host strips ANSI/control characters and collapses newlines before sending text to the terminal notification API.
+                    - listitem [ref=e2052]: Terminal and OS settings decide whether a requested notification is visibly displayed.
+                    - listitem [ref=e2053]:
+                      - text: Prefer privacy-safe messages such as
+                      - code [ref=e2054]: "\"A question needs your input\""
+                      - text: ; avoid full commands, paths, prompts, errors, secrets, or file contents unless the plugin intentionally exposes them.
+                  - generic [ref=e2055]:
+                    - heading "Routes" [level=3] [ref=e2056]
+                    - 'link "Permalink: Routes" [ref=e2057] [cursor=pointer]':
+                      - /url: "#routes"
+                      - img [ref=e2058]
+                  - list [ref=e2060]:
+                    - listitem [ref=e2061]:
+                      - text: "Reserved route names:"
+                      - code [ref=e2062]: home
+                      - text: and
+                      - code [ref=e2063]: session
+                      - text: .
+                    - listitem [ref=e2064]: Any other name is treated as a plugin route.
+                    - listitem [ref=e2065]:
+                      - code [ref=e2066]: api.route.current
+                      - text: "returns one of:"
+                      - list [ref=e2067]:
+                        - listitem [ref=e2068]:
+                          - code [ref=e2069]: "{ name: \"home\" }"
+                        - listitem [ref=e2070]:
+                          - code [ref=e2071]: "{ name: \"session\", params: { sessionID, initialPrompt? } }"
+                        - listitem [ref=e2072]:
+                          - code [ref=e2073]: "{ name: string, params?: Record<string, unknown> }"
+                    - listitem [ref=e2074]:
+                      - code [ref=e2075]: api.route.navigate("session", params)
+                      - text: only uses
+                      - code [ref=e2076]: params.sessionID
+                      - text: . It cannot set
+                      - code [ref=e2077]: initialPrompt
+                      - text: .
+                    - listitem [ref=e2078]: If multiple plugins register the same route name, the last registered route wins.
+                    - listitem [ref=e2079]:
+                      - text: Unknown plugin routes render a fallback screen with a
+                      - code [ref=e2080]: go home
+                      - text: action.
+                  - generic [ref=e2081]:
+                    - heading "Dialogs and toast" [level=3] [ref=e2082]
+                    - 'link "Permalink: Dialogs and toast" [ref=e2083] [cursor=pointer]':
+                      - /url: "#dialogs-and-toast"
+                      - img [ref=e2084]
+                  - list [ref=e2086]:
+                    - listitem [ref=e2087]:
+                      - code [ref=e2088]: ui.Dialog
+                      - text: is the base dialog wrapper.
+                    - listitem [ref=e2089]:
+                      - code [ref=e2090]: ui.DialogAlert
+                      - text: ","
+                      - code [ref=e2091]: ui.DialogConfirm
+                      - text: ","
+                      - code [ref=e2092]: ui.DialogPrompt
+                      - text: ","
+                      - code [ref=e2093]: ui.DialogSelect
+                      - text: are built-in dialog components.
+                    - listitem [ref=e2094]:
+                      - code [ref=e2095]: ui.Slot
+                      - text: renders host or plugin-defined slots by name from plugin JSX.
+                    - listitem [ref=e2096]:
+                      - code [ref=e2097]: ui.Prompt
+                      - text: renders the same prompt component used by the host app and accepts
+                      - code [ref=e2098]: sessionID
+                      - text: ","
+                      - code [ref=e2099]: workspaceID
+                      - text: ","
+                      - code [ref=e2100]: ref
+                      - text: ", and"
+                      - code [ref=e2101]: right
+                      - text: for the prompt meta row's right side.
+                    - listitem [ref=e2102]:
+                      - code [ref=e2103]: ui.toast(...)
+                      - text: shows a toast.
+                    - listitem [ref=e2104]:
+                      - code [ref=e2105]: ui.dialog
+                      - text: "exposes the host dialog stack:"
+                      - list [ref=e2106]:
+                        - listitem [ref=e2107]:
+                          - code [ref=e2108]: replace(render, onClose?)
+                        - listitem [ref=e2109]:
+                          - code [ref=e2110]: clear()
+                        - listitem [ref=e2111]:
+                          - code [ref=e2112]: setSize("medium" | "large" | "xlarge")
+                        - listitem [ref=e2113]:
+                          - text: readonly
+                          - code [ref=e2114]: size
+                          - text: ","
+                          - code [ref=e2115]: depth
+                          - text: ","
+                          - code [ref=e2116]: open
+                  - generic [ref=e2117]:
+                    - heading "KV, state, client, events" [level=3] [ref=e2118]
+                    - 'link "Permalink: KV, state, client, events" [ref=e2119] [cursor=pointer]':
+                      - /url: "#kv-state-client-events"
+                      - img [ref=e2120]
+                  - list [ref=e2122]:
+                    - listitem [ref=e2123]:
+                      - code [ref=e2124]: api.kv
+                      - text: is the shared app KV store backed by
+                      - code [ref=e2125]: state/kv.json
+                      - text: . It is not plugin-namespaced.
+                    - listitem [ref=e2126]:
+                      - code [ref=e2127]: api.kv
+                      - text: exposes
+                      - code [ref=e2128]: ready
+                      - text: .
+                    - listitem [ref=e2129]:
+                      - code [ref=e2130]: api.tuiConfig
+                      - text: and
+                      - code [ref=e2131]: api.state
+                      - text: are live host objects/getters, not frozen snapshots.
+                    - listitem [ref=e2132]:
+                      - code [ref=e2133]: api.state
+                      - text: "exposes synced TUI state:"
+                      - list [ref=e2134]:
+                        - listitem [ref=e2135]:
+                          - code [ref=e2136]: ready
+                        - listitem [ref=e2137]:
+                          - code [ref=e2138]: config
+                        - listitem [ref=e2139]:
+                          - code [ref=e2140]: provider
+                        - listitem [ref=e2141]:
+                          - code [ref=e2142]: "path.{state,config,worktree,directory}"
+                        - listitem [ref=e2143]:
+                          - code [ref=e2144]: vcs?.branch
+                        - listitem [ref=e2145]:
+                          - code [ref=e2146]: session.count()
+                        - listitem [ref=e2147]:
+                          - code [ref=e2148]: session.diff(sessionID)
+                        - listitem [ref=e2149]:
+                          - code [ref=e2150]: session.todo(sessionID)
+                        - listitem [ref=e2151]:
+                          - code [ref=e2152]: session.messages(sessionID)
+                        - listitem [ref=e2153]:
+                          - code [ref=e2154]: session.status(sessionID)
+                        - listitem [ref=e2155]:
+                          - code [ref=e2156]: session.permission(sessionID)
+                        - listitem [ref=e2157]:
+                          - code [ref=e2158]: session.question(sessionID)
+                        - listitem [ref=e2159]:
+                          - code [ref=e2160]: part(messageID)
+                        - listitem [ref=e2161]:
+                          - code [ref=e2162]: lsp()
+                        - listitem [ref=e2163]:
+                          - code [ref=e2164]: mcp()
+                    - listitem [ref=e2165]:
+                      - code [ref=e2166]: api.client
+                      - text: always reflects the current runtime client.
+                    - listitem [ref=e2167]:
+                      - code [ref=e2168]: api.event.on(type, handler)
+                      - text: subscribes to the TUI event stream and returns an unsubscribe function.
+                    - listitem [ref=e2169]:
+                      - code [ref=e2170]: api.renderer
+                      - text: exposes the raw
+                      - code [ref=e2171]: CliRenderer
+                      - text: .
+                  - generic [ref=e2172]:
+                    - heading "Theme" [level=3] [ref=e2173]
+                    - 'link "Permalink: Theme" [ref=e2174] [cursor=pointer]':
+                      - /url: "#theme"
+                      - img [ref=e2175]
+                  - list [ref=e2177]:
+                    - listitem [ref=e2178]:
+                      - code [ref=e2179]: api.theme.current
+                      - text: exposes the resolved current theme tokens.
+                    - listitem [ref=e2180]:
+                      - code [ref=e2181]: api.theme.selected
+                      - text: is the selected theme name.
+                    - listitem [ref=e2182]:
+                      - code [ref=e2183]: api.theme.has(name)
+                      - text: checks for an installed theme.
+                    - listitem [ref=e2184]:
+                      - code [ref=e2185]: api.theme.set(name)
+                      - text: switches theme and returns
+                      - code [ref=e2186]: boolean
+                      - text: .
+                    - listitem [ref=e2187]:
+                      - code [ref=e2188]: api.theme.mode()
+                      - text: returns
+                      - code [ref=e2189]: "\"dark\" | \"light\""
+                      - text: .
+                    - listitem [ref=e2190]:
+                      - code [ref=e2191]: api.theme.install(jsonPath)
+                      - text: installs a theme JSON file.
+                    - listitem [ref=e2192]:
+                      - code [ref=e2193]: api.theme.ready
+                      - text: reports theme readiness.
+                  - paragraph [ref=e2194]: "Theme install behavior:"
+                  - list [ref=e2195]:
+                    - listitem [ref=e2196]: Relative theme paths are resolved from the plugin root.
+                    - listitem [ref=e2197]: Theme name is the JSON basename.
+                    - listitem [ref=e2198]:
+                      - code [ref=e2199]: api.theme.install(...)
+                      - text: and
+                      - code [ref=e2200]: oc-themes
+                      - text: auto-sync share the same installer path.
+                    - listitem [ref=e2201]:
+                      - text: Theme copy/write runs under cross-process lock key
+                      - code [ref=e2202]: tui-theme:<dest>
+                      - text: .
+                    - listitem [ref=e2203]: First install writes only when the destination file is missing.
+                    - listitem [ref=e2204]:
+                      - text: If the theme name already exists, install is skipped unless plugin metadata state is
+                      - code [ref=e2205]: updated
+                      - text: .
+                    - listitem [ref=e2206]:
+                      - text: "On"
+                      - code [ref=e2207]: updated
+                      - text: ", host skips rewrite when tracked"
+                      - code [ref=e2208]: mtime
+                      - text: /
+                      - code [ref=e2209]: size
+                      - text: is unchanged.
+                    - listitem [ref=e2210]:
+                      - text: When a theme already exists and state is not
+                      - code [ref=e2211]: updated
+                      - text: ", host can still persist theme metadata when destination already exists."
+                    - listitem [ref=e2212]:
+                      - text: Local plugins persist installed themes under the local
+                      - code [ref=e2213]: .opencode/themes
+                      - text: area near the plugin config source.
+                    - listitem [ref=e2214]:
+                      - text: Global plugins persist installed themes under the global
+                      - code [ref=e2215]: themes
+                      - text: dir.
+                    - listitem [ref=e2216]: Invalid or unreadable theme files are ignored.
+                  - generic [ref=e2217]:
+                    - heading "Slots" [level=3] [ref=e2218]
+                    - 'link "Permalink: Slots" [ref=e2219] [cursor=pointer]':
+                      - /url: "#slots"
+                      - img [ref=e2220]
+                  - paragraph [ref=e2222]: "Current host slot names:"
+                  - list [ref=e2223]:
+                    - listitem [ref=e2224]:
+                      - code [ref=e2225]: app
+                    - listitem [ref=e2226]:
+                      - code [ref=e2227]: app_bottom
+                    - listitem [ref=e2228]:
+                      - code [ref=e2229]: home_logo
+                    - listitem [ref=e2230]:
+                      - code [ref=e2231]: home_prompt
+                      - text: with props
+                      - code [ref=e2232]: "{ workspace_id?, ref? }"
+                    - listitem [ref=e2233]:
+                      - code [ref=e2234]: home_prompt_right
+                      - text: with props
+                      - code [ref=e2235]: "{ workspace_id? }"
+                    - listitem [ref=e2236]:
+                      - code [ref=e2237]: session_prompt
+                      - text: with props
+                      - code [ref=e2238]: "{ session_id, visible?, disabled?, on_submit?, ref? }"
+                    - listitem [ref=e2239]:
+                      - code [ref=e2240]: session_prompt_right
+                      - text: with props
+                      - code [ref=e2241]: "{ session_id }"
+                    - listitem [ref=e2242]:
+                      - code [ref=e2243]: home_bottom
+                    - listitem [ref=e2244]:
+                      - code [ref=e2245]: home_footer
+                    - listitem [ref=e2246]:
+                      - code [ref=e2247]: sidebar_title
+                      - text: with props
+                      - code [ref=e2248]: "{ session_id, title, share_url? }"
+                    - listitem [ref=e2249]:
+                      - code [ref=e2250]: sidebar_content
+                      - text: with props
+                      - code [ref=e2251]: "{ session_id }"
+                    - listitem [ref=e2252]:
+                      - code [ref=e2253]: sidebar_footer
+                      - text: with props
+                      - code [ref=e2254]: "{ session_id }"
+                  - paragraph [ref=e2255]: "Slot notes:"
+                  - list [ref=e2256]:
+                    - listitem [ref=e2257]:
+                      - text: Slot context currently exposes only
+                      - code [ref=e2258]: theme
+                      - text: .
+                    - listitem [ref=e2259]:
+                      - code [ref=e2260]: api.slots.register(plugin)
+                      - text: returns the host-assigned slot plugin id.
+                    - listitem [ref=e2261]:
+                      - code [ref=e2262]: api.slots.register(plugin)
+                      - text: does not return an unregister function.
+                    - listitem [ref=e2263]:
+                      - text: Returned ids are
+                      - code [ref=e2264]: pluginId
+                      - text: ","
+                      - code [ref=e2265]: pluginId:1
+                      - text: ","
+                      - code [ref=e2266]: pluginId:2
+                      - text: ", and so on."
+                    - listitem [ref=e2267]:
+                      - text: Plugin-provided
+                      - code [ref=e2268]: id
+                      - text: is not allowed.
+                    - listitem [ref=e2269]:
+                      - text: The current host renders
+                      - code [ref=e2270]: home_logo
+                      - text: ","
+                      - code [ref=e2271]: home_prompt
+                      - text: ", and"
+                      - code [ref=e2272]: session_prompt
+                      - text: with
+                      - code [ref=e2273]: replace
+                      - text: ","
+                      - code [ref=e2274]: home_footer
+                      - text: ","
+                      - code [ref=e2275]: sidebar_title
+                      - text: ", and"
+                      - code [ref=e2276]: sidebar_footer
+                      - text: with
+                      - code [ref=e2277]: single_winner
+                      - text: ", and"
+                      - code [ref=e2278]: app
+                      - text: ","
+                      - code [ref=e2279]: app_bottom
+                      - text: ","
+                      - code [ref=e2280]: home_prompt_right
+                      - text: ","
+                      - code [ref=e2281]: session_prompt_right
+                      - text: ","
+                      - code [ref=e2282]: home_bottom
+                      - text: ", and"
+                      - code [ref=e2283]: sidebar_content
+                      - text: with the slot library default mode.
+                    - listitem [ref=e2284]:
+                      - code [ref=e2285]: app_bottom
+                      - text: is rendered in normal layout flow below the active route, while
+                      - code [ref=e2286]: app
+                      - text: is rendered afterward for global app-level UI.
+                    - listitem [ref=e2287]:
+                      - text: Plugins can define custom slot names in
+                      - code [ref=e2288]: api.slots.register(...)
+                      - text: and render them from plugin UI with
+                      - code [ref=e2289]: ui.Slot
+                      - text: .
+                  - generic [ref=e2290]:
+                    - heading "Plugin control and lifecycle" [level=3] [ref=e2291]
+                    - 'link "Permalink: Plugin control and lifecycle" [ref=e2292] [cursor=pointer]':
+                      - /url: "#plugin-control-and-lifecycle"
+                      - img [ref=e2293]
+                  - list [ref=e2295]:
+                    - listitem [ref=e2296]:
+                      - code [ref=e2297]: api.plugins.list()
+                      - text: returns
+                      - code [ref=e2298]: "{ id, source, spec, target, enabled, active }[]"
+                      - text: .
+                    - listitem [ref=e2299]:
+                      - code [ref=e2300]: enabled
+                      - text: is the persisted desired state.
+                      - code [ref=e2301]: active
+                      - text: means the plugin is currently initialized.
+                    - listitem [ref=e2302]:
+                      - code [ref=e2303]: api.plugins.activate(id)
+                      - text: sets
+                      - code [ref=e2304]: enabled=true
+                      - text: ", persists it into KV, and initializes the plugin."
+                    - listitem [ref=e2305]:
+                      - code [ref=e2306]: api.plugins.deactivate(id)
+                      - text: sets
+                      - code [ref=e2307]: enabled=false
+                      - text: ", persists it into KV, and disposes the plugin scope."
+                    - listitem [ref=e2308]:
+                      - code [ref=e2309]: api.plugins.add(spec)
+                      - text: trims the input and returns
+                      - code [ref=e2310]: "false"
+                      - text: for an empty string.
+                    - listitem [ref=e2311]:
+                      - code [ref=e2312]: api.plugins.add(spec)
+                      - text: treats the input as the runtime plugin spec and loads it without re-reading
+                      - code [ref=e2313]: tui.json
+                      - text: .
+                    - listitem [ref=e2314]:
+                      - code [ref=e2315]: api.plugins.add(spec)
+                      - text: no-ops when that resolved spec (or resolved plugin id) is already loaded.
+                    - listitem [ref=e2316]:
+                      - code [ref=e2317]: api.plugins.add(spec)
+                      - text: assumes enabled and always attempts initialization (it does not consult config/KV enable state).
+                    - listitem [ref=e2318]:
+                      - code [ref=e2319]: api.plugins.add(spec)
+                      - text: can load theme-only packages (
+                      - code [ref=e2320]: oc-themes
+                      - text: with no
+                      - code [ref=e2321]: ./tui
+                      - text: ) as runtime entries.
+                    - listitem [ref=e2322]:
+                      - code [ref=e2323]: "api.plugins.install(spec, { global? })"
+                      - text: runs install -> manifest read -> config patch using the same helper flow as CLI install.
+                    - listitem [ref=e2324]:
+                      - code [ref=e2325]: api.plugins.install(...)
+                      - text: returns either
+                      - code [ref=e2326]: "{ ok: false, message, missing? }"
+                      - text: or
+                      - code [ref=e2327]: "{ ok: true, dir, tui }"
+                      - text: .
+                    - listitem [ref=e2328]:
+                      - code [ref=e2329]: api.plugins.install(...)
+                      - text: does not load plugins into the current session. Call
+                      - code [ref=e2330]: api.plugins.add(spec)
+                      - text: to load after install.
+                    - listitem [ref=e2331]:
+                      - text: If activation fails, the plugin can remain
+                      - code [ref=e2332]: enabled=true
+                      - text: and
+                      - code [ref=e2333]: active=false
+                      - text: .
+                    - listitem [ref=e2334]:
+                      - code [ref=e2335]: api.lifecycle.signal
+                      - text: is aborted before cleanup runs.
+                    - listitem [ref=e2336]:
+                      - code [ref=e2337]: api.lifecycle.onDispose(fn)
+                      - text: registers cleanup and returns an unregister function.
+                  - generic [ref=e2338]:
+                    - heading "Plugin metadata" [level=2] [ref=e2339]
+                    - 'link "Permalink: Plugin metadata" [ref=e2340] [cursor=pointer]':
+                      - /url: "#plugin-metadata"
+                      - img [ref=e2341]
+                  - paragraph [ref=e2343]:
+                    - code [ref=e2344]: meta
+                    - text: passed to
+                    - code [ref=e2345]: tui(api, options, meta)
+                    - text: "contains:"
+                  - list [ref=e2346]:
+                    - listitem [ref=e2347]:
+                      - code [ref=e2348]: state
+                      - text: ":"
+                      - code [ref=e2349]: first | updated | same
+                    - listitem [ref=e2350]:
+                      - code [ref=e2351]: id
+                      - text: ","
+                      - code [ref=e2352]: source
+                      - text: ","
+                      - code [ref=e2353]: spec
+                      - text: ","
+                      - code [ref=e2354]: target
+                    - listitem [ref=e2355]:
+                      - text: "npm-only fields when available:"
+                      - code [ref=e2356]: requested
+                      - text: ","
+                      - code [ref=e2357]: version
+                    - listitem [ref=e2358]:
+                      - text: "file-only field when available:"
+                      - code [ref=e2359]: modified
+                    - listitem [ref=e2360]:
+                      - code [ref=e2361]: first_time
+                      - text: ","
+                      - code [ref=e2362]: last_time
+                      - text: ","
+                      - code [ref=e2363]: time_changed
+                      - text: ","
+                      - code [ref=e2364]: load_count
+                      - text: ","
+                      - code [ref=e2365]: fingerprint
+                  - paragraph [ref=e2366]: Metadata is persisted by plugin id.
+                  - list [ref=e2367]:
+                    - listitem [ref=e2368]:
+                      - text: File plugin fingerprint is
+                      - code [ref=e2369]: target|modified
+                      - text: .
+                    - listitem [ref=e2370]:
+                      - text: npm plugin fingerprint is
+                      - code [ref=e2371]: target|requested|version
+                      - text: .
+                    - listitem [ref=e2372]:
+                      - text: Internal plugins get synthetic metadata with
+                      - code [ref=e2373]: "state: \"same\""
+                      - text: .
+                  - generic [ref=e2374]:
+                    - heading "Runtime behavior" [level=2] [ref=e2375]
+                    - 'link "Permalink: Runtime behavior" [ref=e2376] [cursor=pointer]':
+                      - /url: "#runtime-behavior"
+                      - img [ref=e2377]
+                  - list [ref=e2379]:
+                    - listitem [ref=e2380]: Internal TUI plugins load first.
+                    - listitem [ref=e2381]:
+                      - text: External TUI plugins load from
+                      - code [ref=e2382]: tuiConfig.plugin
+                      - text: .
+                    - listitem [ref=e2383]:
+                      - code [ref=e2384]: "--pure"
+                      - text: /
+                      - code [ref=e2385]: OPENCODE_PURE
+                      - text: skips external TUI plugins only.
+                    - listitem [ref=e2386]: External plugin resolution and import are parallel.
+                    - listitem [ref=e2387]:
+                      - text: Packages with no
+                      - code [ref=e2388]: ./tui
+                      - text: entrypoint and valid
+                      - code [ref=e2389]: oc-themes
+                      - text: are loaded as synthetic no-op TUI plugin modules.
+                    - listitem [ref=e2390]:
+                      - text: Theme-only packages loaded this way appear in
+                      - code [ref=e2391]: api.plugins.list()
+                      - text: and plugin manager rows like other external plugins.
+                    - listitem [ref=e2392]:
+                      - text: Packages with no
+                      - code [ref=e2393]: ./tui
+                      - text: entrypoint and no valid
+                      - code [ref=e2394]: oc-themes
+                      - text: are skipped with warning.
+                    - listitem [ref=e2395]: External plugin activation is sequential to keep command, route, and side-effect order deterministic.
+                    - listitem [ref=e2396]:
+                      - text: Theme auto-sync from
+                      - code [ref=e2397]: oc-themes
+                      - text: runs before plugin
+                      - code [ref=e2398]: tui(...)
+                      - text: execution and only on metadata state
+                      - code [ref=e2399]: first
+                      - text: or
+                      - code [ref=e2400]: updated
+                      - text: .
+                    - listitem [ref=e2401]: File plugins that fail initially are retried once after waiting for config dependency installation.
+                    - listitem [ref=e2402]: Runtime add uses the same external loader path, including the file-plugin retry after dependency wait.
+                    - listitem [ref=e2403]:
+                      - text: Runtime add skips duplicates by resolved spec and returns
+                      - code [ref=e2404]: "true"
+                      - text: when the spec is already loaded.
+                    - listitem [ref=e2405]: Runtime install and runtime add are separate operations.
+                    - listitem [ref=e2406]: Plugin init failure rolls back that plugin's tracked registrations and loading continues.
+                    - listitem [ref=e2407]:
+                      - text: "TUI runtime tracks and disposes:"
+                      - list [ref=e2408]:
+                        - listitem [ref=e2409]: command registrations
+                        - listitem [ref=e2410]: route registrations
+                        - listitem [ref=e2411]: event subscriptions
+                        - listitem [ref=e2412]: slot registrations
+                        - listitem [ref=e2413]:
+                          - text: explicit
+                          - code [ref=e2414]: lifecycle.onDispose(...)
+                          - text: handlers
+                    - listitem [ref=e2415]: Cleanup runs in reverse order.
+                    - listitem [ref=e2416]: Cleanup is awaited.
+                    - listitem [ref=e2417]: Total cleanup budget per plugin is 5 seconds; timeout/error is logged and shutdown continues.
+                  - generic [ref=e2418]:
+                    - heading "Built-in plugins" [level=2] [ref=e2419]
+                    - 'link "Permalink: Built-in plugins" [ref=e2420] [cursor=pointer]':
+                      - /url: "#built-in-plugins"
+                      - img [ref=e2421]
+                  - list [ref=e2423]:
+                    - listitem [ref=e2424]:
+                      - code [ref=e2425]: internal:home-tips
+                    - listitem [ref=e2426]:
+                      - code [ref=e2427]: internal:sidebar-context
+                    - listitem [ref=e2428]:
+                      - code [ref=e2429]: internal:sidebar-mcp
+                    - listitem [ref=e2430]:
+                      - code [ref=e2431]: internal:sidebar-lsp
+                    - listitem [ref=e2432]:
+                      - code [ref=e2433]: internal:sidebar-todo
+                    - listitem [ref=e2434]:
+                      - code [ref=e2435]: internal:sidebar-files
+                    - listitem [ref=e2436]:
+                      - code [ref=e2437]: internal:sidebar-footer
+                    - listitem [ref=e2438]:
+                      - code [ref=e2439]: internal:plugin-manager
+                  - paragraph [ref=e2440]:
+                    - text: "Sidebar content order is currently: context"
+                    - code [ref=e2441]: "100"
+                    - text: ", mcp"
+                    - code [ref=e2442]: "200"
+                    - text: ", lsp"
+                    - code [ref=e2443]: "300"
+                    - text: ", todo"
+                    - code [ref=e2444]: "400"
+                    - text: ", files"
+                    - code [ref=e2445]: "500"
+                    - text: .
+                  - paragraph [ref=e2446]:
+                    - text: The plugin manager is exposed as a command with title
+                    - code [ref=e2447]: Plugins
+                    - text: and value
+                    - code [ref=e2448]: plugins.list
+                    - text: .
+                  - list [ref=e2449]:
+                    - listitem [ref=e2450]:
+                      - text: Keybind name is
+                      - code [ref=e2451]: plugin_manager
+                      - text: .
+                    - listitem [ref=e2452]:
+                      - text: Default keybind is
+                      - code [ref=e2453]: none
+                      - text: .
+                    - listitem [ref=e2454]: It lists both internal and external plugins.
+                    - listitem [ref=e2455]:
+                      - text: It toggles based on
+                      - code [ref=e2456]: active
+                      - text: .
+                    - listitem [ref=e2457]: Its own row is disabled only inside the manager dialog.
+                    - listitem [ref=e2458]:
+                      - text: It also exposes command
+                      - code [ref=e2459]: plugins.install
+                      - text: with title
+                      - code [ref=e2460]: Install plugin
+                      - text: .
+                    - listitem [ref=e2461]:
+                      - text: Inside the Plugins dialog, key
+                      - code [ref=e2462]: shift+i
+                      - text: opens the install prompt.
+                    - listitem [ref=e2463]: Install prompt asks for npm package name.
+                    - listitem [ref=e2464]:
+                      - text: Scope defaults to local, and
+                      - code [ref=e2465]: tab
+                      - text: toggles local/global.
+                    - listitem [ref=e2466]:
+                      - text: Install is blocked until
+                      - code [ref=e2467]: api.state.path.directory
+                      - text: is available; current guard message is
+                      - code [ref=e2468]: Paths are still syncing. Try again in a moment.
+                      - text: .
+                    - listitem [ref=e2469]:
+                      - text: Manager install uses
+                      - code [ref=e2470]: "api.plugins.install(spec, { global })"
+                      - text: .
+                    - listitem [ref=e2471]:
+                      - text: If the installed package has no
+                      - code [ref=e2472]: tui
+                      - text: target (
+                      - code [ref=e2473]: tui=false
+                      - text: ), manager reports that and does not expect a runtime load.
+                    - listitem [ref=e2474]:
+                      - code [ref=e2475]: tui
+                      - text: target detection includes
+                      - code [ref=e2476]: exports["./tui"]
+                      - text: and valid
+                      - code [ref=e2477]: oc-themes
+                      - text: .
+                    - listitem [ref=e2478]:
+                      - text: If install reports
+                      - code [ref=e2479]: tui=true
+                      - text: ", manager then calls"
+                      - code [ref=e2480]: api.plugins.add(spec)
+                      - text: .
+                    - listitem [ref=e2481]: If runtime add fails, TUI shows a warning and restart remains the fallback.
+                  - generic [ref=e2482]:
+                    - heading "Current in-repo examples" [level=2] [ref=e2483]
+                    - 'link "Permalink: Current in-repo examples" [ref=e2484] [cursor=pointer]':
+                      - /url: "#current-in-repo-examples"
+                      - img [ref=e2485]
+                  - list [ref=e2487]:
+                    - listitem [ref=e2488]:
+                      - text: "Local smoke plugin:"
+                      - code [ref=e2489]: .opencode/plugins/tui-smoke.tsx
+                    - listitem [ref=e2490]:
+                      - text: "Local vim plugin:"
+                      - code [ref=e2491]: .opencode/plugins/tui-vim.tsx
+                    - listitem [ref=e2492]:
+                      - text: "Local smoke config:"
+                      - code [ref=e2493]: .opencode/tui.json
+                    - listitem [ref=e2494]:
+                      - text: "Local smoke theme:"
+                      - code [ref=e2495]: .opencode/plugins/smoke-theme.json
+  - alert [ref=e2499]
