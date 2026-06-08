@@ -1,4 +1,4 @@
-# OpenCode Nifty Orchestrator
+# Cave Meister Orchestrator
 
 AI work orchestration for Nifty, built first as an OpenCode plugin and also exposed as a universal MCP server.
 
