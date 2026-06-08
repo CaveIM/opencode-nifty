@@ -60489,6 +60489,54 @@ var require_picomatch2 = __commonJS((exports, module) => {
   module.exports = picomatch;
 });
 
+// src/hooks/auto-update-checker/checker/github-version.ts
+var exports_github_version = {};
+__export(exports_github_version, {
+  getGitHubRawVersion: () => getGitHubRawVersion,
+  getGitHubLatestCommit: () => getGitHubLatestCommit
+});
+async function getGitHubLatestCommit() {
+  const controller = new AbortController;
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT);
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO2}/commits/${GITHUB_BRANCH2}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "cave-meister-update-checker"
+      }
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    return data.sha ?? null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+async function getGitHubRawVersion() {
+  const controller = new AbortController;
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT);
+  try {
+    const response = await fetch(`https://raw.githubusercontent.com/${GITHUB_REPO2}/${GITHUB_BRANCH2}/VERSION`, {
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const text = await response.text();
+    return text.trim() || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+var GITHUB_API_TIMEOUT = 5000, GITHUB_REPO2 = "CaveIM/opencode-nifty", GITHUB_BRANCH2 = "dev-tony";
+
 // src/features/team-mode/team-session-registry.ts
 function registerTeamSession(sessionId, entry) {
   registry.set(sessionId, entry);
@@ -78773,6 +78821,10 @@ var PACKAGE_NAME = PUBLISHED_PACKAGE_NAME;
 var ACCEPTED_PACKAGE_NAMES2 = ACCEPTED_PACKAGE_NAMES;
 var NPM_REGISTRY_URL = `https://registry.npmjs.org/-/package/${PACKAGE_NAME}/dist-tags`;
 var NPM_FETCH_TIMEOUT = 5000;
+var GITHUB_REPO = "CaveIM/opencode-nifty";
+var GITHUB_BRANCH = "dev-tony";
+var GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/commits/${GITHUB_BRANCH}`;
+var GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/VERSION`;
 var CACHE_ROOT_DIR = getOpenCodeCacheDir();
 var CACHE_DIR = path8.join(CACHE_ROOT_DIR, "packages");
 var VERSION_FILE = path8.join(CACHE_ROOT_DIR, "version");
@@ -79027,7 +79079,6 @@ async function getLatestVersion(channel = "latest") {
 }
 // src/hooks/auto-update-checker/checker/check-for-update.ts
 init_logger();
-init_opencode_version();
 
 // src/hooks/auto-update-checker/version-channel.ts
 function isPrereleaseVersion(version) {
@@ -79742,16 +79793,25 @@ function createBackgroundUpdateCheckRunner(overrides2 = {}) {
       return;
     }
     const channel = deps.extractChannel(pluginInfo.pinnedVersion ?? currentVersion);
-    const latestVersion = await deps.getLatestVersion(channel);
+    let latestVersion = await deps.getLatestVersion(channel);
+    let updateSource = "npm";
     if (!latestVersion) {
-      deps.log("[auto-update-checker] Failed to fetch latest version for channel:", channel);
+      deps.log("[auto-update-checker] NPM registry unavailable, checking GitHub...");
+      const { getGitHubRawVersion: getGitHubRawVersion2 } = await Promise.resolve().then(() => exports_github_version);
+      latestVersion = await getGitHubRawVersion2();
+      if (latestVersion) {
+        updateSource = "github";
+      }
+    }
+    if (!latestVersion) {
+      deps.log("[auto-update-checker] Failed to fetch latest version from npm and github");
       return;
     }
     if (currentVersion === latestVersion) {
-      deps.log("[auto-update-checker] Already on latest version for channel:", channel);
+      deps.log(`[auto-update-checker] Already on latest version (${updateSource}): ${currentVersion}`);
       return;
     }
-    deps.log(`[auto-update-checker] Update available (${channel}): ${currentVersion} \u2192 ${latestVersion}`);
+    deps.log(`[auto-update-checker] Update available (${updateSource}): ${currentVersion} \u2192 ${latestVersion}`);
     if (!autoUpdate) {
       await deps.showUpdateAvailableToast(ctx, latestVersion, getToastMessage);
       deps.log("[auto-update-checker] Auto-update disabled, notification only");
@@ -79760,6 +79820,13 @@ function createBackgroundUpdateCheckRunner(overrides2 = {}) {
     if (pluginInfo.isPinned) {
       await deps.showUpdateAvailableToast(ctx, latestVersion, () => getPinnedVersionToastMessage(latestVersion));
       deps.log(`[auto-update-checker] User-pinned version detected (${pluginInfo.entry}), skipping auto-update. Notification only.`);
+      return;
+    }
+    if (updateSource === "github") {
+      const githubToastMessage = (_isUpdate, _latestVersion) => `Cave Meister update available: ${latestVersion}
+Run: curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/${GITHUB_BRANCH}/scripts/install.sh | bash`;
+      await deps.showUpdateAvailableToast(ctx, latestVersion, githubToastMessage);
+      deps.log(`[auto-update-checker] GitHub raw install detected; manual update required`);
       return;
     }
     const moduleWorkspace = deps.getModuleHostingWorkspace();
