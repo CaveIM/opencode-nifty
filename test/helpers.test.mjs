@@ -6,7 +6,8 @@ import { NiftyPlugin } from "../plugin/nifty.js"
 const { __test } = NiftyPlugin
 
 test("exports OpenCode plugin and shared validators", () => {
-  assert.deepEqual(Object.keys(pluginModule), ["NiftyPlugin", "validateNiftyTaskCommentTemplate"])
+  assert.deepEqual(Object.keys(pluginModule), ["NiftyPlugin"])
+  assert.equal(typeof __test.validateNiftyTaskCommentTemplate, "function")
 })
 
 test("normalizes user-facing names for matching", () => {
@@ -144,7 +145,7 @@ test("detects mistaken Nifty shell health commands", () => {
 
 test("rejects dirty-only autonomous MCP task comments", () => {
   assert.throws(
-    () => pluginModule.validateNiftyTaskCommentTemplate({
+    () => __test.validateNiftyTaskCommentTemplate({
       task_id: "MBC-462",
       text: [
         "## What was done",
@@ -167,7 +168,7 @@ test("rejects dirty-only autonomous MCP task comments", () => {
 
 test("task comments require TDD and visual proof when code files changed", () => {
   assert.throws(
-    () => pluginModule.validateNiftyTaskCommentTemplate({
+    () => __test.validateNiftyTaskCommentTemplate({
       task_id: "MBC-462",
       changed_files: ["plugin/nifty.js"],
       text: [
@@ -184,7 +185,7 @@ test("task comments require TDD and visual proof when code files changed", () =>
     /TDD.*RED.*GREEN.*visual regression proof/i,
   )
 
-  assert.doesNotThrow(() => pluginModule.validateNiftyTaskCommentTemplate({
+  assert.doesNotThrow(() => __test.validateNiftyTaskCommentTemplate({
     task_id: "MBC-462",
     changed_files: ["README.md"],
     text: [
@@ -199,7 +200,7 @@ test("task comments require TDD and visual proof when code files changed", () =>
     ].join("\n"),
   }))
 
-  assert.doesNotThrow(() => pluginModule.validateNiftyTaskCommentTemplate({
+  assert.doesNotThrow(() => __test.validateNiftyTaskCommentTemplate({
     task_id: "MBC-462",
     changed_files: ["plugin/nifty.js"],
     text: [

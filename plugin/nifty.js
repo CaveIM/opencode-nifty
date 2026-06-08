@@ -2193,7 +2193,7 @@ function assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_
   )
 }
 
-export function validateNiftyTaskCommentTemplate({ task_id, text, changed_files, context, skip_code_change_evidence = false } = {}) {
+function validateNiftyTaskCommentTemplate({ task_id, text, changed_files, context, skip_code_change_evidence = false } = {}) {
   if (typeof task_id !== "string" || !task_id.trim()) return
 
   if (isDirtyOnlyAutonomousMcpProgressComment(text)) {

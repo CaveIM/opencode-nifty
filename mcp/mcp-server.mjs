@@ -9,10 +9,11 @@ import { cwd } from "node:process"
 import * as z from "zod"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { NiftyPlugin, validateNiftyTaskCommentTemplate } from "../plugin/nifty.js"
+import { NiftyPlugin } from "../plugin/nifty.js"
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
+const { validateNiftyTaskCommentTemplate } = NiftyPlugin.__test
 
 const _pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"))
 const DEFAULT_SERVER_NAME = "nifty"
