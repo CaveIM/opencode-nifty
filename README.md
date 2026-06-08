@@ -10,7 +10,7 @@ This is not just a raw Nifty API wrapper. The runtime layers are:
 2. **Orchestrator** - deterministic policy, bootstrap, lifecycle, subtask, evidence, and automation gates.
 3. **Nifty tools** - authenticated operations against Nifty projects, tasks, docs, milestones, comments, statuses, labels, and workflows.
 
-The source of truth for the OpenCode plugin is `plugin/nifty.js`. The same `nifty_*` tools are adapted to MCP by `mcp/mcp-server.mjs`.
+The OpenCode entrypoint is the generated Cave Meister bundle at `dist/index.js`. The full-spec Nifty feature source is `plugin/nifty.js`; it is bundled into the OpenCode entrypoint and adapted to MCP by `mcp/mcp-server.mjs`.
 
 ## What This Plugin Does
 
@@ -50,7 +50,8 @@ Important boundaries:
 
 ## Repo Layout
 
-- `plugin/nifty.js` - OpenCode plugin, tool catalog, policy wrapper, lifecycle orchestration, Nifty API integration.
+- `dist/index.js` - Cave Meister OpenCode plugin bundle: orchestrator, agents, hooks, skills, MCP config, and the full-spec Nifty feature.
+- `plugin/nifty.js` - Full-spec Nifty feature source, tool catalog, policy wrapper, lifecycle orchestration, Nifty API integration.
 - `plugin/rag.mjs` - RAG query fanout, LanceDB table cache, bounded result shaping, diagnostics.
 - `mcp/mcp-server.mjs` - MCP stdio server exposing every `nifty_*` tool from the plugin.
 - `policy/nifty-ai-policy.json` - default deterministic AI policy and reporting standards.
@@ -75,13 +76,15 @@ Use this while the team build lives on the `dev-tony` branch.
 curl -fsSL https://raw.githubusercontent.com/CaveIM/opencode-nifty/dev-tony/scripts/install.sh | bash
 ```
 
-That command is intentionally pinned to `dev-tony`: the `dev-tony` branch installer defaults to `NIFTY_INSTALL_REF=dev-tony`, so it downloads `plugin/nifty.js` from the same branch even when run through `curl | bash`.
+That command is intentionally pinned to `dev-tony`: the `dev-tony` branch installer defaults to `CAVE_MEISTER_INSTALL_REF=dev-tony`, so it downloads the full Cave Meister payload from the same branch even when run through `curl | bash`.
 
 The installer:
 
-- installs `plugin/nifty.js` to `~/.config/opencode/plugins/nifty.js` by default,
-- registers `./plugins/nifty.js` in `~/.config/opencode/opencode.json` or `opencode.jsonc`,
-- ensures `@opencode-ai/plugin` is installed in the OpenCode config directory,
+- installs the Cave Meister bundle to `~/.config/opencode/plugins/cave-meister.js` by default,
+- registers `./plugins/cave-meister.js` in `~/.config/opencode/opencode.json` or `opencode.jsonc`,
+- removes the legacy thin `./plugins/nifty.js` entry when present,
+- installs shared skills, local MCP package dist files, and full-spec support files under the OpenCode config directory,
+- ensures `@opencode-ai/plugin`, `@modelcontextprotocol/sdk`, `zod`, and optional LanceDB support are installed in the OpenCode config directory,
 - writes OpenCode guidance into `~/.config/opencode/AGENTS.md`,
 - installs slash commands `/nifty-auth`, `/nifty-health`, `/nifty-update`, and `/nifty-setup`,
 - creates a non-overwriting `.nifty.env` template in the directory where you run the installer.

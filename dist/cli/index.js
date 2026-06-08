@@ -62109,7 +62109,7 @@ var {
 // package.json
 var package_default = {
   name: "cave-meister",
-  version: "5.0.0",
+  version: "0.0.1",
   description: "Cave IM AI governance app that stores company rules, project docs, tasks, and agent instructions.",
   main: "./dist/index.js",
   types: "dist/index.d.ts",

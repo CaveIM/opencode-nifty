@@ -19,7 +19,7 @@ Additionally provide automatic context hydration so coding agents get full task 
 
 Included:
 
-- Full export of all Cave Meister Orchestrator tools (`NiftyPlugin().tool`) through MCP.
+- Full export of all Cave Meister Nifty tools (`NiftyPlugin().tool`) through MCP.
 - Runtime argument validation using the existing Zod schemas from each tool.
 - JSON Schema generation for all tool inputs for MCP discovery.
 - Client-agnostic execution context adapter (`directory`, `worktree`, `metadata`, `abort`).
@@ -29,7 +29,7 @@ Included:
 
 Out of scope:
 
-- Rewriting existing `plugin/nifty.js` business logic.
+- Rewriting existing `plugin/nifty.js` Nifty feature logic.
 - Altering Nifty API behavior.
 
 ## 3. Architecture
@@ -37,7 +37,8 @@ Out of scope:
 ### 3.1 Components
 
 1. `plugin/nifty.js`
-   - Source of truth for all Nifty tool implementations.
+   - Source of truth for the Nifty feature and all `nifty_*` tool implementations.
+   - Bundled into the Cave Meister OpenCode entrypoint at `dist/index.js`.
 
 2. `mcp/mcp-server.mjs`
    - MCP transport and tool adapter layer.
@@ -151,6 +152,6 @@ See README for per-client config blocks. All use the same server entry:
 
 ## 10. Backward Compatibility
 
-- OpenCode plugin behavior and APIs are unchanged.
+- Cave Meister OpenCode plugin behavior and APIs are unchanged.
 - MCP integration is additive and can be removed independently.
 - Exported function aliases (`createCopilotExecutionContext` etc.) ensure no breakage for existing consumers.
