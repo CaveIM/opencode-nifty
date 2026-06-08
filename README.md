@@ -259,6 +259,30 @@ Important RAG variables:
 
 Run `nifty_health_check` to inspect RAG readiness, table availability, cache state, and runtime limits.
 
+## Global RAG Skills
+
+The Cave Meister RAG brain can also index global OpenCode skills for automatic context retrieval. These skills provide standardized patterns for:
+
+- **centralized-logging** - Production-grade structured JSON logging with redaction and correlation IDs
+- **docker-first-local-env** - Docker/Compose as the primary local dev/test environment
+- **evidence-learning** - Evidence-backed learning memory across sessions and projects
+- **context-anchor** - Context anchoring for reliable agent behavior
+- **diagnose** - Systematic debugging methodology
+- **triage** - Issue triage and classification workflows
+- **verified-architecture-planning** - Architecture planning with verification gates
+
+Index these skills into the RAG brain:
+
+```bash
+node scripts/index-global-skills.mjs
+```
+
+This reads SKILL.md files from `~/.config/opencode/skills/` and indexes them into the `cave-meister-global-skills` table in the RAG brain. Once indexed, agents automatically retrieve relevant skill context when queries match skill domains.
+
+Requirements:
+- `CAVE_MEISTER_PROJECT_BRAIN_TOKEN` environment variable set
+- Skills installed in `~/.config/opencode/skills/` (standard OpenCode skill location)
+
 ## Orchestrator And Policy Layer
 
 Every `nifty_*` tool is wrapped by `withLifecyclePolicy()` in `plugin/nifty.js`.
