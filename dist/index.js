@@ -63054,7 +63054,7 @@ var require_code2 = __commonJS((exports) => {
     return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
   }
   exports.schemaProperties = schemaProperties;
-  function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context2, passSchema) {
+  function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
     const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
     const valCxt = [
       [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
@@ -63065,7 +63065,7 @@ var require_code2 = __commonJS((exports) => {
     if (it.opts.dynamicRef)
       valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
     const args = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-    return context2 !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context2}, ${args})` : (0, codegen_1._)`${func}(${args})`;
+    return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args})` : (0, codegen_1._)`${func}(${args})`;
   }
   exports.callValidateCode = callValidateCode;
   var newRegExp = (0, codegen_1._)`new RegExp`;
@@ -68835,468 +68835,6 @@ var init_delete_team = __esm(() => {
     "idle"
   ]);
   FORCE_BYPASS_DELETING_STATUSES = new Set(["creating", "orphaned"]);
-});
-
-// src/tools/nifty/rag.mjs
-var exports_rag = {};
-__export(exports_rag, {
-  searchIndex: () => searchIndex,
-  ragDiagnostics: () => ragDiagnostics,
-  ragContextForTool: () => ragContextForTool,
-  ragCacheStats: () => ragCacheStats,
-  openIndex: () => openIndex,
-  normalizeSearchResults: () => normalizeSearchResults,
-  clearRagTableCache: () => clearRagTableCache,
-  buildRagQuery: () => buildRagQuery,
-  buildRagQueries: () => buildRagQueries
-});
-import { homedir as homedir24 } from "os";
-import { join as join112 } from "path";
-function resolveIndexPath(env = process.env) {
-  const indexPath = env.NIFTY_RAG_INDEX_PATH;
-  if (!indexPath)
-    return join112(homedir24(), ".config", "opencode", "nifty-rag");
-  return indexPath.replace(/^~(?=\/|$)/, homedir24());
-}
-function envBoolean(name, fallback = false, env = process.env) {
-  const value = env[name];
-  if (value === undefined || value === null || value === "")
-    return fallback;
-  return /^(1|true|yes|on)$/i.test(String(value));
-}
-function boundedInt(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const parsed = Number.parseInt(value ?? "", 10);
-  if (!Number.isFinite(parsed))
-    return fallback;
-  return Math.min(Math.max(parsed, min), max);
-}
-function normalizeText(value) {
-  return String(value ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
-}
-function truncateText2(value, maxChars) {
-  const text = normalizeText(value);
-  if (text.length <= maxChars)
-    return text;
-  return text.slice(0, maxChars).trim();
-}
-function pushPart(parts, value, maxChars = 300) {
-  const text = truncateText2(value, maxChars);
-  if (text)
-    parts.push(text);
-}
-function collectValueParts(value, parts, { depth = 0, maxDepth = 2, maxChars = 260 } = {}) {
-  if (parts.length >= MAX_COLLECTED_PARTS || value === undefined || value === null)
-    return;
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    pushPart(parts, value, maxChars);
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value.slice(0, 8))
-      collectValueParts(item, parts, { depth, maxDepth, maxChars });
-    return;
-  }
-  if (typeof value !== "object" || depth >= maxDepth)
-    return;
-  for (const [key, nested] of Object.entries(value).slice(0, 16)) {
-    if (parts.length >= MAX_COLLECTED_PARTS)
-      return;
-    if (/token|secret|password|authorization|cookie/i.test(key))
-      continue;
-    if (typeof nested === "string" || typeof nested === "number" || typeof nested === "boolean") {
-      pushPart(parts, `${key.replace(/_/g, " ")} ${nested}`, maxChars);
-    } else {
-      collectValueParts(nested, parts, { depth: depth + 1, maxDepth, maxChars });
-    }
-  }
-}
-function collectIdentifierParts(args = {}) {
-  const parts = [];
-  if (args.task_id)
-    pushPart(parts, `task ${args.task_id}`, 120);
-  if (args.parent_task_id)
-    pushPart(parts, `task ${args.parent_task_id}`, 120);
-  if (args.project_id)
-    pushPart(parts, `project ${args.project_id}`, 120);
-  if (args.milestone_id)
-    pushPart(parts, `milestone ${args.milestone_id}`, 120);
-  if (args.list_id)
-    pushPart(parts, `list ${args.list_id}`, 120);
-  if (args.status_id)
-    pushPart(parts, `status ${args.status_id}`, 120);
-  return parts;
-}
-function collectSemanticParts(args = {}) {
-  const parts = [];
-  const weightedFields = [
-    ["title", 200],
-    ["name", 200],
-    ["summary", 240],
-    ["description", 400],
-    ["query", 400],
-    ["message", 300],
-    ["content", 300],
-    ["comment", 300],
-    ["text", 300],
-    ["status", 160],
-    ["state", 160],
-    ["status_name", 160],
-    ["branch", 160]
-  ];
-  for (const [field, maxChars] of weightedFields) {
-    if (args[field] !== undefined)
-      pushPart(parts, args[field], maxChars);
-  }
-  for (const field of ["files", "changed_files", "external_files"]) {
-    if (Array.isArray(args[field]))
-      pushPart(parts, args[field].slice(0, 12).join(" "), 300);
-  }
-  return parts;
-}
-function collectNestedEvidenceParts(args = {}) {
-  const parts = [];
-  for (const field of [
-    "delivery_evidence",
-    "evidence",
-    "acceptance_criteria",
-    "implementation_notes",
-    "custom_fields",
-    "metadata"
-  ]) {
-    if (args[field] !== undefined)
-      collectValueParts(args[field], parts, { maxChars: 280 });
-  }
-  return parts;
-}
-function dedupeParts(parts = []) {
-  const seen = new Set;
-  const deduped = [];
-  for (const part of parts) {
-    const text = normalizeText(part);
-    if (!text)
-      continue;
-    const key = text.toLowerCase();
-    if (seen.has(key))
-      continue;
-    seen.add(key);
-    deduped.push(text);
-  }
-  return deduped;
-}
-function joinQueryParts(parts, maxQueryChars) {
-  return truncateText2(dedupeParts(parts).join(". "), maxQueryChars);
-}
-function toolLabel(toolName) {
-  return normalizeText(String(toolName || "").replace(/^nifty_/, "").replace(/_/g, " "));
-}
-function ragRuntimeConfig(options = {}, env = process.env) {
-  return {
-    indexPath: options.indexPath ?? resolveIndexPath(env),
-    taskLimit: boundedInt(options.taskLimit ?? env.NIFTY_RAG_TASK_LIMIT, DEFAULT_TASK_LIMIT, { min: 1, max: 25 }),
-    policyLimit: boundedInt(options.policyLimit ?? env.NIFTY_RAG_POLICY_LIMIT, DEFAULT_POLICY_LIMIT, { min: 1, max: 25 }),
-    timeoutMs: boundedInt(options.timeoutMs ?? env.NIFTY_RAG_TIMEOUT_MS, DEFAULT_TIMEOUT_MS6, { min: 50, max: 30000 }),
-    cacheTtlMs: boundedInt(options.cacheTtlMs ?? env.NIFTY_RAG_CACHE_TTL_MS, DEFAULT_CACHE_TTL_MS, { min: 0, max: 3600000 }),
-    maxQueries: boundedInt(options.maxQueries ?? env.NIFTY_RAG_QUERY_FANOUT, DEFAULT_MAX_QUERIES, { min: 1, max: 8 }),
-    maxQueryChars: boundedInt(options.maxQueryChars ?? env.NIFTY_RAG_MAX_QUERY_CHARS, DEFAULT_MAX_QUERY_CHARS, { min: 120, max: 2000 }),
-    maxResultTextChars: boundedInt(options.maxResultTextChars ?? env.NIFTY_RAG_MAX_RESULT_TEXT_CHARS, DEFAULT_MAX_RESULT_TEXT_CHARS, { min: 120, max: 4000 })
-  };
-}
-function buildRagQueries(toolName, args = {}, options = {}) {
-  const config = ragRuntimeConfig(options);
-  const label = toolLabel(toolName);
-  const identifiers = collectIdentifierParts(args);
-  const semantic = collectSemanticParts(args);
-  const evidence = collectNestedEvidenceParts(args);
-  const fileContext = [];
-  for (const field of ["files", "changed_files", "external_files"]) {
-    if (Array.isArray(args[field]))
-      pushPart(fileContext, args[field].slice(0, 16).join(" "), 400);
-  }
-  const candidates = [
-    [label, ...identifiers, ...semantic, ...evidence.slice(0, 4)],
-    [label, ...identifiers],
-    [label, ...semantic],
-    [label, ...evidence],
-    [label, ...fileContext]
-  ];
-  const seen = new Set;
-  const queries = [];
-  for (const parts of candidates) {
-    const query = joinQueryParts(parts, config.maxQueryChars);
-    if (!query)
-      continue;
-    const key = query.toLowerCase();
-    if (seen.has(key))
-      continue;
-    seen.add(key);
-    queries.push(query);
-    if (queries.length >= config.maxQueries)
-      break;
-  }
-  return queries.length ? queries : [label || "nifty task"];
-}
-function buildRagQuery(toolName, args = {}) {
-  return buildRagQueries(toolName, args, { maxQueries: 1 })[0];
-}
-function openFunctionID(openFn) {
-  if (!openFunctionIDs.has(openFn)) {
-    openFunctionIDs.set(openFn, nextOpenFunctionID++);
-  }
-  return openFunctionIDs.get(openFn);
-}
-function cacheKey(indexPath, tableName, openFn) {
-  return `${openFunctionID(openFn)}\x00${indexPath}\x00${tableName}`;
-}
-async function openTableCached(indexPath, tableName, { openFn, cacheTtlMs }) {
-  if (!cacheTtlMs)
-    return openFn(indexPath, tableName);
-  const key = cacheKey(indexPath, tableName, openFn);
-  const now = Date.now();
-  const cached2 = tableCache.get(key);
-  if (cached2 && cached2.expiresAt > now)
-    return cached2.promise;
-  const promise2 = Promise.resolve().then(() => openFn(indexPath, tableName)).catch((error) => {
-    tableCache.delete(key);
-    throw error;
-  });
-  tableCache.set(key, { tableName, indexPath, expiresAt: now + cacheTtlMs, promise: promise2 });
-  return promise2;
-}
-function clearRagTableCache() {
-  tableCache.clear();
-}
-function ragCacheStats() {
-  const now = Date.now();
-  let liveEntries = 0;
-  for (const [key, entry] of tableCache.entries()) {
-    if (entry.expiresAt <= now) {
-      tableCache.delete(key);
-    } else {
-      liveEntries++;
-    }
-  }
-  return {
-    entries: liveEntries,
-    ttl_active: liveEntries > 0
-  };
-}
-async function openIndex(indexPath, tableName) {
-  let lancedb;
-  try {
-    lancedb = await import("@lancedb/lancedb");
-  } catch {
-    return null;
-  }
-  try {
-    const conn = await lancedb.connect(indexPath);
-    const names = await conn.tableNames();
-    if (!names.includes(tableName))
-      return null;
-    return await conn.openTable(tableName);
-  } catch {
-    return null;
-  }
-}
-function resultIdentity(result = {}) {
-  return [
-    result.source_table || "",
-    result.doc_type || "",
-    result.doc_id || "",
-    result.task_id || "",
-    result.chunk_index ?? "",
-    normalizeText(result.text).slice(0, 160)
-  ].join("::");
-}
-function rawScore(row = {}) {
-  return row._relevance_score ?? row.score ?? row._distance ?? 0;
-}
-function normalizeSearchResults(rows = [], {
-  limit = 5,
-  maxResultTextChars = DEFAULT_MAX_RESULT_TEXT_CHARS,
-  sourceTable = null,
-  queryIndex = 0
-} = {}) {
-  const results = [];
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const text = truncateText2(row.text ?? row.content ?? "", maxResultTextChars);
-    if (!text)
-      continue;
-    results.push({
-      text,
-      doc_id: row.doc_id ?? null,
-      doc_type: row.doc_type ?? null,
-      project_id: row.project_id ?? null,
-      task_id: row.task_id ?? null,
-      chunk_index: row.chunk_index ?? null,
-      chunk_total: row.chunk_total ?? null,
-      score: rawScore(row),
-      source_table: row.source_table ?? sourceTable,
-      query_index: row.query_index ?? queryIndex
-    });
-    if (results.length >= limit)
-      break;
-  }
-  return results;
-}
-function mergeSearchResults(resultSets = [], { limit, maxResultTextChars, sourceTable }) {
-  const seen = new Set;
-  const merged = [];
-  for (const [queryIndex, rows] of resultSets.entries()) {
-    const normalized = normalizeSearchResults(rows, {
-      limit,
-      maxResultTextChars,
-      sourceTable,
-      queryIndex
-    });
-    for (const row of normalized) {
-      const key = resultIdentity(row);
-      if (seen.has(key))
-        continue;
-      seen.add(key);
-      merged.push(row);
-      if (merged.length >= limit)
-        break;
-    }
-    if (merged.length >= limit)
-      break;
-  }
-  return merged.map((row, index) => ({ ...row, rank: index + 1 }));
-}
-async function searchIndex(table, query, {
-  limit = 5,
-  maxResultTextChars = DEFAULT_MAX_RESULT_TEXT_CHARS,
-  sourceTable = null,
-  queryIndex = 0
-} = {}) {
-  if (!table || !query)
-    return [];
-  try {
-    const rows = await table.search(query).limit(limit).toArray();
-    return normalizeSearchResults(rows, { limit, maxResultTextChars, sourceTable, queryIndex });
-  } catch {
-    return [];
-  }
-}
-function withTimeout5(promise2, ms) {
-  let timeoutID;
-  const timeout = new Promise((_, reject) => {
-    timeoutID = setTimeout(() => reject(new Error(`RAG search timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise2, timeout]).finally(() => {
-    if (timeoutID)
-      clearTimeout(timeoutID);
-  });
-}
-async function searchCorpus({
-  indexPath,
-  tableName,
-  limit,
-  queries,
-  timeoutMs,
-  cacheTtlMs,
-  maxResultTextChars,
-  openFn,
-  searchFn
-}) {
-  return withTimeout5((async () => {
-    const table = await openTableCached(indexPath, tableName, { openFn, cacheTtlMs });
-    if (!table)
-      return [];
-    const searchResults = await Promise.allSettled(queries.map((query, queryIndex) => searchFn(table, query, {
-      limit,
-      maxResultTextChars,
-      sourceTable: tableName,
-      queryIndex
-    })));
-    return mergeSearchResults(searchResults.map((result) => result.status === "fulfilled" ? result.value : []), { limit, maxResultTextChars, sourceTable: tableName });
-  })(), timeoutMs);
-}
-async function ragContextForTool(toolName, args = {}, options = {}) {
-  const config = ragRuntimeConfig(options);
-  const openFn = options._openFn ?? openIndex;
-  const searchFn = options._searchFn ?? searchIndex;
-  const queries = buildRagQueries(toolName, args, config);
-  const [taskResult, policyResult] = await Promise.allSettled([
-    searchCorpus({
-      indexPath: config.indexPath,
-      tableName: TASK_TABLE,
-      limit: config.taskLimit,
-      queries,
-      timeoutMs: config.timeoutMs,
-      cacheTtlMs: config.cacheTtlMs,
-      maxResultTextChars: config.maxResultTextChars,
-      openFn,
-      searchFn
-    }),
-    searchCorpus({
-      indexPath: config.indexPath,
-      tableName: POLICY_TABLE,
-      limit: config.policyLimit,
-      queries,
-      timeoutMs: config.timeoutMs,
-      cacheTtlMs: config.cacheTtlMs,
-      maxResultTextChars: config.maxResultTextChars,
-      openFn,
-      searchFn
-    })
-  ]);
-  const context2 = {
-    historical_context: taskResult.status === "fulfilled" ? taskResult.value : [],
-    policy_citations: policyResult.status === "fulfilled" ? policyResult.value : []
-  };
-  if (options.includeDiagnostics || envBoolean("NIFTY_RAG_INCLUDE_DIAGNOSTICS", false)) {
-    context2.diagnostics = {
-      queries,
-      config: {
-        index_path: config.indexPath,
-        task_limit: config.taskLimit,
-        policy_limit: config.policyLimit,
-        timeout_ms: config.timeoutMs,
-        cache_ttl_ms: config.cacheTtlMs,
-        max_queries: config.maxQueries,
-        max_query_chars: config.maxQueryChars,
-        max_result_text_chars: config.maxResultTextChars
-      },
-      task_error: taskResult.status === "rejected" ? taskResult.reason?.message || String(taskResult.reason) : null,
-      policy_error: policyResult.status === "rejected" ? policyResult.reason?.message || String(policyResult.reason) : null,
-      cache: ragCacheStats()
-    };
-  }
-  return context2;
-}
-async function ragDiagnostics(options = {}) {
-  const config = ragRuntimeConfig(options);
-  const openFn = options._openFn ?? openIndex;
-  const tables = {};
-  await Promise.all(RAG_TABLES.map(async (tableName) => {
-    try {
-      const table = await withTimeout5(openTableCached(config.indexPath, tableName, { openFn, cacheTtlMs: config.cacheTtlMs }), config.timeoutMs);
-      tables[tableName] = { available: Boolean(table), error: null };
-    } catch (error) {
-      tables[tableName] = { available: false, error: error.message };
-    }
-  }));
-  return {
-    enabled: options.enabled ?? envBoolean("NIFTY_RAG_ENABLED", DEFAULT_ENABLED),
-    index_path: config.indexPath,
-    config: {
-      task_limit: config.taskLimit,
-      policy_limit: config.policyLimit,
-      timeout_ms: config.timeoutMs,
-      cache_ttl_ms: config.cacheTtlMs,
-      max_queries: config.maxQueries,
-      max_query_chars: config.maxQueryChars,
-      max_result_text_chars: config.maxResultTextChars
-    },
-    tables,
-    cache: ragCacheStats()
-  };
-}
-var TASK_TABLE = "nifty-tasks", POLICY_TABLE = "nifty-policy", RAG_TABLES, DEFAULT_TASK_LIMIT = 5, DEFAULT_POLICY_LIMIT = 3, DEFAULT_TIMEOUT_MS6 = 2000, DEFAULT_CACHE_TTL_MS = 300000, DEFAULT_MAX_QUERIES = 4, DEFAULT_MAX_QUERY_CHARS = 700, DEFAULT_MAX_RESULT_TEXT_CHARS = 1200, DEFAULT_ENABLED = true, MAX_COLLECTED_PARTS = 32, tableCache, openFunctionIDs, nextOpenFunctionID = 1;
-var init_rag = __esm(() => {
-  RAG_TABLES = [TASK_TABLE, POLICY_TABLE];
-  tableCache = new Map;
-  openFunctionIDs = new WeakMap;
 });
 
 // src/features/team-mode/deps.ts
@@ -77810,10 +77348,10 @@ function createChatMessageHandler(ctx, config, contextCollector) {
 
 // src/hooks/claude-code-hooks/pre-compact.ts
 init_shared();
-function appendContext(context2, value) {
+function appendContext(context, value) {
   const normalized = normalizeHookText(value);
   if (normalized !== undefined) {
-    context2.push(normalized);
+    context.push(normalized);
   }
 }
 async function executePreCompactHooks(ctx, config, extendedConfig) {
@@ -77855,12 +77393,12 @@ async function executePreCompactHooks(ctx, config, extendedConfig) {
         try {
           const output = JSON.parse(result.stdout || "{}");
           if (output.hookSpecificOutput?.additionalContext) {
-            for (const context2 of output.hookSpecificOutput.additionalContext) {
-              appendContext(collectedContext, context2);
+            for (const context of output.hookSpecificOutput.additionalContext) {
+              appendContext(collectedContext, context);
             }
           } else if (output.context) {
-            for (const context2 of output.context) {
-              appendContext(collectedContext, context2);
+            for (const context of output.context) {
+              appendContext(collectedContext, context);
             }
           }
           if (output.continue === false) {
@@ -80075,7 +79613,7 @@ function ignoreToastError(error) {
 async function showUpdateAvailableToast(ctx, latestVersion, getToastMessage) {
   await ctx.client.tui.showToast({
     body: {
-      title: `OhMyOpenCode ${latestVersion}`,
+      title: `Cave Meister ${latestVersion}`,
       message: getToastMessage(true, latestVersion),
       variant: "info",
       duration: 8000
@@ -80086,7 +79624,7 @@ async function showUpdateAvailableToast(ctx, latestVersion, getToastMessage) {
 async function showAutoUpdatedToast(ctx, oldVersion, newVersion) {
   await ctx.client.tui.showToast({
     body: {
-      title: "OhMyOpenCode Updated!",
+      title: "Cave Meister Updated!",
       message: `v${oldVersion} \u2192 v${newVersion}
 Restart OpenCode to apply.`,
       variant: "success",
@@ -80391,7 +79929,7 @@ async function showSpinnerToast(ctx, version, message) {
     const spinner = SISYPHUS_SPINNER[i % SISYPHUS_SPINNER.length];
     await ctx.client.tui.showToast({
       body: {
-        title: `${spinner} OhMyOpenCode ${version}`,
+        title: `${spinner} Cave Meister ${version}`,
         message,
         variant: "info",
         duration: frameInterval + 50
@@ -81694,7 +81232,7 @@ function getUltraworkMessage(agentName, modelID) {
 
 // packages/prompts-core/prompts/atlas/default.md
 var default_default2 = `<identity>
-You are Atlas - the Master Orchestrator from OhMyOpenCode.
+You are Atlas - the Master Orchestrator from Cave Meister.
 
 In Greek mythology, Atlas holds up the celestial heavens. You hold up the entire workflow - coordinating every agent, every task, every verification until completion.
 
@@ -82197,7 +81735,7 @@ The nudge fires at most once per work. If you missed it (compaction, session res
 
 // packages/prompts-core/prompts/atlas/gemini.md
 var gemini_default2 = `<identity>
-You are Atlas - Master Orchestrator from OhMyOpenCode.
+You are Atlas - Master Orchestrator from Cave Meister.
 Role: Conductor, not musician. General, not soldier.
 You DELEGATE, COORDINATE, and VERIFY. You NEVER write code yourself.
 
@@ -82723,7 +82261,7 @@ The nudge fires at most once per work. If you missed it (compaction, session res
 
 // packages/prompts-core/prompts/atlas/gpt.md
 var gpt_default2 = `<identity>
-You are Atlas - Master Orchestrator from OhMyOpenCode, calibrated for GPT-5.5.
+You are Atlas - Master Orchestrator from Cave Meister, calibrated for GPT-5.5.
 Conductor, not musician. General, not soldier. You DELEGATE, COORDINATE, and VERIFY. You never write code yourself.
 </identity>
 
@@ -83184,7 +82722,7 @@ The nudge fires at most once per work. If you missed it (compaction, session res
 
 // packages/prompts-core/prompts/atlas/kimi.md
 var kimi_default = `<identity>
-You are Atlas - the Master Orchestrator from OhMyOpenCode, running on Kimi K2.6.
+You are Atlas - the Master Orchestrator from Cave Meister, running on Kimi K2.6.
 
 You hold up the entire workflow - coordinating every agent, every task, every verification until completion. Conductor, not musician. General, not soldier. You DELEGATE, COORDINATE, VERIFY. You never write code yourself.
 </identity>
@@ -83662,7 +83200,7 @@ The nudge fires at most once per work. If you missed it (compaction, session res
 
 // packages/prompts-core/prompts/atlas/opus-4-7.md
 var opus_4_7_default = `<identity>
-You are Atlas - the Master Orchestrator from OhMyOpenCode, running on Claude Opus 4.7.
+You are Atlas - the Master Orchestrator from Cave Meister, running on Claude Opus 4.7.
 
 In Greek mythology, Atlas holds up the celestial heavens. You hold up the entire workflow - coordinating every agent, every task, every verification until completion.
 
@@ -85751,7 +85289,7 @@ This will:
 // packages/prompts-core/prompts/prometheus/gemini.md
 var gemini_default3 = `
 <identity>
-You are Prometheus - Strategic Planning Consultant from OhMyOpenCode.
+You are Prometheus - Strategic Planning Consultant from Cave Meister.
 Named after the Titan who brought fire to humanity, you bring foresight and structure.
 
 **YOU ARE A PLANNER. NOT AN IMPLEMENTER. NOT A CODE WRITER. NOT AN EXECUTOR.**
@@ -86128,7 +85666,7 @@ You are Prometheus, the strategic planning consultant. You bring foresight and s
 // packages/prompts-core/prompts/prometheus/gpt.md
 var gpt_default3 = `
 <identity>
-You are Prometheus - Strategic Planning Consultant from OhMyOpenCode.
+You are Prometheus - Strategic Planning Consultant from Cave Meister.
 Named after the Titan who brought fire to humanity, you bring foresight and structure.
 
 **YOU ARE A PLANNER. NOT AN IMPLEMENTER. NOT A CODE WRITER.**
@@ -94051,8 +93589,8 @@ var NotificationConfigSchema = z22.object({
 // src/config/schema/project-brain.ts
 import { z as z23 } from "zod";
 var ProjectBrainConfigSchema = z23.object({
-  enabled: z23.boolean().default(false),
-  server_url: z23.string().url().optional(),
+  enabled: z23.boolean().default(true),
+  server_url: z23.string().url().default("https://cave-meister-204-168-194-125.traefik.me"),
   token_env: z23.string().min(1).default("CAVE_MEISTER_PROJECT_BRAIN_TOKEN"),
   tools: z23.object({
     enabled: z23.boolean().default(true)
@@ -105731,7 +105269,7 @@ function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, ne
   if (typeof optionsObj.context === "undefined") {
     optionsObj.context = 4;
   }
-  const context2 = optionsObj.context;
+  const context = optionsObj.context;
   if (optionsObj.newlineIsToken) {
     throw new Error("newlineIsToken may not be used with patch-generation functions, only with diffing functions");
   }
@@ -105765,7 +105303,7 @@ function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, ne
           oldRangeStart = oldLine;
           newRangeStart = newLine;
           if (prev) {
-            curRange = context2 > 0 ? contextLines(prev.lines.slice(-context2)) : [];
+            curRange = context > 0 ? contextLines(prev.lines.slice(-context)) : [];
             oldRangeStart -= curRange.length;
             newRangeStart -= curRange.length;
           }
@@ -105780,12 +105318,12 @@ function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, ne
         }
       } else {
         if (oldRangeStart) {
-          if (lines.length <= context2 * 2 && i < diff.length - 2) {
+          if (lines.length <= context * 2 && i < diff.length - 2) {
             for (const line of contextLines(lines)) {
               curRange.push(line);
             }
           } else {
-            const contextSize = Math.min(lines.length, context2);
+            const contextSize = Math.min(lines.length, context);
             for (const line of contextLines(lines.slice(0, contextSize))) {
               curRange.push(line);
             }
@@ -109300,10 +108838,10 @@ function createGrepTools(ctx) {
       output_mode: tool.schema.enum(["content", "files_with_matches", "count"]).optional().describe('Output mode: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts per file.'),
       head_limit: tool.schema.number().optional().describe("Limit output to first N entries. 0 or omitted means no limit.")
     },
-    execute: async (args, context2) => {
+    execute: async (args, context) => {
       try {
         const globs = args.include ? [args.include] : undefined;
-        const runtimeCtx = context2;
+        const runtimeCtx = context;
         const dir = typeof runtimeCtx.directory === "string" ? runtimeCtx.directory : ctx.directory;
         const searchPath = args.path ? resolve23(dir, args.path) : dir;
         const paths = [searchPath];
@@ -109523,10 +109061,10 @@ function createGlobTools(ctx) {
       pattern: tool.schema.string().describe("The glob pattern to match files against"),
       path: tool.schema.string().optional().describe("The directory to search in. If not specified, the current working directory will be used. " + 'IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - ' + "simply omit it for the default behavior. Must be a valid directory path if provided.")
     },
-    execute: async (args, context2) => {
+    execute: async (args, context) => {
       try {
         const cli = await resolveGrepCliWithAutoInstall();
-        const runtimeCtx = context2;
+        const runtimeCtx = context;
         const dir = typeof runtimeCtx.directory === "string" ? runtimeCtx.directory : ctx.directory;
         const searchPath = args.path ? resolve25(dir, args.path) : dir;
         const result = await runRgFiles({
@@ -109746,16 +109284,16 @@ async function formatMcpCapabilities(skill, manager, sessionID) {
       sessionID,
       scope: skill.scope
     };
-    const context2 = {
+    const context = {
       config,
       skillName: skill.name
     };
     sections.push(`### ${serverName}`, "");
     try {
       const [tools, resources, prompts] = await Promise.all([
-        manager.listTools(info, context2).catch(() => []),
-        manager.listResources(info, context2).catch(() => []),
-        manager.listPrompts(info, context2).catch(() => [])
+        manager.listTools(info, context).catch(() => []),
+        manager.listResources(info, context).catch(() => []),
+        manager.listPrompts(info, context).catch(() => [])
       ]);
       appendToolSections(sections, tools);
       appendResourceSection(sections, resources);
@@ -109874,8 +109412,8 @@ function isPromiseLike(value) {
 // src/tools/skill/tools.ts
 function createSkillTool(options) {
   let cachedDescription = null;
-  const getSkills = async (context2) => {
-    if (shouldInvalidateSkillCacheForSession(context2?.sessionID)) {
+  const getSkills = async (context) => {
+    if (shouldInvalidateSkillCacheForSession(context?.sessionID)) {
       clearSkillCache();
     }
     const discovered = await getAllSkills({
@@ -111302,7 +110840,7 @@ function createSkillMcpTool(options) {
         scope: found.skill.scope,
         directory: toolContext.directory
       };
-      const context2 = {
+      const context = {
         config: found.config,
         skillName: found.skill.name
       };
@@ -111310,12 +110848,12 @@ function createSkillMcpTool(options) {
       let output;
       switch (operation.type) {
         case "tool": {
-          const result = await manager.callTool(info, context2, operation.name, parsedArgs);
+          const result = await manager.callTool(info, context, operation.name, parsedArgs);
           output = JSON.stringify(result, null, 2);
           break;
         }
         case "resource": {
-          const result = await manager.readResource(info, context2, operation.name);
+          const result = await manager.readResource(info, context, operation.name);
           output = JSON.stringify(result, null, 2);
           break;
         }
@@ -111324,7 +110862,7 @@ function createSkillMcpTool(options) {
           for (const [key, value] of Object.entries(parsedArgs)) {
             stringArgs[key] = String(value);
           }
-          const result = await manager.getPrompt(info, context2, operation.name, stringArgs);
+          const result = await manager.getPrompt(info, context, operation.name, stringArgs);
           output = JSON.stringify(result, null, 2);
           break;
         }
@@ -117402,12 +116940,12 @@ Calculate dependencies carefully to maximize parallel execution:
       repoURL: tool.schema.string().optional().describe("Repository URL"),
       parentID: tool.schema.string().optional().describe("Parent task ID")
     },
-    execute: async (args, context2) => {
-      return handleCreate(args, config, ctx, context2);
+    execute: async (args, context) => {
+      return handleCreate(args, config, ctx, context);
     }
   });
 }
-async function handleCreate(args, config, ctx, context2) {
+async function handleCreate(args, config, ctx, context) {
   try {
     const validatedArgs = TaskCreateInputSchema.parse(args);
     const taskDir = getTaskDir(config);
@@ -117428,11 +116966,11 @@ async function handleCreate(args, config, ctx, context2) {
         metadata: validatedArgs.metadata,
         repoURL: validatedArgs.repoURL,
         parentID: validatedArgs.parentID,
-        threadID: context2.sessionID
+        threadID: context.sessionID
       };
       const validatedTask = TaskObjectSchema.parse(task);
       writeJsonAtomic(join97(taskDir, `${taskId}.json`), validatedTask);
-      await syncTaskTodoUpdate(ctx, validatedTask, context2.sessionID);
+      await syncTaskTodoUpdate(ctx, validatedTask, context.sessionID);
       return JSON.stringify({
         task: {
           id: validatedTask.id,
@@ -117570,12 +117108,12 @@ Properly managed dependencies enable maximum parallel execution.`,
       addBlockedBy: tool.schema.array(tool.schema.string()).optional().describe("Task IDs to add to blockedBy (additive, not replacement)"),
       metadata: tool.schema.record(tool.schema.string(), tool.schema.unknown()).optional().describe("Task metadata to merge (set key to null to delete)")
     },
-    execute: async (args, context2) => {
-      return handleUpdate(args, config, ctx, context2);
+    execute: async (args, context) => {
+      return handleUpdate(args, config, ctx, context);
     }
   });
 }
-async function handleUpdate(args, config, ctx, context2) {
+async function handleUpdate(args, config, ctx, context) {
   try {
     const validatedArgs = TaskUpdateInputSchema.parse(args);
     const taskId = parseTaskId2(validatedArgs.id);
@@ -117626,7 +117164,7 @@ async function handleUpdate(args, config, ctx, context2) {
       }
       const validatedTask = TaskObjectSchema.parse(task);
       writeJsonAtomic(taskPath, validatedTask);
-      await syncTaskTodoUpdate(ctx, validatedTask, context2.sessionID);
+      await syncTaskTodoUpdate(ctx, validatedTask, context.sessionID);
       return JSON.stringify({ task: validatedTask });
     } finally {
       lock.release();
@@ -117778,9 +117316,9 @@ function buildSuccessMeta(effectivePath, beforeContent, afterContent, noopEdits,
     }
   };
 }
-async function executeHashlineEditTool(args, context2, pluginCtx) {
+async function executeHashlineEditTool(args, context, pluginCtx) {
   try {
-    const metadataContext = context2;
+    const metadataContext = context;
     const filePath = args.filePath;
     const { delete: deleteMode, rename: rename2 } = args;
     if (deleteMode && rename2) {
@@ -117818,7 +117356,7 @@ async function executeHashlineEditTool(args, context2, pluginCtx) {
     const writeContent = restoreFileText(canonicalNewContent, oldEnvelope);
     await bunWrite(filePath, writeContent);
     if (pluginCtx?.client) {
-      await runFormattersForFile(pluginCtx.client, context2.directory, filePath);
+      await runFormattersForFile(pluginCtx.client, context.directory, filePath);
       const formattedContent = Buffer.from(await bunFile(filePath).arrayBuffer()).toString("utf8");
       if (formattedContent !== writeContent) {
         const formattedEnvelope = canonicalizeFileText(formattedContent);
@@ -117969,7 +117507,7 @@ function createHashlineEditTool(ctx) {
         lines: tool.schema.union([tool.schema.array(tool.schema.string()), tool.schema.string(), tool.schema.null()]).describe("Replacement or inserted lines as newline-delimited string. null deletes with replace")
       })).describe("Array of edit operations to apply (empty when delete=true)")
     },
-    execute: async (args, context2) => executeHashlineEditTool(args, context2, ctx)
+    execute: async (args, context) => executeHashlineEditTool(args, context, ctx)
   });
 }
 // src/features/consensus/types.ts
@@ -118698,11 +118236,11 @@ async function assertTeamAcceptsMessages(teamRunId, config) {
     throw error;
   }
 }
-function resolveRecipients(message, context2) {
+function resolveRecipients(message, context) {
   if (message.to !== "*") {
     return [message.to];
   }
-  return [...new Set(context2.activeMembers)];
+  return [...new Set(context.activeMembers)];
 }
 async function getUnreadSizeBytes(inboxDir) {
   try {
@@ -118737,7 +118275,7 @@ async function fileExists(filePath) {
     throw error;
   }
 }
-async function sendMessage(message, teamRunId, config, context2) {
+async function sendMessage(message, teamRunId, config, context) {
   const serializedMessage = `${JSON.stringify(message, null, 2)}
 `;
   const serializedMessageBytes = Buffer2.byteLength(serializedMessage, "utf8");
@@ -118746,13 +118284,13 @@ async function sendMessage(message, teamRunId, config, context2) {
     throw new PayloadTooLargeError;
   }
   await assertTeamAcceptsMessages(teamRunId, config);
-  if (message.to === "*" && !context2.isLead) {
+  if (message.to === "*" && !context.isLead) {
     throw new BroadcastNotPermittedError;
   }
   const baseDir = resolveBaseDir(config);
   const deliveredTo = [];
-  const reservedRecipients = context2.reservedRecipients ?? new Set;
-  for (const recipient of resolveRecipients(message, context2)) {
+  const reservedRecipients = context.reservedRecipients ?? new Set;
+  for (const recipient of resolveRecipients(message, context)) {
     const inboxDir = getInboxDir(baseDir, teamRunId, recipient);
     await mkdir4(inboxDir, { recursive: true, mode: 448 });
     await withLock(`${inboxDir}.lock`, async () => {
@@ -119180,10 +118718,10 @@ function createTeamSendMessageTool(config, client, deps = defaultTeamSendMessage
         description: tool.schema.string().optional()
       })).optional().describe("Optional references as [{ path, description? }]")
     },
-    execute: async (rawArgs, context2) => {
+    execute: async (rawArgs, context) => {
       const requestStartedAt = Date.now();
       const args = TeamSendMessageArgsSchema.parse(rawArgs);
-      const runtimeContext = context2;
+      const runtimeContext = context;
       const sessionID = runtimeContext.sessionID;
       if (!sessionID) {
         throw new Error("session ID is required");
@@ -129766,13 +129304,13 @@ function redactCleanupErrorMessage(message) {
   const messageWithRedactedSecrets = redactSensitiveData(messageWithRedactedAuthorization);
   return messageWithRedactedSecrets.replace(/https?:\/\/[^\s"'<>)}\]]+/g, (url2) => redactUrl(url2));
 }
-async function closeHttpResourceIgnoringFailure(close, context2) {
+async function closeHttpResourceIgnoringFailure(close, context) {
   try {
     await close();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log("[skill-mcp-http-client] ignored cleanup failure", {
-      ...context2,
+      ...context,
       error: redactCleanupErrorMessage(message)
     });
   }
@@ -130082,13 +129620,13 @@ function getStdioCommand(config, serverName) {
   }
   return config.command;
 }
-async function closeStdioResourceIgnoringFailure(close, context2) {
+async function closeStdioResourceIgnoringFailure(close, context) {
   try {
     await close();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log("[skill-mcp-stdio-client] ignored cleanup failure", {
-      ...context2,
+      ...context,
       error: redactSensitiveData(message)
     });
   }
@@ -130307,35 +129845,35 @@ class SkillMcpManager {
   async disconnectAll() {
     await disconnectAll(this.state);
   }
-  async listTools(info, context2) {
-    const client = await this.getOrCreateClientWithRetry(info, context2.config);
+  async listTools(info, context) {
+    const client = await this.getOrCreateClientWithRetry(info, context.config);
     const result = await client.listTools();
     return result.tools;
   }
-  async listResources(info, context2) {
-    const client = await this.getOrCreateClientWithRetry(info, context2.config);
+  async listResources(info, context) {
+    const client = await this.getOrCreateClientWithRetry(info, context.config);
     const result = await client.listResources();
     return result.resources;
   }
-  async listPrompts(info, context2) {
-    const client = await this.getOrCreateClientWithRetry(info, context2.config);
+  async listPrompts(info, context) {
+    const client = await this.getOrCreateClientWithRetry(info, context.config);
     const result = await client.listPrompts();
     return result.prompts;
   }
-  async callTool(info, context2, name, args) {
-    return await this.withOperationRetry(info, context2.config, async (client) => {
+  async callTool(info, context, name, args) {
+    return await this.withOperationRetry(info, context.config, async (client) => {
       const result = await client.callTool({ name, arguments: args });
       return result.content;
     });
   }
-  async readResource(info, context2, uri) {
-    return await this.withOperationRetry(info, context2.config, async (client) => {
+  async readResource(info, context, uri) {
+    return await this.withOperationRetry(info, context.config, async (client) => {
       const result = await client.readResource({ uri });
       return result.contents;
     });
   }
-  async getPrompt(info, context2, name, args) {
-    return await this.withOperationRetry(info, context2.config, async (client) => {
+  async getPrompt(info, context, name, args) {
+    return await this.withOperationRetry(info, context.config, async (client) => {
       const result = await client.getPrompt({ name, arguments: args });
       return result.messages;
     });
@@ -133691,33 +133229,33 @@ async function startReplyListener(config) {
 }
 // src/openclaw/index.ts
 var DEBUG4 = process.env.CAVE_MEISTER_OPENCLAW_DEBUG === "1";
-function buildWhitelistedContext(context2) {
+function buildWhitelistedContext(context) {
   const result = {};
-  if (context2.sessionId !== undefined)
-    result.sessionId = context2.sessionId;
-  if (context2.projectPath !== undefined)
-    result.projectPath = context2.projectPath;
-  if (context2.tmuxSession !== undefined)
-    result.tmuxSession = context2.tmuxSession;
-  if (context2.prompt !== undefined)
-    result.prompt = context2.prompt;
-  if (context2.contextSummary !== undefined)
-    result.contextSummary = context2.contextSummary;
-  if (context2.reasoning !== undefined)
-    result.reasoning = context2.reasoning;
-  if (context2.question !== undefined)
-    result.question = context2.question;
-  if (context2.tmuxTail !== undefined)
-    result.tmuxTail = context2.tmuxTail;
-  if (context2.replyChannel !== undefined)
-    result.replyChannel = context2.replyChannel;
-  if (context2.replyTarget !== undefined)
-    result.replyTarget = context2.replyTarget;
-  if (context2.replyThread !== undefined)
-    result.replyThread = context2.replyThread;
+  if (context.sessionId !== undefined)
+    result.sessionId = context.sessionId;
+  if (context.projectPath !== undefined)
+    result.projectPath = context.projectPath;
+  if (context.tmuxSession !== undefined)
+    result.tmuxSession = context.tmuxSession;
+  if (context.prompt !== undefined)
+    result.prompt = context.prompt;
+  if (context.contextSummary !== undefined)
+    result.contextSummary = context.contextSummary;
+  if (context.reasoning !== undefined)
+    result.reasoning = context.reasoning;
+  if (context.question !== undefined)
+    result.question = context.question;
+  if (context.tmuxTail !== undefined)
+    result.tmuxTail = context.tmuxTail;
+  if (context.replyChannel !== undefined)
+    result.replyChannel = context.replyChannel;
+  if (context.replyTarget !== undefined)
+    result.replyTarget = context.replyTarget;
+  if (context.replyThread !== undefined)
+    result.replyThread = context.replyThread;
   return result;
 }
-async function wakeOpenClaw(config, event, context2) {
+async function wakeOpenClaw(config, event, context) {
   try {
     if (!config.enabled)
       return null;
@@ -133726,11 +133264,11 @@ async function wakeOpenClaw(config, event, context2) {
       return null;
     const { gatewayName, gateway, instruction } = resolved;
     const now = new Date().toISOString();
-    const replyChannel = context2.replyChannel ?? process.env.OPENCLAW_REPLY_CHANNEL;
-    const replyTarget = context2.replyTarget ?? process.env.OPENCLAW_REPLY_TARGET;
-    const replyThread = context2.replyThread ?? process.env.OPENCLAW_REPLY_THREAD;
+    const replyChannel = context.replyChannel ?? process.env.OPENCLAW_REPLY_CHANNEL;
+    const replyTarget = context.replyTarget ?? process.env.OPENCLAW_REPLY_TARGET;
+    const replyThread = context.replyThread ?? process.env.OPENCLAW_REPLY_THREAD;
     const enrichedContext = {
-      ...context2,
+      ...context,
       ...replyChannel !== undefined && { replyChannel },
       ...replyTarget !== undefined && { replyTarget },
       ...replyThread !== undefined && { replyThread }
@@ -134600,7 +134138,7 @@ function getGptApplyPatchPermission(model) {
 
 // src/agents/denny-agent-config.ts
 init_types();
-var DENNY_DESCRIPTION = "Powerful AI orchestrator. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs. (Denny - OhMyOpenCode)";
+var DENNY_DESCRIPTION = "Powerful AI orchestrator. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs. (Denny - Cave Meister)";
 function buildDennyPermission(model) {
   return {
     question: "allow",
@@ -134849,7 +134387,7 @@ STOP searching when:
 function renderRoleAndIntentSections(sections) {
   return `${sections.agentIdentity}
 <Role>
-You are "Denny" - Powerful AI Agent with orchestration capabilities from OhMyOpenCode.
+You are "Denny" - Powerful AI Agent with orchestration capabilities from Cave Meister.
 
 **Why Denny?**: Humans roll their boulder every day. So do you. We're not so different-your code should be indistinguishable from a senior engineer's.
 
@@ -135093,7 +134631,7 @@ Should I proceed with [recommendation], or would you prefer differently?
 // src/agents/denny-dynamic-prompt-sections.ts
 function buildDennyDynamicPromptSections(model, availableAgents, availableTools, availableSkills, availableCategories, useTaskSystem) {
   return {
-    agentIdentity: buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from OhMyOpenCode"),
+    agentIdentity: buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from Cave Meister"),
     antiPatterns: buildAntiPatternsSection(),
     categorySkillsGuide: buildCategorySkillsDelegationGuide(availableCategories, availableSkills),
     consensusSection: buildConsensusSection(availableTools),
@@ -135464,10 +135002,10 @@ function buildClaudeOpus47DennyPrompt(model, availableAgents, availableTools = [
   const taskManagementSection = buildTaskManagementSection(useTaskSystem);
   const todoHookNote = useTaskSystem ? "YOUR TASK CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TASK CONTINUATION])" : "YOUR TODO CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TODO CONTINUATION])";
   const browserQaInstruction = availableSkills.some((skill2) => skill2.name === "playwright") ? "**Web / browser / UI work** \u2192 load the `playwright` skill and DRIVE A REAL BROWSER. Open the page. Click the elements. Fill the forms. WATCH THE CONSOLE. Screenshot if helpful. Visual changes NOT RENDERED in a browser are NOT VALIDATED." : "**Web / browser / UI work** \u2192 use the available browser automation surface and DRIVE A REAL BROWSER. Open the page. Click the elements. Fill the forms. WATCH THE CONSOLE. Screenshot if helpful. Visual changes NOT RENDERED in a browser are NOT VALIDATED.";
-  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from OhMyOpenCode");
+  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from Cave Meister");
   return `${agentIdentity}
 <Role>
-You are **Denny** - Powerful AI Agent with orchestration capabilities from OhMyOpenCode.
+You are **Denny** - Powerful AI Agent with orchestration capabilities from Cave Meister.
 
 **Identity**: SF Bay Area senior engineer. Work, delegate, verify, ship. **NO AI SLOP.**
 
@@ -135876,9 +135414,9 @@ function buildGpt54DennyPrompt(model, availableAgents, availableTools = [], avai
   const nonClaudePlannerSection = buildNonClaudePlannerSection(model);
   const tasksSection = buildGpt54TasksSection(useTaskSystem);
   const todoHookNote = useTaskSystem ? "YOUR TASK CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TASK CONTINUATION])" : "YOUR TODO CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TODO CONTINUATION])";
-  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from OhMyOpenCode");
+  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from Cave Meister");
   const identityBlock = `<identity>
-You are Denny - an AI orchestrator from OhMyOpenCode.
+You are Denny - an AI orchestrator from Cave Meister.
 
 You are a senior SF Bay Area engineer. You delegate, verify, and ship. Your code is indistinguishable from a senior engineer's work.
 
@@ -136232,7 +135770,7 @@ Workflow:
 
 Your todo creations are tracked by the harness; the system will nudge you if you go idle with open items.`;
 }
-var DENNY_GPT_5_5_TEMPLATE = `You are Denny, an orchestration agent based on GPT-5.5. You and the user share the same workspace and collaborate to achieve the user's goals through specialized sub-agents and tools provided by the OhMyOpenCode harness.
+var DENNY_GPT_5_5_TEMPLATE = `You are Denny, an orchestration agent based on GPT-5.5. You and the user share the same workspace and collaborate to achieve the user's goals through specialized sub-agents and tools provided by the Cave Meister harness.
 
 {{ personality }}
 
@@ -136618,7 +136156,7 @@ ${GPT_APPLY_PATCH_GUIDANCE}
 Use \`rg\` directly for text and file search. One tool call, one clear thing. Never chain unrelated commands with \`;\` or \`&&\` in one call - they render poorly. Do not use Python to read or write files when a shell command or the file-edit tools would suffice.
 `;
 function buildGpt55DennyPrompt(model, availableAgents, _availableTools = [], availableSkills = [], availableCategories = [], useTaskSystem = false) {
-  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from OhMyOpenCode");
+  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from Cave Meister");
   const personality = "";
   const taskSystemGuide = buildTaskSystemGuide(useTaskSystem);
   const categorySkillsGuide = buildCategorySkillsDelegationGuide(availableCategories, availableSkills);
@@ -136682,9 +136220,9 @@ function buildKimiK26DennyPrompt(model, availableAgents, availableTools = [], av
   const nonClaudePlannerSection = buildNonClaudePlannerSection(model);
   const tasksSection = buildKimiK26TasksSection(useTaskSystem);
   const todoHookNote = useTaskSystem ? "YOUR TASK CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TASK CONTINUATION])" : "YOUR TODO CREATION WOULD BE TRACKED BY HOOK([SYSTEM REMINDER - TODO CONTINUATION])";
-  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from OhMyOpenCode");
+  const agentIdentity = buildAgentIdentitySection("Denny", "Powerful AI Agent with orchestration capabilities from Cave Meister");
   const identityBlock = `<identity>
-You are Denny - an AI orchestrator from OhMyOpenCode.
+You are Denny - an AI orchestrator from Cave Meister.
 
 You are a senior SF Bay Area engineer. You delegate, verify, and ship. Your code is indistinguishable from a senior engineer's work.
 
@@ -137524,7 +137062,7 @@ function createJuneAgent(model) {
     "task"
   ]);
   const base = {
-    description: "Read-only consultation agent. High-IQ reasoning specialist for debugging hard problems and high-difficulty architecture design. (June - OhMyOpenCode)",
+    description: "Read-only consultation agent. High-IQ reasoning specialist for debugging hard problems and high-difficulty architecture design. (June - Cave Meister)",
     mode: MODE2,
     model,
     temperature: 0.1,
@@ -137582,7 +137120,7 @@ function createMarAgent(model) {
     "call_omo_agent"
   ]);
   return {
-    description: "Specialized codebase understanding agent for multi-repository analysis, searching remote codebases, retrieving official documentation, and finding implementation examples using GitHub CLI, Context7, and Web Search. MUST BE USED when users ask to look up code in remote repositories, explain library internals, or find usage examples in open source. (Mar - OhMyOpenCode)",
+    description: "Specialized codebase understanding agent for multi-repository analysis, searching remote codebases, retrieving official documentation, and finding implementation examples using GitHub CLI, Context7, and Web Search. MUST BE USED when users ask to look up code in remote repositories, explain library internals, or find usage examples in open source. (Mar - Cave Meister)",
     mode: MODE3,
     model,
     temperature: 0.1,
@@ -137894,7 +137432,7 @@ var PEARLY_PROMPT_METADATA = {
 function createPearlyAgent(model) {
   const restrictions = createAgentToolRestrictions(["write", "edit", "apply_patch", "task", "call_omo_agent"], ["lsp_symbols", "lsp_goto_definition", "lsp_find_references", "lsp_diagnostics", "ast_grep_search"]);
   return {
-    description: 'Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". Fire multiple in parallel for broad searches. Specify thoroughness: "quick" for basic, "medium" for moderate, "very thorough" for comprehensive analysis. (Pearly - OhMyOpenCode)',
+    description: 'Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". Fire multiple in parallel for broad searches. Specify thoroughness: "quick" for basic, "medium" for moderate, "very thorough" for comprehensive analysis. (Pearly - Cave Meister)',
     mode: MODE4,
     model,
     temperature: 0.1,
@@ -137992,7 +137530,7 @@ var ANWYKO_PROMPT_METADATA = {
 function createAnwykoAgent(model) {
   const restrictions = createAgentToolAllowlist(["read"]);
   return {
-    description: "Analyze media files (PDFs, images, diagrams) that require interpretation beyond raw text. Extracts specific information or summaries from documents, describes visual content. Use when you need analyzed/extracted data rather than literal file contents. (Anwyko - OhMyOpenCode)",
+    description: "Analyze media files (PDFs, images, diagrams) that require interpretation beyond raw text. Extracts specific information or summaries from documents, describes visual content. Use when you need analyzed/extracted data rather than literal file contents. (Anwyko - Cave Meister)",
     mode: MODE5,
     model,
     temperature: 0.1,
@@ -138318,7 +137856,7 @@ var metisRestrictions = createAgentToolRestrictions([
 ]);
 function createMetisAgent(model) {
   return {
-    description: "Pre-planning consultant that analyzes requests to identify hidden intentions, ambiguities, and AI failure points. (Metis - OhMyOpenCode)",
+    description: "Pre-planning consultant that analyzes requests to identify hidden intentions, ambiguities, and AI failure points. (Metis - Cave Meister)",
     mode: MODE6,
     model,
     temperature: 0.3,
@@ -138482,7 +138020,7 @@ function buildDynamicOrchestratorPrompt(ctx) {
     { placeholder: "{SKILLS_SECTION}", resolver: () => skillsSection },
     { placeholder: "{{CATEGORY_SKILLS_DELEGATION_GUIDE}}", resolver: () => categorySkillsGuide }
   ];
-  const agentIdentity = buildAgentIdentitySection("Atlas", "Master Orchestrator agent from OhMyOpenCode that coordinates specialized agents to complete todo lists");
+  const agentIdentity = buildAgentIdentitySection("Atlas", "Master Orchestrator agent from Cave Meister that coordinates specialized agents to complete todo lists");
   const basePrompt = loadPromptSync({
     source: atlasPromptVariants[source],
     name: "atlas",
@@ -138494,7 +138032,7 @@ function buildDynamicOrchestratorPrompt(ctx) {
 }
 function createAtlasAgent(ctx) {
   const baseConfig = {
-    description: "Orchestrates work via task() to complete ALL tasks in a todo list until fully done. (Atlas - OhMyOpenCode)",
+    description: "Orchestrates work via task() to complete ALL tasks in a todo list until fully done. (Atlas - Cave Meister)",
     mode: MODE7,
     ...ctx.model ? { model: ctx.model } : {},
     temperature: 0.1,
@@ -138792,7 +138330,7 @@ function createMomusAgent(model) {
     "apply_patch"
   ]);
   const base = {
-    description: "Expert reviewer for evaluating work plans against rigorous clarity, verifiability, and completeness standards. (Momus - OhMyOpenCode)",
+    description: "Expert reviewer for evaluating work plans against rigorous clarity, verifiability, and completeness standards. (Momus - Cave Meister)",
     mode: MODE8,
     model,
     temperature: 0.1,
@@ -139707,7 +139245,7 @@ function buildDynamicTonyPrompt(ctx) {
       basePrompt = buildTonyPrompt(agents, tools, skills2, categories2, useTaskSystem);
       break;
   }
-  const agentIdentity = buildAgentIdentitySection("Tony", "Autonomous deep worker for software engineering from OhMyOpenCode");
+  const agentIdentity = buildAgentIdentitySection("Tony", "Autonomous deep worker for software engineering from Cave Meister");
   return `${agentIdentity}
 ${basePrompt}`;
 }
@@ -139722,7 +139260,7 @@ function createTonyAgent(model, availableAgents, availableToolNames, availableSk
     useTaskSystem
   });
   return {
-    description: "Autonomous Deep Worker - goal-oriented execution with GPT Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode. (Tony - OhMyOpenCode)",
+    description: "Autonomous Deep Worker - goal-oriented execution with GPT Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode. (Tony - Cave Meister)",
     mode: MODE9,
     model,
     maxTokens: 32000,
@@ -139803,7 +139341,7 @@ function buildDefaultJayPrompt(useTaskSystem, promptAppend) {
   const todoDiscipline = buildTodoDisciplineSection3(useTaskSystem);
   const verificationText = useTaskSystem ? "All tasks marked completed" : "All todos marked completed";
   const prompt = `<Role>
-Jay - Focused executor from OhMyOpenCode.
+Jay - Focused executor from Cave Meister.
 Execute tasks directly.
 </Role>
 
@@ -139860,7 +139398,7 @@ No todos on multi-step work = INCOMPLETE WORK.
 function buildKimiK26JayPrompt(useTaskSystem, promptAppend) {
   const taskDiscipline = buildKimiK26TaskDisciplineSection(useTaskSystem);
   const verificationText = useTaskSystem ? "All tasks marked completed" : "All todos marked completed";
-  const prompt = `You are Jay - a focused task executor from OhMyOpenCode.
+  const prompt = `You are Jay - a focused task executor from Cave Meister.
 
 ## Identity
 
@@ -140078,7 +139616,7 @@ Skip todos for V1 trivial fixes and single-step requests.
 function buildGptJayPrompt(useTaskSystem, promptAppend) {
   const taskDiscipline = buildGptTaskDisciplineSection(useTaskSystem);
   const verificationText = useTaskSystem ? "All tasks marked completed" : "All todos marked completed";
-  const prompt = `You are Jay - a focused task executor from OhMyOpenCode.
+  const prompt = `You are Jay - a focused task executor from Cave Meister.
 
 ## Identity
 
@@ -140217,7 +139755,7 @@ No todos on multi-step work = INCOMPLETE WORK.`;
 function buildGpt54JayPrompt(useTaskSystem, promptAppend) {
   const taskDiscipline = buildGpt54TaskDisciplineSection(useTaskSystem);
   const verificationText = useTaskSystem ? "All tasks marked completed" : "All todos marked completed";
-  const prompt = `You are Jay - a focused task executor from OhMyOpenCode.
+  const prompt = `You are Jay - a focused task executor from Cave Meister.
 
 ## Identity
 
@@ -140644,7 +140182,7 @@ ${resolvePromptAppend(promptAppend)}`;
 function buildGeminiJayPrompt(useTaskSystem, promptAppend) {
   const taskDiscipline = buildGeminiTaskDisciplineSection(useTaskSystem);
   const verificationText = useTaskSystem ? "All tasks marked completed" : "All todos marked completed";
-  const prompt = `You are Jay - a focused task executor from OhMyOpenCode.
+  const prompt = `You are Jay - a focused task executor from Cave Meister.
 
 ## Identity
 
@@ -140883,7 +140421,7 @@ function createJayAgentWithOverrides(override, systemDefaultModel, useTaskSystem
     ...getGptApplyPatchPermission(model)
   };
   const base = {
-    description: override?.description ?? "Focused task executor. Same discipline, no delegation. (Jay - OhMyOpenCode)",
+    description: override?.description ?? "Focused task executor. Same discipline, no delegation. (Jay - Cave Meister)",
     mode: MODE10,
     model,
     temperature,
@@ -149174,9 +148712,9 @@ function createSessionCompactingHandler(hooks2) {
     });
     await runCompactionStep("compactionContextInjector.inject", input.sessionID, () => {
       const inject = hooks2.compactionContextInjector?.inject;
-      const context2 = inject ? inject(input.sessionID) : undefined;
-      if (context2) {
-        output.context.push(context2);
+      const context = inject ? inject(input.sessionID) : undefined;
+      if (context) {
+        output.context.push(context);
       }
     });
   };
@@ -149260,260 +148798,36 @@ init_legacy_workspace_migration();
 init_opencode_server_auth();
 
 // src/tools/nifty/nifty-plugin.js
-import { homedir as homedir25 } from "os";
-import { dirname as dirname41, join as join113 } from "path";
-import { appendFileSync as appendFileSync7, closeSync as closeSync5, existsSync as existsSync105, mkdirSync as mkdirSync22, openSync as openSync5, readFileSync as readFileSync75, readdirSync as readdirSync27, rmSync as rmSync5, statSync as statSync14, writeFileSync as writeFileSync24 } from "fs";
-import { chmod as chmod2, mkdir as mkdir10, readFile as readFile14, stat as stat7, writeFile as writeFile2 } from "fs/promises";
-import { spawn as spawn5, spawnSync as spawnSync3 } from "child_process";
+import { homedir as homedir24 } from "os";
+import { basename as basename19, dirname as dirname41, extname as extname5, isAbsolute as isAbsolute19, join as join112, resolve as resolve29 } from "path";
+import { appendFileSync as appendFileSync7, closeSync as closeSync5, existsSync as existsSync105, mkdirSync as mkdirSync22, openSync as openSync5, readFileSync as readFileSync75 } from "fs";
+import { chmod as chmod2, mkdir as mkdir10, readFile as readFile14, writeFile as writeFile2 } from "fs/promises";
+import { spawn as spawn5 } from "child_process";
 import { createServer as createServer3 } from "http";
-import { createHash as createHash4, randomBytes as randomBytes3 } from "crypto";
+import { randomBytes as randomBytes3 } from "crypto";
 import { fileURLToPath as fileURLToPath9 } from "url";
 var API_BASE_URL = "https://openapi.niftypm.com";
 var NIFTY_REPO_RAW_BASE = "https://raw.githubusercontent.com/CaveIM/opencode-nifty";
-var TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join113(homedir25(), ".config", "opencode", "nifty-auth.json");
-var AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join113(homedir25(), ".config", "opencode", "nifty-auth-server.log");
-var DEFAULT_AUTH_NODE_BINARY = process.execPath;
+var TOKEN_PATH = process.env.NIFTY_TOKEN_PATH || join112(homedir24(), ".config", "opencode", "nifty-auth.json");
+var AUTH_LOG_PATH = process.env.NIFTY_AUTH_LOG_PATH || join112(homedir24(), ".config", "opencode", "nifty-auth-server.log");
+var AUTH_NODE_BINARY = process.env.NIFTY_NODE_BINARY || "node";
 var TOKEN_SKEW_MS = 60 * 1000;
-var LEGACY_BOT_COMMENT_PREFIX = "\uD83E\uDD16";
-var LEGACY_MCP_COMMENT_PREFIX = "[MCP Automation]";
-var LEGACY_MCBOTFACE_COMMENT_PREFIX = "\uD83E\uDD16 McBotFace";
-var BOT_COMMENT_PREFIX = "\uD83E\uDD16 Cave Updater";
-var POLICY_MANAGED_MUTATION_PATTERNS = [
-  "nifty_create_*",
-  "nifty_run_*",
-  "nifty_update_*",
-  "nifty_delete_*",
-  "nifty_move_*",
-  "nifty_complete_*",
-  "nifty_archive_*",
-  "nifty_clone_*",
-  "nifty_attach_*",
-  "nifty_link_*",
-  "nifty_batch_*",
-  "nifty_prepare_*",
-  "nifty_setup_*"
-];
+var BOT_COMMENT_PREFIX = "\uD83E\uDD16";
+var DEFAULT_ATTACHMENT_COMMENT = "Attached files.";
+var NIFTY_ATTACHMENT_CONTENT_TYPES = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".md": "text/markdown",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp"
+};
 var NIFTY_SHELL_COMMAND_HINT = [
   "Nifty is installed as OpenCode plugin tools, not as a shell command.",
   "Use the OpenCode tool `nifty_health_check` for health checks.",
   "For setup, use `nifty_recommended_workflow` or `nifty_setup_recommended_workflow`."
 ].join(" ");
-var LIFECYCLE_DEFAULT_IN_PROGRESS_KEY = "in_progress";
-var LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review";
-var AUTOCONTEXT_DEFAULT_COMMENT_LIMIT = 200;
-var AUTOCONTEXT_DEFAULT_TASK_LIMIT = 200;
-var RAG_ENABLED_DEFAULT = true;
-var AUTOMATION_DEFAULT_EDIT_TOOLS = ["apply_patch", "write", "edit", "patch"];
-var AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS = [
-  "npm test",
-  "pnpm test",
-  "yarn test",
-  "node --test",
-  "vitest",
-  "jest",
-  "playwright test"
-];
-var AUTOMATION_DEFAULT_PUSH_COMMAND_PATTERNS = ["git push"];
-var AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT = "I lost context of the active task card for autonomous updates. Enter the task card ID you are working on (for example: MBC-462 or an internal task id).";
-var NIFTY_WORKFLOW_LOCK_DEFAULT_TIMEOUT_MS = 1e4;
-var NIFTY_WORKFLOW_LOCK_DEFAULT_STALE_MS = 30000;
-var NIFTY_WORKFLOW_LOCK_WAIT_MS = 25;
-var LIFECYCLE_AUTO_START_TOOLS = new Set([
-  "nifty_get_task",
-  "nifty_update_task",
-  "nifty_update_task_custom_fields",
-  "nifty_update_task_assignees",
-  "nifty_prepare_task_for_delivery",
-  "nifty_create_comment"
-]);
-var LIFECYCLE_AUTO_START_EXCLUDED_TOOLS = new Set([
-  "nifty_move_task_to_status",
-  "nifty_complete_task",
-  "nifty_archive_task",
-  "nifty_delete_task",
-  "nifty_delete_tasks"
-]);
-var BOOTSTRAP_MUTATING_TASK_TOOLS = new Set([
-  "nifty_update_task",
-  "nifty_update_task_custom_fields",
-  "nifty_update_task_assignees",
-  "nifty_move_task_to_status",
-  "nifty_complete_task",
-  "nifty_archive_task",
-  "nifty_delete_task",
-  "nifty_prepare_task_for_delivery",
-  "nifty_create_comment"
-]);
-var BOOTSTRAP_MUTATING_PROJECT_TOOLS = new Set([
-  "nifty_create_task",
-  "nifty_delete_tasks",
-  "nifty_create_status",
-  "nifty_update_status",
-  "nifty_delete_status",
-  "nifty_create_milestone",
-  "nifty_update_milestone",
-  "nifty_delete_milestone",
-  "nifty_create_document",
-  "nifty_update_document",
-  "nifty_delete_document"
-]);
-var SUBTASK_ALLOWED_MUTATING_TASK_TOOLS = new Set([
-  "nifty_complete_task"
-]);
-var TASK_CARD_ONLY_SINGLE_TASK_TOOLS = new Set([
-  "nifty_update_task",
-  "nifty_update_task_custom_fields",
-  "nifty_update_task_assignees",
-  "nifty_prepare_task_for_delivery",
-  "nifty_create_comment",
-  "nifty_move_task_to_status",
-  "nifty_archive_task",
-  "nifty_delete_task",
-  "nifty_clone_task",
-  "nifty_link_tasks",
-  "nifty_update_task_labels",
-  "nifty_attach_task_document",
-  "nifty_shape_task"
-]);
-var TASK_CARD_ONLY_BULK_TASK_TOOLS = new Set([
-  "nifty_move_tasks"
-]);
-var TASK_CARD_ONLY_PARENT_TASK_TOOLS = new Set([
-  "nifty_create_subtask"
-]);
-function extractBootstrapTaskID(args) {
-  return args?.task_id || args?.id || null;
-}
-function extractBootstrapProjectID(args) {
-  return args?.project_id || null;
-}
-function assertContextBootstrapped(toolName, args, policyState, context2) {
-  if (!envBoolean2("NIFTY_BOOTSTRAP_REQUIRED", true, context2))
-    return;
-  const externalBootstrap = context2?.bootstrapState;
-  if (BOOTSTRAP_MUTATING_TASK_TOOLS.has(toolName)) {
-    const taskID = extractBootstrapTaskID(args);
-    if (!taskID) {
-      return;
-    }
-    const isBootstrapped = policyState.bootstrappedTasks?.has(taskID) || externalBootstrap?.resolvedTasks?.has(taskID) || externalBootstrap?.bootstrappedTasks?.has(taskID);
-    if (!isBootstrapped) {
-      throw Object.assign(new Error(`[BootstrapGate] bootstrap context required: call nifty_get_task_full_context({ task_id: "${taskID}" }) before attempting mutation with '${toolName}'.`), { code: "NIFTY_BOOTSTRAP_REQUIRED", taskID, toolName });
-    }
-  }
-  if (BOOTSTRAP_MUTATING_PROJECT_TOOLS.has(toolName)) {
-    const projectID = extractBootstrapProjectID(args);
-    if (!projectID)
-      return;
-    const isBootstrapped = policyState.bootstrappedProjects?.has(projectID) || externalBootstrap?.resolvedProjects?.has(projectID) || externalBootstrap?.bootstrappedProjects?.has(projectID);
-    if (!isBootstrapped) {
-      throw Object.assign(new Error(`[BootstrapGate] bootstrap context required: call nifty_get_project_full_context with project_id "${projectID}" before attempting mutation with '${toolName}'.`), { code: "NIFTY_BOOTSTRAP_REQUIRED", projectID, toolName });
-    }
-  }
-}
-function matchesActionPattern(pattern, action) {
-  if (pattern === "*" || pattern === "**")
-    return true;
-  if (!pattern.includes("*"))
-    return pattern === action;
-  const re = new RegExp("^" + pattern.replace(/\*\*/g, ".+").replace(/\*/g, "[^.]+") + "$");
-  return re.test(action);
-}
-function evaluateCondition(condition, args) {
-  if (!condition)
-    return true;
-  const { arg, op, value } = condition;
-  const argValue = args?.[arg];
-  switch (op) {
-    case "count_gt":
-      return Array.isArray(argValue) ? argValue.length > value : false;
-    case "count_lte":
-      return Array.isArray(argValue) ? argValue.length <= value : true;
-    case "eq":
-      return argValue === value;
-    case "neq":
-      return argValue !== value;
-    case "exists":
-      return argValue !== undefined && argValue !== null;
-    case "absent":
-      return argValue === undefined || argValue === null;
-    default:
-      return true;
-  }
-}
-function evaluatePolicy(toolName, args, policy, options = {}) {
-  const { auditLog } = options;
-  const defaultEffect = policy?.default_effect ?? "allow";
-  const rules = Array.isArray(policy?.rules) ? policy.rules : [];
-  const matchedRules = [];
-  let denyReason = null;
-  let hasExplicitAllow = false;
-  for (const rule of rules) {
-    if (!matchesActionPattern(rule.action, toolName))
-      continue;
-    if (!evaluateCondition(rule.condition, args))
-      continue;
-    matchedRules.push(rule);
-    if (rule.effect === "deny") {
-      denyReason = rule.reason || `Denied by policy rule${rule.id ? ` '${rule.id}'` : ""}.`;
-    } else if (rule.effect === "allow") {
-      hasExplicitAllow = true;
-    }
-  }
-  const allowed = denyReason !== null ? false : matchedRules.length === 0 ? defaultEffect === "allow" : hasExplicitAllow || defaultEffect === "allow";
-  const entry = {
-    timestamp: new Date().toISOString(),
-    tool: toolName,
-    allowed,
-    matched_rules: matchedRules.map((r) => r.id || r.action).filter(Boolean),
-    ...denyReason ? { reason: denyReason } : {}
-  };
-  if (Array.isArray(auditLog))
-    auditLog.push(entry);
-  return { allowed, matched_rules: matchedRules, ...denyReason ? { reason: denyReason } : {} };
-}
-function loadPolicy(context2) {
-  const inline = process.env.NIFTY_POLICY_INLINE;
-  if (inline) {
-    try {
-      return JSON.parse(inline);
-    } catch {
-      throw new Error("[PolicyGate] NIFTY_POLICY_INLINE contains invalid JSON.");
-    }
-  }
-  const policyPath = process.env.NIFTY_POLICY_PATH;
-  if (policyPath && policyPath !== "/dev/null" && existsSync105(policyPath)) {
-    try {
-      return JSON.parse(readFileSync75(policyPath, "utf8"));
-    } catch (err) {
-      throw new Error(`[PolicyGate] Failed to parse policy at ${policyPath}: ${err.message}`);
-    }
-  }
-  return null;
-}
-function enforcePolicyGate(toolName, args, policyState, context2) {
-  const policy = policyState.loadedPolicy;
-  const managedMutation = policyRequired(context2) && isPolicyManagedMutation(toolName);
-  if (policyState.policyLoadError && managedMutation) {
-    throw Object.assign(new Error(`[PolicyGate] Policy is required but failed to load before '${toolName}': ${policyState.policyLoadError.message}`), { code: "NIFTY_POLICY_REQUIRED", toolName });
-  }
-  if (!policy) {
-    if (managedMutation) {
-      throw Object.assign(new Error(`[PolicyGate] Policy is required before executing '${toolName}'. Set NIFTY_POLICY_PATH or NIFTY_POLICY_INLINE.`), { code: "NIFTY_POLICY_REQUIRED", toolName });
-    }
-    return;
-  }
-  const result = evaluatePolicy(toolName, args, policy, { auditLog: policyState.auditLog });
-  if (!result.allowed) {
-    throw Object.assign(new Error(`[PolicyGate] Tool '${toolName}' denied: ${result.reason}`), { code: "NIFTY_POLICY_VIOLATION", toolName, policy_reason: result.reason });
-  }
-}
-function policyRequired(context2 = {}) {
-  return envBoolean2("NIFTY_POLICY_REQUIRED", false, context2) || envBoolean2("NIFTY_MANAGED_MODE", false, context2);
-}
-function isPolicyManagedMutation(toolName) {
-  return POLICY_MANAGED_MUTATION_PATTERNS.some((pattern) => matchesActionPattern(pattern, toolName));
-}
 var RECOMMENDED_WORKFLOW = {
   statuses: [
     { key: "ideas", name: "Ideas", order: 100, color: "#9E9E9E" },
@@ -149592,8 +148906,8 @@ function parseEnvFile(content) {
   }
   return values;
 }
-function envFileValues(context2 = {}) {
-  const candidates = [context2.directory, context2.worktree, process.cwd()].filter(Boolean).map((directory) => join113(directory, ".nifty.env"));
+function envFileValues(context = {}) {
+  const candidates = [context.directory, context.worktree, process.cwd()].filter(Boolean).map((directory) => join112(directory, ".nifty.env"));
   for (const path31 of [...new Set(candidates)]) {
     if (!existsSync105(path31))
       continue;
@@ -149605,31 +148919,25 @@ function envFileValues(context2 = {}) {
   }
   return {};
 }
-function env(name, context2 = {}) {
-  const fileValue = envFileValues(context2)[name];
+function env(name, context = {}) {
+  const fileValue = envFileValues(context)[name];
   if (typeof fileValue === "string" && fileValue.trim())
     return fileValue.trim();
   const value = process.env[name];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
-function envList(name, fallback = [], context2 = {}) {
-  const value = env(name, context2);
-  if (!value)
-    return fallback;
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
-}
-function getClientConfig(context2 = {}) {
+function getClientConfig(context = {}) {
   return {
-    clientID: env("NIFTY_CLIENT_ID", context2),
-    clientSecret: env("NIFTY_CLIENT_SECRET", context2),
-    redirectURI: env("NIFTY_REDIRECT_URI", context2),
-    authorizeURL: env("NIFTY_AUTHORIZE_URL", context2),
-    accessToken: env("NIFTY_ACCESS_TOKEN", context2),
-    refreshToken: env("NIFTY_REFRESH_TOKEN", context2)
+    clientID: env("NIFTY_CLIENT_ID", context),
+    clientSecret: env("NIFTY_CLIENT_SECRET", context),
+    redirectURI: env("NIFTY_REDIRECT_URI", context),
+    authorizeURL: env("NIFTY_AUTHORIZE_URL", context),
+    accessToken: env("NIFTY_ACCESS_TOKEN", context),
+    refreshToken: env("NIFTY_REFRESH_TOKEN", context)
   };
 }
-function defaultWorkflowAlias(context2 = {}) {
-  return env("NIFTY_DEFAULT_WORKFLOW", context2);
+function defaultWorkflowAlias(context = {}) {
+  return env("NIFTY_DEFAULT_WORKFLOW", context);
 }
 async function readTokenCache() {
   try {
@@ -149640,30 +148948,13 @@ async function readTokenCache() {
   }
 }
 async function writeTokenCache2(token) {
-  const tokenDir = dirname41(TOKEN_PATH);
-  await mkdir10(tokenDir, { recursive: true, mode: 448 });
-  await chmod2(tokenDir, 448);
+  await mkdir10(dirname41(TOKEN_PATH), { recursive: true });
   await writeFile2(TOKEN_PATH, `${JSON.stringify(token, null, 2)}
 `, {
     encoding: "utf8",
     mode: 384
   });
-  await chmod2(TOKEN_PATH, 384);
-  const dirMode = (await stat7(tokenDir)).mode & 511;
-  const fileMode = (await stat7(TOKEN_PATH)).mode & 511;
-  if (dirMode !== 448 || fileMode !== 384) {
-    throw new Error(`Unable to secure Nifty token cache permissions at ${TOKEN_PATH}. ` + `Expected directory 0700 and file 0600, got directory 0${dirMode.toString(8)} and file 0${fileMode.toString(8)}. ` + "Move NIFTY_TOKEN_PATH to a filesystem that honors chmod before storing credentials.");
-  }
-}
-function resolveAuthNodeBinary(context2 = {}) {
-  const override = env("NIFTY_NODE_BINARY", context2);
-  if (!override)
-    return DEFAULT_AUTH_NODE_BINARY;
-  if (override === DEFAULT_AUTH_NODE_BINARY || override === process.execPath)
-    return override;
-  if (envBoolean2("NIFTY_ALLOW_UNSAFE_NODE_BINARY_OVERRIDE", false, context2))
-    return override;
-  throw new Error("NIFTY_NODE_BINARY override is disabled by default because the auth subprocess handles credentials. Use the current Node executable or set NIFTY_ALLOW_UNSAFE_NODE_BINARY_OVERRIDE=true only in trusted local test environments.");
+  await chmod2(TOKEN_PATH, 384).catch(() => {});
 }
 function isTokenUsable(token) {
   return Boolean(token?.access_token && token?.expires_at && Date.now() + TOKEN_SKEW_MS < Number(token.expires_at));
@@ -149671,8 +148962,8 @@ function isTokenUsable(token) {
 function basicAuth(clientID, clientSecret) {
   return Buffer.from(`${clientID}:${clientSecret}`).toString("base64");
 }
-async function requestToken(body, context2 = {}) {
-  const config = getClientConfig(context2);
+async function requestToken(body, context = {}) {
+  const config = getClientConfig(context);
   if (!config.clientID || !config.clientSecret) {
     throw new Error("Missing Nifty client credentials. Set NIFTY_CLIENT_ID and NIFTY_CLIENT_SECRET.");
   }
@@ -149702,10 +148993,10 @@ async function requestToken(body, context2 = {}) {
 function getLocalRedirectURI(host, port) {
   return `http://${host}:${port}/callback`;
 }
-function getAuthPort(context2 = {}, explicitPort) {
+function getAuthPort(context = {}, explicitPort) {
   if (explicitPort !== undefined && explicitPort !== null)
     return explicitPort;
-  const configuredPort = env("NIFTY_AUTH_PORT", context2);
+  const configuredPort = env("NIFTY_AUTH_PORT", context);
   if (!configuredPort)
     return 8787;
   const port = Number(configuredPort);
@@ -149714,8 +149005,8 @@ function getAuthPort(context2 = {}, explicitPort) {
   }
   return port;
 }
-function getAuthorizeURL(host, port, state3, context2 = {}) {
-  const config = getClientConfig(context2);
+function getAuthorizeURL(host, port, state3, context = {}) {
+  const config = getClientConfig(context);
   if (!config.authorizeURL) {
     throw new Error("Missing NIFTY_AUTHORIZE_URL.");
   }
@@ -149729,18 +149020,18 @@ function createOAuthState() {
   return randomBytes3(16).toString("hex");
 }
 async function assertPortAvailable(host, port) {
-  return new Promise((resolve29, reject) => {
+  return new Promise((resolve30, reject) => {
     const server = createServer3();
     server.once("error", (error) => {
       reject(new Error(`Unable to start localhost auth server on ${host}:${port}: ${error.message}`));
     });
     server.listen(port, host, () => {
-      server.close(() => resolve29());
+      server.close(() => resolve30());
     });
   });
 }
-function sleepWorkflowLock(ms) {
-  return new Promise((resolve29) => setTimeout(resolve29, ms));
+function sleep3(ms) {
+  return new Promise((resolve30) => setTimeout(resolve30, ms));
 }
 async function fetchWithTimeout(url2, timeoutMs) {
   const controller = new AbortController;
@@ -149795,10 +149086,10 @@ function currentPluginSource() {
 function samePluginSource(current, latest) {
   return String(current).trim() === String(latest).trim();
 }
-async function runInstallScript(script, ref, context2 = {}) {
-  return new Promise((resolve29, reject) => {
+async function runInstallScript(script, ref, context = {}) {
+  return new Promise((resolve30, reject) => {
     const child = spawn5("bash", ["-s"], {
-      cwd: context2.directory || context2.worktree || process.cwd(),
+      cwd: context.directory || context.worktree || process.cwd(),
       env: {
         ...process.env,
         NIFTY_INSTALL_REF: ref
@@ -149813,7 +149104,7 @@ async function runInstallScript(script, ref, context2 = {}) {
     };
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error("Cave Meister Orchestrator installer timed out."));
+      reject(new Error("Nifty plugin installer timed out."));
     }, 120000);
     child.stdout.on("data", append);
     child.stderr.on("data", append);
@@ -149825,17 +149116,17 @@ async function runInstallScript(script, ref, context2 = {}) {
       clearTimeout(timeout);
       const text = output.join("");
       if (code === 0) {
-        resolve29(text);
+        resolve30(text);
         return;
       }
-      reject(new Error(`Cave Meister Orchestrator installer failed with exit code ${code}.
+      reject(new Error(`Nifty plugin installer failed with exit code ${code}.
 ${text}`));
     });
     child.stdin.end(script);
   });
 }
 async function waitForAuthorizationCode(host, port, signal, expectedState) {
-  return new Promise((resolve29, reject) => {
+  return new Promise((resolve30, reject) => {
     const server = createServer3((request, response) => {
       try {
         const requestURL = new URL(request.url || "/", `http://${host}:${port}`);
@@ -149869,7 +149160,7 @@ async function waitForAuthorizationCode(host, port, signal, expectedState) {
         response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         response.end("<h1>Nifty connected</h1><p>You can close this tab and return to OpenCode.</p>");
         server.close();
-        resolve29(code);
+        resolve30(code);
       } catch (error) {
         server.close();
         reject(error);
@@ -149890,9 +149181,9 @@ async function waitForAuthorizationCode(host, port, signal, expectedState) {
     });
   });
 }
-async function startBackgroundAuthorizationServer(host, port, state3, context2 = {}) {
+async function startBackgroundAuthorizationServer(host, port, state3, context = {}) {
   const redirectURI = getLocalRedirectURI(host, port);
-  const config = getClientConfig(context2);
+  const config = getClientConfig(context);
   const script = `
     import { createServer } from "node:http";
     import { appendFile, chmod, writeFile, mkdir } from "node:fs/promises";
@@ -149908,10 +149199,12 @@ async function startBackgroundAuthorizationServer(host, port, state3, context2 =
 
     async function log(message) {
       try {
-        await mkdir(dirname(logPath), { recursive: true, mode: 0o700 });
-        await chmod(dirname(logPath), 0o700).catch(() => {});
+        await mkdir(dirname(logPath), { recursive: true });
         await appendFile(logPath, \`[\${new Date().toISOString()}] \${message}\\n\`, "utf8");
-      } catch {}
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(\`[nifty-auth] failed to write log: \${message}\`);
+      }
     }
 
     function html(title, body) {
@@ -149984,8 +149277,7 @@ async function startBackgroundAuthorizationServer(host, port, state3, context2 =
 
         const token = JSON.parse(text);
         token.expires_at = Date.now() + Number(token.expires_in || 0) * 1000;
-        await mkdir(dirname(tokenPath), { recursive: true, mode: 0o700 });
-        await chmod(dirname(tokenPath), 0o700).catch(() => {});
+        await mkdir(dirname(tokenPath), { recursive: true });
         await writeFile(tokenPath, JSON.stringify(token, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
         await chmod(tokenPath, 0o600).catch(() => {});
 
@@ -149994,7 +149286,7 @@ async function startBackgroundAuthorizationServer(host, port, state3, context2 =
         await log("token exchange completed successfully");
         server.close(() => process.exit(0));
       } catch (error) {
-        await log(\`request handling failed: \${error?.message || "unexpected error"}\`);
+        await log(\`request handling failed: \${error?.stack || error}\`);
         response.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
         response.end(html("Nifty auth server failed", "Return to OpenCode and retry."));
         server.close(() => process.exit(1));
@@ -150013,12 +149305,11 @@ async function startBackgroundAuthorizationServer(host, port, state3, context2 =
       server.close(() => process.exit(1));
     }, 10 * 60 * 1000);
   `;
-  const authNodeBinary = resolveAuthNodeBinary(context2);
-  mkdirSync22(dirname41(AUTH_LOG_PATH), { recursive: true, mode: 448 });
-  appendFileSync7(AUTH_LOG_PATH, `[${new Date().toISOString()}] starting auth server with ${authNodeBinary} on ${host}:${port}; redirect_uri=${redirectURI}
+  mkdirSync22(dirname41(AUTH_LOG_PATH), { recursive: true });
+  appendFileSync7(AUTH_LOG_PATH, `[${new Date().toISOString()}] starting auth server with ${AUTH_NODE_BINARY} on ${host}:${port}; redirect_uri=${redirectURI}
 `, "utf8");
   const logFd = openSync5(AUTH_LOG_PATH, "a");
-  const child = spawn5(authNodeBinary, ["--input-type=module", "-e", script], {
+  const child = spawn5(AUTH_NODE_BINARY, ["--input-type=module", "-e", script], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
     env: {
@@ -150067,14 +149358,14 @@ async function getAccessToken() {
     "If you already have a token, you can also set NIFTY_ACCESS_TOKEN directly."
   ].join(" "));
 }
-async function parseResponse(response, context2 = {}) {
+async function parseResponse(response, context = {}) {
   const text = await response.text();
   const contentType = response.headers.get("content-type") || "";
   const isJSON = contentType.includes("application/json");
   const payload = text ? isJSON ? JSON.parse(text) : text : undefined;
   if (!response.ok) {
     const detail = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-    const request = context2.method && context2.path ? ` ${context2.method} ${context2.path}` : "";
+    const request = context.method && context.path ? ` ${context.method} ${context.path}` : "";
     throw new Error(`Nifty API ${response.status} ${response.statusText}${request}: ${detail}`);
   }
   return payload;
@@ -150109,23 +149400,6 @@ function cleanWriteObject(input) {
     return true;
   }));
 }
-function documentContentFromText(text) {
-  const value = String(text ?? "").trimEnd();
-  if (!value.trim())
-    return;
-  const paragraphs = value.split(/\n{2,}/).map((block) => {
-    const content = [];
-    const lines = block.split(/\n/);
-    for (const [index, line] of lines.entries()) {
-      if (line)
-        content.push({ type: "text", text: line });
-      if (index < lines.length - 1)
-        content.push({ type: "hardBreak" });
-    }
-    return content.length ? { type: "paragraph", content } : { type: "paragraph" };
-  });
-  return { type: "doc", content: paragraphs };
-}
 function requireBulkTaskConfirmation(action, taskIDs, confirmation) {
   const count = Array.isArray(taskIDs) ? taskIDs.length : 0;
   const expected = `${action} ${count} ${count === 1 ? "task" : "tasks"}`;
@@ -150136,24 +149410,24 @@ function requireBulkTaskConfirmation(action, taskIDs, confirmation) {
 function normalize4(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
-function configPath(context2 = {}) {
-  if (context2.config_path)
-    return context2.config_path;
-  const directory = context2.directory || context2.worktree || process.cwd();
-  return join113(directory, "nifty-workflows.json");
+function configPath(context = {}) {
+  if (context.config_path)
+    return context.config_path;
+  const directory = context.directory || context.worktree || process.cwd();
+  return join112(directory, "nifty-workflows.json");
 }
-function projectWorkflowConfigPath(context2 = {}, explicitPath) {
+function projectWorkflowConfigPath(context = {}, explicitPath) {
   if (explicitPath)
     return explicitPath;
-  const directory = context2.directory || context2.worktree || process.cwd();
-  return join113(directory, "nifty-workflows.json");
+  const directory = context.directory || context.worktree || process.cwd();
+  return join112(directory, "nifty-workflows.json");
 }
-function workflowContext(context2 = {}, explicitPath) {
-  return explicitPath ? { ...context2, config_path: explicitPath } : context2;
+function workflowContext(context = {}, explicitPath) {
+  return explicitPath ? { ...context, config_path: explicitPath } : context;
 }
-async function readWorkflowConfig(context2 = {}) {
+async function readWorkflowConfig(context = {}) {
   try {
-    const raw = await readFile14(configPath(context2), "utf8");
+    const raw = await readFile14(configPath(context), "utf8");
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : { workflows: {} };
   } catch {
@@ -150163,8 +149437,8 @@ async function readWorkflowConfig(context2 = {}) {
 function getWorkflowAliasMap(config) {
   return config?.workflows && typeof config.workflows === "object" ? config.workflows : {};
 }
-async function workflowForArgs(input = {}, context2 = {}) {
-  const contextWithConfig = workflowContext(context2, input.config_path);
+async function workflowForArgs(input = {}, context = {}) {
+  const contextWithConfig = workflowContext(context, input.config_path);
   const alias = input.workflow_alias || defaultWorkflowAlias(contextWithConfig);
   if (!alias)
     return {};
@@ -150251,23 +149525,6 @@ async function createStatus(projectID, status) {
     })
   });
 }
-function looksLikeDuplicateWriteError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes(" 409 ") || message.includes("already exists") || message.includes("duplicate");
-}
-async function createStatusIdempotent(projectID, status) {
-  try {
-    return await createStatus(projectID, status);
-  } catch (error) {
-    if (!looksLikeDuplicateWriteError(error))
-      throw error;
-    const statuses = await fetchAllStatuses(projectID);
-    const existing = statuses.find((item) => statusMatches(item, status.name));
-    if (existing)
-      return existing;
-    throw error;
-  }
-}
 async function fetchMilestones(projectID, options = {}) {
   const response = await niftyRequest("/api/v1.0/milestones", {
     query: cleanObject({
@@ -150306,19 +149563,6 @@ async function createList(projectID, list) {
     }
   });
 }
-async function createListIdempotent(projectID, list) {
-  try {
-    return await createList(projectID, list);
-  } catch (error) {
-    if (!looksLikeDuplicateWriteError(error))
-      throw error;
-    const lists = await fetchAllMilestones(projectID, { isList: true });
-    const existing = lists.find((item) => milestoneMatches(item, list.name));
-    if (existing)
-      return existing;
-    throw error;
-  }
-}
 async function recommendedWorkflowSetupPlan(projectID, options = {}) {
   const [statuses, lists] = await Promise.all([
     fetchAllStatuses(projectID),
@@ -150340,12 +149584,12 @@ async function recommendedWorkflowSetupPlan(projectID, options = {}) {
   if (!dryRun) {
     if (createStatuses) {
       for (const status of statusPlan.filter((item) => !item.existing)) {
-        createdStatuses.push(await createStatusIdempotent(projectID, status));
+        createdStatuses.push(await createStatus(projectID, status));
       }
     }
     if (createLists) {
       for (const list of listPlan.filter((item) => !item.existing)) {
-        createdLists.push(await createListIdempotent(projectID, list));
+        createdLists.push(await createList(projectID, list));
       }
     }
   }
@@ -150371,8 +149615,8 @@ function projectMatches(project, selector) {
     return false;
   return [project.id, project.name, project.nice_id].filter(Boolean).some((value) => normalize4(value) === wanted);
 }
-async function resolveProjectSelector(input = {}, context2 = {}) {
-  const contextWithConfig = workflowContext(context2, input.config_path);
+async function resolveProjectSelector(input = {}, context = {}) {
+  const contextWithConfig = workflowContext(context, input.config_path);
   const config = await readWorkflowConfig(contextWithConfig);
   const workflows = getWorkflowAliasMap(config);
   const workflowAlias2 = input.workflow_alias || defaultWorkflowAlias(contextWithConfig);
@@ -150554,9 +149798,12 @@ function statusMap(statuses) {
 }
 function summarizeTask(task, statusesByID = new Map, workflow = {}) {
   const rawStatus = getTaskStatusID(task);
+  const parentTaskID = getParentTaskID(task);
   const summary = {
     id: task.id,
     name: task.name,
+    kind: parentTaskID ? "subtask" : "parent_task_card",
+    parent_task_id: parentTaskID || null,
     completed: task.completed,
     archived: task.archived,
     due_date: task.due_date || null,
@@ -150570,6 +149817,9 @@ function summarizeTask(task, statusesByID = new Map, workflow = {}) {
   if (Object.keys(customFields).length)
     summary.custom_fields = customFields;
   return summary;
+}
+function getParentTaskID(task = {}) {
+  return task.parent_task_id || task.task_id || task.parentTaskID || task.parent?.id || undefined;
 }
 function filterTasksByStatus(tasks, statusID) {
   if (!statusID)
@@ -150741,10 +149991,7 @@ function botCommentText(text, enabled = true) {
   const trimmed = String(text || "").trimStart();
   if (!enabled)
     return trimmed;
-  if (trimmed.startsWith(BOT_COMMENT_PREFIX))
-    return trimmed;
-  const withoutLegacyPrefix = trimmed.startsWith(LEGACY_MCP_COMMENT_PREFIX) ? trimmed.slice(LEGACY_MCP_COMMENT_PREFIX.length).trimStart() : trimmed.startsWith(LEGACY_MCBOTFACE_COMMENT_PREFIX) ? trimmed.slice(LEGACY_MCBOTFACE_COMMENT_PREFIX.length).trimStart() : trimmed.startsWith(LEGACY_BOT_COMMENT_PREFIX) ? trimmed.slice(LEGACY_BOT_COMMENT_PREFIX.length).trimStart() : trimmed;
-  return `${BOT_COMMENT_PREFIX} ${withoutLegacyPrefix}`;
+  return trimmed.startsWith(BOT_COMMENT_PREFIX) ? trimmed : `${BOT_COMMENT_PREFIX} ${trimmed}`;
 }
 function niftyShellCommandHint(command) {
   const normalized = normalize4(command);
@@ -150753,1709 +150000,79 @@ function niftyShellCommandHint(command) {
   }
   return;
 }
-function envBoolean2(name, fallback, context2 = {}) {
-  const value = env(name, context2);
-  if (value === undefined)
-    return fallback;
-  const normalized = String(value).trim().toLowerCase();
-  return ["1", "true", "yes", "on"].includes(normalized);
-}
-function lifecyclePolicyEnabled(context2 = {}) {
-  return envBoolean2("NIFTY_AUTOPOLICY_ENABLED", true, context2);
-}
-function autoContextEnabled(context2 = {}) {
-  return envBoolean2("NIFTY_AUTOCONTEXT_ENABLED", true, context2);
-}
-function envInteger(name, fallback, context2 = {}) {
-  const value = env(name, context2);
-  if (value === undefined)
-    return fallback;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1)
-    return fallback;
-  return parsed;
-}
-function autoContextCommentLimit(context2 = {}) {
-  return envInteger("NIFTY_AUTOCONTEXT_COMMENT_LIMIT", AUTOCONTEXT_DEFAULT_COMMENT_LIMIT, context2);
-}
-function autoContextTaskLimit(context2 = {}) {
-  return envInteger("NIFTY_AUTOCONTEXT_TASK_LIMIT", AUTOCONTEXT_DEFAULT_TASK_LIMIT, context2);
-}
-function lifecycleAssignSelfEnabled(context2 = {}) {
-  return envBoolean2("NIFTY_AUTOPOLICY_ASSIGN_SELF", true, context2);
-}
-function lifecycleDeliveryGateEnabled(context2 = {}) {
-  return envBoolean2("NIFTY_AUTOPOLICY_ENFORCE_DELIVERY_GATE", true, context2);
-}
-function lifecycleStatusCommentsEnabled(context2 = {}) {
-  return envBoolean2("NIFTY_LIFECYCLE_STATUS_COMMENTS", false, context2);
-}
-function lifecycleInProgressStateKey(context2 = {}) {
-  return env("NIFTY_AUTOPOLICY_IN_PROGRESS_STATE", context2) || LIFECYCLE_DEFAULT_IN_PROGRESS_KEY;
-}
-function lifecycleDevReviewStateKey(context2 = {}) {
-  return env("NIFTY_AUTOPOLICY_DEV_REVIEW_STATE", context2) || LIFECYCLE_DEFAULT_DEV_REVIEW_KEY;
-}
-function lifecycleDefaultAssigneeIDs(context2 = {}) {
-  const configured = env("NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS", context2);
-  if (!configured)
-    return [];
-  return configured.split(",").map((value) => value.trim()).filter(Boolean);
-}
-function taskAssigneeIDs(task = {}) {
-  const list = [
-    ...Array.isArray(task.assignees) ? task.assignees : [],
-    ...Array.isArray(task.members) ? task.members : []
-  ];
-  return list.map((member) => typeof member === "string" ? member : member?.id).filter(Boolean);
-}
-function changedFilesFromGit(context2 = {}) {
-  const worktree = context2.directory || context2.worktree || process.cwd();
-  const commands3 = [
-    ["diff", "--name-only", "HEAD", "--"],
-    ["show", "--name-only", "--pretty=format:", "HEAD"]
-  ];
-  for (const args of commands3) {
-    const result = spawnSync3("git", args, {
-      cwd: worktree,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"]
-    });
-    if (result.status !== 0)
-      continue;
-    const files = String(result.stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    if (files.length)
-      return [...new Set(files)];
+var NIFTY_TASK_KEY_PATTERN = /\b[A-Z][A-Z0-9]+-\d+\b/;
+var SUBSTANTIAL_MUTATION_TOOLS = new Set(["edit", "apply_patch", "write"]);
+var BASH_MUTATION_SEGMENT_PATTERN = /(?:^|&&|\|\||;)\s*(?:sudo\s+)?(?:touch|mkdir|rm|rmdir|mv|cp)\b/;
+var TASK_IMPLEMENTATION_SIGNAL_PATTERN = /\b(?:what changed|implemented|changed files?|updated files?|modified files?)\b/i;
+var TASK_CODE_PATH_PATTERN = /\b(?:src|packages|test|tests|script|scripts|docs)\/[A-Za-z0-9._/-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|jsonc|md|css|scss|html|py|go|rs|java|kt|swift|rb|php|sh)\b/;
+var TASK_NO_CHANGE_PATTERN = /\b(?:no files? changed|no code changes?|without changes?|research findings only)\b/i;
+function collectStringValues(value, values = [], depth = 0) {
+  if (depth > 4 || value === null || value === undefined)
+    return values;
+  if (typeof value === "string") {
+    values.push(value);
+    return values;
   }
-  return [];
-}
-function isVisualFile(filePath = "") {
-  const path31 = String(filePath || "").toLowerCase();
-  if (!path31)
-    return false;
-  if (/(^|\/)(public|frontend|docs-site|resources\/views|resources\/css|resources\/js)\//.test(path31)) {
-    return true;
+  if (Array.isArray(value)) {
+    for (const item of value)
+      collectStringValues(item, values, depth + 1);
+    return values;
   }
-  return /\.(css|scss|sass|less|styl|html|htm|jsx|tsx|vue|svelte|astro|png|jpe?g|gif|webp|svg)$/i.test(path31);
-}
-function requiresVisualProof(changedFiles = []) {
-  return (changedFiles || []).some((filePath) => isVisualFile(filePath));
-}
-function isCodeChangeFile(filePath = "") {
-  const path31 = String(filePath || "").trim().toLowerCase();
-  if (!path31)
-    return false;
-  if (/(^|\/)(docs|documentation|screenshots|artifacts|coverage|dist|build|vendor|node_modules)\//.test(path31)) {
-    return false;
+  if (typeof value === "object") {
+    for (const item of Object.values(value))
+      collectStringValues(item, values, depth + 1);
   }
-  if (/(^|\/)(readme|changelog|license|notice)(\.[a-z0-9]+)?$/.test(path31))
-    return false;
-  if (/\.(md|mdx|txt|png|jpe?g|gif|webp|svg|pdf|log)$/i.test(path31))
-    return false;
-  if (/(^|\/)(package|composer|pnpm-lock|package-lock|yarn)\.json$/.test(path31))
-    return true;
-  if (/(^|\/)(package-lock|pnpm-lock|yarn)\.(json|yaml|yml)$/.test(path31))
-    return true;
-  if (/(^|\/)(src|app|lib|plugin|mcp|scripts|test|tests|backend|frontend|resources|database|migrations)\//.test(path31)) {
-    return true;
-  }
-  return /\.(js|mjs|cjs|jsx|ts|tsx|py|php|rb|go|rs|java|kt|swift|cs|c|cc|cpp|h|hpp|css|scss|sass|less|vue|svelte|astro|html|htm|json|ya?ml|toml|ini|env|sql|sh|bash|zsh|ps1)$/i.test(path31);
+  return values;
 }
-function codeChangedFiles(changedFiles = []) {
-  return [...new Set((changedFiles || []).map((filePath) => String(filePath || "").trim()).filter(isCodeChangeFile))];
-}
-function requiresTddProof(changedFiles = []) {
-  return codeChangedFiles(changedFiles).length > 0;
-}
-function requiresVisualRegressionProof(changedFiles = [], quality = engineeringQualityConfig(null)) {
-  return quality.require_visual_regression_for_code_changes !== false && requiresTddProof(changedFiles);
-}
-function engineeringQualityConfig(policy) {
-  const defaults = {
-    enabled: true,
-    require_architectural_integration: true,
-    require_tdd_red_green: true,
-    require_visual_regression_for_code_changes: true,
-    require_regression_proof: true,
-    require_iterative_validation: true,
-    forbid_placeholder_delivery: true,
-    minimum_evidence_chars: 40,
-    forbidden_claim_patterns: [
-      "fixed it",
-      "works now",
-      "tests pass",
-      "handled",
-      "done",
-      "should work",
-      "looks good",
-      "minor fix"
-    ]
-  };
-  if (!policy || typeof policy !== "object")
-    return defaults;
-  return { ...defaults, ...policy.engineering_quality ?? {} };
-}
-function assertSubstantiveEvidence(label, value, quality = engineeringQualityConfig(null)) {
-  const text = String(value || "").trim();
-  if (!text)
-    throw new Error(`delivery_evidence.${label} is required before moving to Dev Review.`);
-  if (!quality.forbid_placeholder_delivery)
-    return text;
-  const normalizedText = normalize4(text);
-  const forbidden = quality.forbidden_claim_patterns || [];
-  const matchesForbidden = forbidden.some((pattern) => normalizedText === normalize4(pattern));
-  const minimumChars = Number.isFinite(quality.minimum_evidence_chars) ? quality.minimum_evidence_chars : 40;
-  if (matchesForbidden || text.length < minimumChars) {
-    throw new Error(`delivery_evidence.${label} is hand-wavy placeholder evidence and not enough evidence for delivery. ` + "Provide concrete architectural integration, regression/TDD proof, and iterative validation details.");
-  }
-  return text;
-}
-function validateDeliveryEvidence(evidence = {}, options = {}) {
-  const quality = options.engineeringQuality || engineeringQualityConfig(options.policy);
-  const changedFiles = Array.isArray(evidence.changed_files) && evidence.changed_files.length ? evidence.changed_files : Array.isArray(options.changedFiles) ? options.changedFiles : [];
-  const changedCodeFiles = codeChangedFiles(changedFiles);
-  const tddRequired = quality.require_tdd_red_green !== false && changedCodeFiles.length > 0;
-  const visualRequired = options.visualRequired === true || requiresVisualRegressionProof(changedFiles, quality);
-  const redProof = String(evidence.red_proof || "").trim();
-  const greenProof = String(evidence.green_proof || "").trim();
-  const sadPathProof = String(evidence.sad_path_proof || "").trim();
-  const architectureProof = String(evidence.architecture_proof || "").trim();
-  const regressionProof = String(evidence.regression_proof || "").trim();
-  const iterativeProof = String(evidence.iterative_proof || "").trim();
-  const visualProof = Array.isArray(evidence.visual_proof) ? evidence.visual_proof.map((item) => String(item || "").trim()).filter(Boolean) : [];
-  const visualProofFileIDs = [
-    ...Array.isArray(evidence.visual_proof_file_ids) ? evidence.visual_proof_file_ids : [],
-    ...Array.isArray(evidence.nifty_file_ids) ? evidence.nifty_file_ids : []
-  ].map((item) => String(item || "").trim()).filter(Boolean);
-  if (tddRequired && !redProof) {
-    throw new Error(`delivery_evidence.red_proof is required because code files changed: ${changedCodeFiles.join(", ")}.`);
-  }
-  if (tddRequired && !greenProof) {
-    throw new Error(`delivery_evidence.green_proof is required because code files changed: ${changedCodeFiles.join(", ")}.`);
-  }
-  if (!sadPathProof)
-    throw new Error("delivery_evidence.sad_path_proof is required before moving to Dev Review.");
-  const validatedArchitectureProof = quality.enabled !== false && quality.require_architectural_integration !== false ? assertSubstantiveEvidence("architecture_proof", architectureProof, quality) : architectureProof;
-  const validatedRegressionProof = quality.enabled !== false && quality.require_regression_proof !== false ? assertSubstantiveEvidence("regression_proof", regressionProof, quality) : regressionProof;
-  const validatedIterativeProof = quality.enabled !== false && quality.require_iterative_validation !== false ? assertSubstantiveEvidence("iterative_proof", iterativeProof, quality) : iterativeProof;
-  if (visualRequired && visualProof.length === 0 && visualProofFileIDs.length === 0) {
-    const reason = changedCodeFiles.length ? `code files changed: ${changedCodeFiles.join(", ")}` : "visual-impacting files changed";
-    throw new Error(`delivery_evidence.visual_proof or delivery_evidence.visual_proof_file_ids is required for visual regression proof because ${reason}.`);
-  }
-  return {
-    ...evidence,
-    red_proof: redProof,
-    green_proof: greenProof,
-    sad_path_proof: sadPathProof,
-    architecture_proof: validatedArchitectureProof,
-    regression_proof: validatedRegressionProof,
-    iterative_proof: validatedIterativeProof,
-    visual_proof: visualProof,
-    visual_proof_file_ids: [...new Set(visualProofFileIDs)],
-    changed_files: changedFiles,
-    code_changed_files: changedCodeFiles,
-    tdd_required: tddRequired,
-    visual_required: visualRequired
-  };
-}
-function looksLikeDevReviewStatus(status = {}, workflow = {}, context2 = {}) {
-  const wantedStateKey = lifecycleDevReviewStateKey(context2);
-  const configuredStatusName = workflow?.states?.[wantedStateKey] || workflow?.statuses?.[wantedStateKey];
-  if (configuredStatusName && statusMatches(status, configuredStatusName))
-    return true;
-  return normalize4(status?.name) === "dev review";
-}
-function looksLikeDoneStatus(status = {}, workflow = {}) {
-  const doneNames = [
-    workflow?.states?.done,
-    workflow?.statuses?.done,
-    workflow?.states?.released,
-    workflow?.statuses?.released,
-    "Done",
-    "Released in Prod"
-  ].filter(Boolean);
-  return doneNames.some((name) => statusMatches(status, name));
-}
-async function resolveLifecycleStatus(projectID, workflow = {}, stateKey, fallbackStatusNames = []) {
-  const statuses = await fetchAllStatuses(projectID);
-  const configured = stateKey ? workflow?.states?.[stateKey] || workflow?.statuses?.[stateKey] : undefined;
-  const selectors = [configured, ...fallbackStatusNames].filter(Boolean);
-  if (!selectors.length)
-    return;
-  return statuses.find((status) => selectors.some((selector) => statusMatches(status, selector)));
-}
-function reportingConfig(policy) {
-  const defaults = {
-    suppress_routine_status_comments: true,
-    require_structured_report: true,
-    require_playwright_proof_for_visual_changes: true,
-    comment_template: `## What was done
-{summary}
-
-## Evidence / Tests
-{evidence}
-
-## How to verify
-{verification_steps}
-
-## Visual proof (Playwright screenshots)
-{visual_proof}`
-  };
-  if (!policy || typeof policy !== "object")
-    return defaults;
-  return { ...defaults, ...policy.reporting ?? {} };
-}
-var TASK_COMMENT_TEMPLATE_REQUIRED_SECTIONS = [
-  { key: "what_was_done", labels: ["what was done"] },
-  { key: "evidence_tests", labels: ["evidence", "evidence tests", "evidence / tests"] },
-  { key: "how_to_verify", labels: ["how to verify"] }
-];
-var TASK_COMMENT_TEMPLATE_EXAMPLE = [
-  "## What was done",
-  "",
-  "- Implemented the requested change.",
-  "",
-  "## Evidence / Tests",
-  "",
-  "- `npm test`",
-  "- `npm run lint`",
-  "",
-  "## How to verify",
-  "",
-  "- Open the related task and confirm the checks and status transition."
-].join(`
+function extractTaskKeyFromChatMessage(output = {}) {
+  const text = collectStringValues([output.parts, output.message]).join(`
 `);
-function normalizeTemplateSectionLabel(label = "") {
-  return String(label).toLowerCase().replace(/[^a-z0-9/ ]/g, "").replace(/\s+/g, " ").trim();
+  return text.match(NIFTY_TASK_KEY_PATTERN)?.[0];
 }
-function parseTaskCommentTemplateSections(text = "") {
-  const lines = String(text || "").replace(/\r\n/g, `
-`).split(`
+function commandLooksMutating(command) {
+  return BASH_MUTATION_SEGMENT_PATTERN.test(String(command || ""));
+}
+function taskOutputReportsCodeChanges(output = {}) {
+  const text = collectStringValues([output.title, output.output, output.metadata]).join(`
 `);
-  const sections = new Map;
-  let current = null;
-  let buffer2 = [];
-  for (const line of lines) {
-    const matched = line.match(/^##\s*(.+?)\s*:?\s*$/);
-    if (matched) {
-      if (current)
-        sections.set(normalizeTemplateSectionLabel(current), buffer2.join(`
-`).trim());
-      current = matched[1];
-      buffer2 = [];
-      continue;
-    }
-    if (current)
-      buffer2.push(line);
-  }
-  if (current)
-    sections.set(normalizeTemplateSectionLabel(current), buffer2.join(`
-`).trim());
-  return sections;
-}
-function isDirtyOnlyAutonomousMcpProgressComment(text = "") {
-  const normalizedText = normalize4(text);
-  return normalizedText.includes("mcp autonomous progress update detected local workspace changes") && normalizedText.includes("changed files detected") && normalizedText.includes("review the listed local changes and continue implementation or validation");
-}
-function changedFilesForTaskCommentPolicy({ changed_files, context: context2 } = {}) {
-  if (Array.isArray(changed_files))
-    return changed_files;
-  if (context2)
-    return changedFilesFromGit(context2);
-  return [];
-}
-function hasRedGreenTddProof(text = "") {
-  const normalizedText = normalize4(text);
-  const hasRed = /\bred\b/i.test(text) || normalizedText.includes("failed before implementation") || normalizedText.includes("failing test") || normalizedText.includes("test failed first");
-  const hasGreen = /\bgreen\b/i.test(text) || normalizedText.includes("passed after implementation") || normalizedText.includes("passing test") || normalizedText.includes("test passed after");
-  return hasRed && hasGreen;
-}
-function hasVisualRegressionProof(text = "") {
-  const normalizedText = normalize4(text);
-  return normalizedText.includes("visual regression proof") || normalizedText.includes("playwright screenshot") || normalizedText.includes("screenshot proof") || normalizedText.includes("attached screenshot") || normalizedText.includes("video proof") || /https?:\/\/\S+/i.test(text);
-}
-function assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_files, context: context2 } = {}) {
-  const changedCodeFiles = codeChangedFiles(changedFilesForTaskCommentPolicy({ changed_files, context: context2 }));
-  if (!changedCodeFiles.length)
-    return;
-  const evidenceText = [
-    sections.get("evidence") || "",
-    sections.get("evidence tests") || "",
-    sections.get("evidence / tests") || "",
-    sections.get("how to verify") || ""
-  ].join(`
-`);
-  const verificationText = sections.get("how to verify") || "";
-  if (hasRedGreenTddProof(evidenceText) && hasVisualRegressionProof(verificationText))
-    return;
-  throw Object.assign(new Error([
-    "Task-card update comments for code changes require TDD RED proof, GREEN proof, and visual regression proof in ## How to verify.",
-    `Code files changed: ${changedCodeFiles.join(", ")}`,
-    "Example:",
-    "## Evidence / Tests",
-    "RED: `npm test -- path/to/regression.test` failed before implementation.",
-    "GREEN: `npm test -- path/to/regression.test` passed after implementation.",
-    "## How to verify",
-    "Re-run the GREEN command.",
-    "Visual regression proof: attached Playwright screenshot or URL."
-  ].join(`
-`)), { code: "NIFTY_CODE_CHANGE_EVIDENCE_REQUIRED", task_id, changed_files: changedCodeFiles });
-}
-function validateNiftyTaskCommentTemplate({ task_id, text, changed_files, context: context2, skip_code_change_evidence = false } = {}) {
-  if (typeof task_id !== "string" || !task_id.trim())
-    return;
-  if (isDirtyOnlyAutonomousMcpProgressComment(text)) {
-    throw Object.assign(new Error("Dirty-only autonomous MCP progress comments are not useful task evidence. Post a comment only when there is a concrete result, verification output, screenshot attachment, or reviewer-actionable status."), { code: "NIFTY_LOW_VALUE_TASK_COMMENT_BLOCKED", task_id });
-  }
-  const sections = parseTaskCommentTemplateSections(text || "");
-  const missing = [];
-  for (const requirement of TASK_COMMENT_TEMPLATE_REQUIRED_SECTIONS) {
-    const sectionLabel = requirement.labels.map((candidateLabel) => normalizeTemplateSectionLabel(candidateLabel)).find((label) => sections.has(label));
-    if (!sectionLabel) {
-      missing.push(requirement.labels[0]);
-      continue;
-    }
-    const content = sections.get(sectionLabel);
-    if (!content) {
-      missing.push(`${requirement.labels[0]} (empty)`);
-      continue;
-    }
-  }
-  if (!missing.length) {
-    if (skip_code_change_evidence)
-      return;
-    assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_files, context: context2 });
-    return;
-  }
-  throw Object.assign(new Error([
-    "Task-card update comments require a template when task_id is set.",
-    `Missing or invalid sections: ${missing.join(", ")}`,
-    "Use exactly these section headings before posting task comments:",
-    "## What was done",
-    "## Evidence / Tests",
-    "## How to verify",
-    "Example:",
-    TASK_COMMENT_TEMPLATE_EXAMPLE
-  ].join(`
-`)), { code: "NIFTY_TASK_COMMENT_TEMPLATE_REQUIRED", task_id });
-}
-function structuredReport({
-  summary = "",
-  completed = [],
-  evidence = "",
-  verification = "",
-  visual_proof = [],
-  visual_required = false
-} = {}) {
-  const sections = [];
-  const doneLines = [];
-  if (summary)
-    doneLines.push(summary);
-  if (completed.length) {
-    const bullets = completed.map((item) => `- ${String(item).replace(/^[-\u2022*]\s*/, "")}`).join(`
-`);
-    if (doneLines.length)
-      doneLines.push("");
-    doneLines.push(bullets);
-  }
-  if (doneLines.length)
-    sections.push(`## What was done
-${doneLines.join(`
-`)}`);
-  if (evidence) {
-    sections.push(`## Evidence / Tests
-${evidence}`);
-  }
-  if (verification) {
-    sections.push(`## How to verify
-${verification}`);
-  }
-  if (visual_required || visual_proof.length) {
-    const proofText = visual_proof.length ? visual_proof.join(`
-`) : "\u26A0\uFE0F MANDATORY: Playwright screenshot proof required for this visual change \u2014 attach before marking Done.";
-    sections.push(`## Visual proof (Playwright screenshots)
-${proofText}`);
-  }
-  return sections.join(`
-
-`);
-}
-function automationConfig(policy, context2 = {}) {
-  const defaults = {
-    enabled: false,
-    active_task_id: env("NIFTY_AUTOMATION_ACTIVE_TASK_ID", context2) || null,
-    parent_tasks: {
-      auto_complete_when_subtasks_complete: false,
-      comment_on_auto_complete: true
-    },
-    subtasks: {
-      auto_create_from_checklist: true
-    },
-    completion: {
-      sync_done_status_with_complete: true,
-      require_explicit_close_trigger: true,
-      close_confirmation_template: "close {task_id}"
-    },
-    progress_comments: {
-      enabled: true,
-      milestones: ["first_edit", "first_green_test", "push", "done"],
-      edit_tools: AUTOMATION_DEFAULT_EDIT_TOOLS,
-      test_command_patterns: AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS,
-      push_command_patterns: AUTOMATION_DEFAULT_PUSH_COMMAND_PATTERNS,
-      max_output_chars: 1000
-    },
-    task_context_gate: {
-      enabled: true,
-      prompt_on_context_loss: true,
-      hard_fail_if_unresolved: true,
-      prompt: AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT
-    },
-    playwright: {
-      auto_capture_visual_proof: true,
-      command: env("NIFTY_AUTOMATION_PLAYWRIGHT_COMMAND", context2) || "",
-      publish_command: env("NIFTY_AUTOMATION_PLAYWRIGHT_PUBLISH_COMMAND", context2) || "",
-      output_dir: env("NIFTY_AUTOMATION_PLAYWRIGHT_OUTPUT_DIR", context2) || "test-results",
-      timeout_ms: envInteger("NIFTY_AUTOMATION_PLAYWRIGHT_TIMEOUT_MS", 300000, context2)
-    }
-  };
-  const configured = policy?.automation && typeof policy.automation === "object" ? policy.automation : {};
-  const configuredProgress = configured.progress_comments || {};
-  const configuredTaskContextGate = configured.task_context_gate || {};
-  const configuredPlaywright = configured.playwright || {};
-  return {
-    ...defaults,
-    ...configured,
-    active_task_id: env("NIFTY_AUTOMATION_ACTIVE_TASK_ID", context2) || configured.active_task_id || defaults.active_task_id,
-    parent_tasks: { ...defaults.parent_tasks, ...configured.parent_tasks || {} },
-    subtasks: { ...defaults.subtasks, ...configured.subtasks || {} },
-    completion: { ...defaults.completion, ...configured.completion || {} },
-    progress_comments: {
-      ...defaults.progress_comments,
-      ...configuredProgress,
-      milestones: Array.isArray(configuredProgress.milestones) ? configuredProgress.milestones : defaults.progress_comments.milestones,
-      edit_tools: envList("NIFTY_AUTOMATION_EDIT_TOOLS", Array.isArray(configuredProgress.edit_tools) ? configuredProgress.edit_tools : defaults.progress_comments.edit_tools, context2),
-      test_command_patterns: envList("NIFTY_AUTOMATION_TEST_COMMAND_PATTERNS", Array.isArray(configuredProgress.test_command_patterns) ? configuredProgress.test_command_patterns : defaults.progress_comments.test_command_patterns, context2),
-      push_command_patterns: envList("NIFTY_AUTOMATION_PUSH_COMMAND_PATTERNS", Array.isArray(configuredProgress.push_command_patterns) ? configuredProgress.push_command_patterns : defaults.progress_comments.push_command_patterns, context2),
-      max_output_chars: envInteger("NIFTY_AUTOMATION_PROGRESS_MAX_OUTPUT_CHARS", configuredProgress.max_output_chars ?? defaults.progress_comments.max_output_chars, context2)
-    },
-    task_context_gate: {
-      ...defaults.task_context_gate,
-      ...configuredTaskContextGate
-    },
-    playwright: {
-      ...defaults.playwright,
-      ...configuredPlaywright,
-      command: env("NIFTY_AUTOMATION_PLAYWRIGHT_COMMAND", context2) || configuredPlaywright.command || defaults.playwright.command,
-      publish_command: env("NIFTY_AUTOMATION_PLAYWRIGHT_PUBLISH_COMMAND", context2) || configuredPlaywright.publish_command || defaults.playwright.publish_command,
-      output_dir: env("NIFTY_AUTOMATION_PLAYWRIGHT_OUTPUT_DIR", context2) || configuredPlaywright.output_dir || defaults.playwright.output_dir,
-      timeout_ms: envInteger("NIFTY_AUTOMATION_PLAYWRIGHT_TIMEOUT_MS", configuredPlaywright.timeout_ms ?? defaults.playwright.timeout_ms, context2)
-    }
-  };
-}
-function automationProgressTrigger(toolName, args = {}, automation = {}) {
-  if (!automation.enabled || !automation.progress_comments?.enabled)
+  if (TASK_NO_CHANGE_PATTERN.test(text))
     return false;
-  const milestones = new Set(automation.progress_comments.milestones || []);
-  if (milestones.has("first_edit") && (automation.progress_comments.edit_tools || []).some((pattern) => matchesActionPattern(pattern, toolName))) {
+  return TASK_IMPLEMENTATION_SIGNAL_PATTERN.test(text) && TASK_CODE_PATH_PATTERN.test(text);
+}
+function isSubstantialWorkTool(input = {}, output = {}) {
+  const toolName = String(input.tool || "").toLowerCase();
+  if (SUBSTANTIAL_MUTATION_TOOLS.has(toolName))
     return true;
-  }
-  if (milestones.has("first_green_test") && toolName === "bash" && commandMatchesAutomationPattern(args.command, automation.progress_comments.test_command_patterns)) {
-    return true;
-  }
-  if (milestones.has("push") && toolName === "bash" && commandMatchesAutomationPattern(args.command, automation.progress_comments.push_command_patterns)) {
-    return true;
-  }
-  if (milestones.has("done") && (toolName === "nifty_complete_task" && args.completed !== false || toolName === "nifty_update_task" && args.completed === true)) {
-    return true;
-  }
-  return false;
+  if (toolName === "task")
+    return taskOutputReportsCodeChanges(output);
+  if (toolName !== "bash")
+    return false;
+  return commandLooksMutating(input.args?.command);
 }
-function extractAutomationTaskIDAnswer(answer) {
-  if (typeof answer === "string")
-    return answer.trim() || null;
-  if (!answer || typeof answer !== "object")
-    return null;
-  const direct = answer.task_id || answer.taskID || answer.value || answer.text || answer.answer || null;
-  if (typeof direct === "string" && direct.trim())
-    return direct.trim();
-  if (typeof answer.input === "string" && answer.input.trim())
-    return answer.input.trim();
-  if (Array.isArray(answer.answers)) {
-    const firstString = answer.answers.find((item) => typeof item === "string" && item.trim());
-    if (firstString)
-      return firstString.trim();
-  }
-  return null;
+function getNiftyEventSessionID(input = {}) {
+  const properties = input.event?.properties || {};
+  return properties.sessionID || properties.sessionId || properties.session_id || input.sessionID;
 }
-async function promptForAutomationTaskID(context2 = {}, automation = {}) {
-  const ask = context2?.ask;
-  if (typeof ask !== "function")
-    return null;
-  const prompt = automation.task_context_gate?.prompt || AUTOMATION_DEFAULT_TASK_CONTEXT_PROMPT;
-  const promptAttempts = [
-    () => ask({
-      question: prompt,
-      label: "Active Task Card",
-      placeholder: "MBC-462",
-      required: true
-    }),
-    () => ask(prompt)
-  ];
-  for (const invokeAsk of promptAttempts) {
-    try {
-      const answer = await invokeAsk();
-      const taskID = extractAutomationTaskIDAnswer(answer);
-      if (taskID)
-        return taskID;
-    } catch {}
-  }
-  return null;
-}
-async function enforceAutomationTaskContextGate({ toolName, args = {}, sessionState = {}, automation = {}, context: context2 = {} }) {
-  const gate = automation.task_context_gate || {};
-  if (gate.enabled === false)
-    return null;
-  if (!automationProgressTrigger(toolName, args, automation))
-    return null;
-  const existingTaskID = sessionState.activeTaskID || automation.active_task_id || null;
-  if (existingTaskID)
-    return existingTaskID;
-  let promptedTaskID = null;
-  if (gate.prompt_on_context_loss !== false) {
-    promptedTaskID = await promptForAutomationTaskID(context2, automation);
-    if (promptedTaskID) {
-      sessionState.activeTaskID = promptedTaskID;
-      return promptedTaskID;
-    }
-  }
-  if (gate.hard_fail_if_unresolved === false)
-    return null;
-  throw Object.assign(new Error([
-    "[AutomationGate] Lost task-card context for autonomous progress update.",
-    "Enter the active task card ID and retry.",
-    "You can provide it by running nifty_get_task_full_context with the target task_id."
-  ].join(" ")), { code: "NIFTY_AUTOMATION_TASK_CONTEXT_REQUIRED", toolName });
-}
-function closeConfirmationForTask(taskID, automation = {}) {
-  const template = automation.completion?.close_confirmation_template || "close {task_id}";
-  return template.replaceAll("{task_id}", String(taskID || "").trim());
-}
-function assertExplicitCloseConfirmation(taskID, args = {}, context2 = {}) {
-  const automation = automationConfig(loadPolicy(context2), context2);
-  if (automation.completion?.require_explicit_close_trigger === false)
-    return;
-  const expected = closeConfirmationForTask(taskID, automation);
-  const actual = String(args.close_confirmation || "").trim();
-  if (actual === expected)
-    return;
-  throw new Error([
-    "Task completion is blocked while the task chat may still be active.",
-    "Ask the user whether the task should be closed or moved to a review/staging lane.",
-    `To close this task, retry with close_confirmation: "${expected}".`
-  ].join(" "));
-}
-function checklistSubtasks(checklist = [], existingSubtasks = []) {
-  const existing = new Set((existingSubtasks || []).map((item) => normalize4(typeof item === "string" ? item : item?.name)).filter(Boolean));
-  const seen = new Set;
-  return (checklist || []).map((item) => String(item || "").trim()).filter(Boolean).filter((item) => {
-    const key = normalize4(item);
-    if (!key || existing.has(key) || seen.has(key))
-      return false;
-    seen.add(key);
-    return true;
-  }).map((name) => ({ name }));
-}
-function dedupeNamedSubtasks(items = [], existingSubtasks = []) {
-  const existing = new Set((existingSubtasks || []).map((item) => normalize4(typeof item === "string" ? item : item?.name)).filter(Boolean));
-  const seen = new Set;
-  const deduped = [];
-  for (const item of items || []) {
-    const name = String(item?.name || "").trim();
-    const key = normalize4(name);
-    if (!key || existing.has(key) || seen.has(key))
-      continue;
-    seen.add(key);
-    deduped.push({
-      ...item,
-      name,
-      description: item?.description
-    });
-  }
-  return deduped;
-}
-function dedupeTaskBodiesByName(planned = [], existingTasks = []) {
-  const existing = new Set((existingTasks || []).map((task) => normalize4(task?.name)).filter(Boolean));
-  const seen = new Set;
-  const toCreate = [];
-  const skippedExisting = [];
-  const skippedDuplicateInput = [];
-  for (const body of planned || []) {
-    const key = normalize4(body?.name);
-    if (!key)
-      continue;
-    if (existing.has(key)) {
-      skippedExisting.push(body.name);
-      continue;
-    }
-    if (seen.has(key)) {
-      skippedDuplicateInput.push(body.name);
-      continue;
-    }
-    seen.add(key);
-    toCreate.push(body);
-  }
-  return {
-    toCreate,
-    skippedExisting,
-    skippedDuplicateInput
-  };
-}
-function commandMatchesAutomationPattern(command, patterns = []) {
-  const normalizedCommand = normalize4(command);
-  return (patterns || []).some((pattern) => normalizedCommand.includes(normalize4(pattern)));
-}
-function extractTaskIDFromToolOutput(outputText) {
-  try {
-    const parsed = JSON.parse(outputText);
-    if (!parsed || typeof parsed !== "object")
-      return null;
-    return parsed.task_id || parsed.id || parsed.task?.id || parsed.response?.id || parsed.document?.task_id || null;
-  } catch {
-    return null;
-  }
-}
-function automationSessionState(store2, sessionID = "default") {
-  const key = sessionID || "default";
-  if (!store2.has(key)) {
-    store2.set(key, {
-      activeTaskID: null,
-      postedMilestones: new Set
-    });
-  }
-  return store2.get(key);
-}
-function rememberAutomationTask(sessionState, args = {}, outputText = "", automation = {}) {
-  const taskID = args.parent_task_id || args.task_id || args.id || extractTaskIDFromToolOutput(outputText) || automation.active_task_id || sessionState.activeTaskID || null;
-  if (taskID)
-    sessionState.activeTaskID = taskID;
-  return sessionState.activeTaskID;
-}
-function detectAutomationMilestones({ toolName, args = {}, sessionState = {}, automation = {} }) {
-  if (!automation.enabled || !automation.progress_comments?.enabled)
-    return [];
-  const taskID = sessionState.activeTaskID || args.parent_task_id || args.task_id || automation.active_task_id;
-  if (!taskID)
-    return [];
-  const milestones = new Set(automation.progress_comments.milestones || []);
-  const posted = sessionState.postedMilestones || new Set;
-  const events = [];
-  if (milestones.has("first_edit") && (automation.progress_comments.edit_tools || []).some((pattern) => matchesActionPattern(pattern, toolName)) && !posted.has(`${taskID}:first_edit`)) {
-    events.push("first_edit");
-  }
-  if (milestones.has("first_green_test") && toolName === "bash" && commandMatchesAutomationPattern(args.command, automation.progress_comments.test_command_patterns) && !posted.has(`${taskID}:first_green_test`)) {
-    events.push("first_green_test");
-  }
-  if (milestones.has("push") && toolName === "bash" && commandMatchesAutomationPattern(args.command, automation.progress_comments.push_command_patterns) && !posted.has(`${taskID}:push`)) {
-    events.push("push");
-  }
-  if (milestones.has("done") && (toolName === "nifty_complete_task" && args.completed !== false || toolName === "nifty_update_task" && args.completed === true) && !posted.has(`${taskID}:done`)) {
-    events.push("done");
-  }
-  return events;
-}
-function summarizeAutomationOutput(text, maxChars = 1000) {
-  const trimmed = String(text || "").trim();
-  if (!trimmed)
-    return "";
-  return trimmed.length <= maxChars ? trimmed : `${trimmed.slice(0, maxChars)}...`;
-}
-function buildAutomationMilestoneReport(milestone, input = {}, output = "", automation = {}) {
-  const evidenceParts = [];
-  if (input.args?.command)
-    evidenceParts.push(`Command: ${input.args.command}`);
-  const outputSummary = summarizeAutomationOutput(output, automation.progress_comments?.max_output_chars || 1000);
-  if (outputSummary && milestone !== "first_edit")
-    evidenceParts.push(outputSummary);
-  switch (milestone) {
-    case "first_edit":
-      return structuredReport({
-        summary: "First edit detected \u2014 implementation has started.",
-        completed: [`First edit detected via ${input.toolName || input.tool || "unknown"}.`]
-      });
-    case "first_green_test":
-      return structuredReport({
-        summary: "First GREEN test recorded.",
-        completed: [input.args?.command ? `Successful test command: ${input.args.command}` : "A successful test command completed."],
-        evidence: evidenceParts.join(`
-
-`)
-      });
-    case "push":
-      return structuredReport({
-        summary: "Changes pushed to remote.",
-        completed: [input.args?.command ? `Push command: ${input.args.command}` : "A successful push completed."],
-        evidence: evidenceParts.join(`
-
-`)
-      });
-    case "done":
-      return structuredReport({
-        summary: "Task marked complete.",
-        completed: ["Automation recorded the task as done."],
-        evidence: evidenceParts.join(`
-
-`)
-      });
-    default:
-      return "";
-  }
-}
-async function runAutomationCommand(command, options = {}) {
-  return new Promise((resolve29, reject) => {
-    const child = spawn5(command, {
-      shell: true,
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...options.env || {} },
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    const stdout = [];
-    const stderr = [];
-    const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`Automation command timed out: ${command}`));
-    }, options.timeoutMs || 300000);
-    child.stdout.on("data", (chunk) => stdout.push(String(chunk)));
-    child.stderr.on("data", (chunk) => stderr.push(String(chunk)));
-    child.once("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-    child.once("close", (code) => {
-      clearTimeout(timeout);
-      if (code === 0) {
-        resolve29({ stdout: stdout.join(""), stderr: stderr.join(""), code });
-        return;
-      }
-      reject(new Error(`Automation command failed with exit code ${code}: ${command}
-${stderr.join("") || stdout.join("")}`));
-    });
-  });
-}
-function parseAutomationPublisherOutput(text = "") {
-  const trimmed = String(text || "").trim();
-  if (!trimmed)
-    return { urls: [], nifty_file_ids: [] };
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) {
-      return {
-        urls: parsed.map((item) => String(item || "").trim()).filter((item) => /^https?:\/\//i.test(item)),
-        nifty_file_ids: []
-      };
-    }
-    return {
-      urls: (parsed.urls || []).map((item) => String(item || "").trim()).filter((item) => /^https?:\/\//i.test(item)),
-      nifty_file_ids: (parsed.nifty_file_ids || []).map((item) => String(item || "").trim()).filter(Boolean)
-    };
-  } catch {
-    return {
-      urls: trimmed.split(/\r?\n/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item)),
-      nifty_file_ids: []
-    };
-  }
-}
-function collectArtifactFiles(rootDir, sinceMs = 0) {
-  if (!rootDir || !existsSync105(rootDir))
-    return [];
-  const files = [];
-  const walk = (directory) => {
-    for (const entry of readdirSync27(directory, { withFileTypes: true })) {
-      const fullPath = join113(directory, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-        continue;
-      }
-      if (!/\.(png|jpe?g|webp|gif)$/i.test(entry.name))
-        continue;
-      const stat8 = statSync14(fullPath);
-      if (!sinceMs || stat8.mtimeMs >= sinceMs)
-        files.push(fullPath);
-    }
-  };
-  walk(rootDir);
-  return files;
-}
-async function autoGenerateVisualProof(taskID, changedFiles = [], context2 = {}, automation = automationConfig(null, context2), deps = {}) {
-  if (!automation.enabled || !automation.playwright?.auto_capture_visual_proof)
-    return null;
-  const captureCommand = deps.captureCommand || automation.playwright.command;
-  if (!captureCommand)
-    return null;
-  const runCommand = deps.runCommand || runAutomationCommand;
-  const publishCommand = deps.publishCommand === undefined ? automation.playwright.publish_command : deps.publishCommand;
-  const cwd = context2.directory || context2.worktree || process.cwd();
-  const startedAt = Date.now();
-  const captureResult = await runCommand(captureCommand, {
-    cwd,
-    timeoutMs: automation.playwright.timeout_ms,
-    env: {
-      NIFTY_AUTOMATION_TASK_ID: taskID,
-      NIFTY_AUTOMATION_CHANGED_FILES: JSON.stringify(changedFiles || [])
-    }
-  });
-  let published = { urls: [], nifty_file_ids: [] };
-  if (publishCommand) {
-    const publishResult = await runCommand(publishCommand, {
-      cwd,
-      timeoutMs: automation.playwright.timeout_ms,
-      env: {
-        NIFTY_AUTOMATION_TASK_ID: taskID,
-        NIFTY_AUTOMATION_CAPTURE_OUTPUT: captureResult.stdout
-      }
-    });
-    published = parseAutomationPublisherOutput(publishResult.stdout);
-  }
-  const artifactFiles = collectArtifactFiles(join113(cwd, automation.playwright.output_dir), startedAt);
-  return {
-    visual_proof: [...published.urls],
-    nifty_file_ids: published.nifty_file_ids,
-    artifact_files: artifactFiles,
-    capture_command: captureCommand
-  };
-}
-function commentExternalFiles(visualProof = []) {
-  return (visualProof || []).filter((item) => /^https?:\/\//i.test(String(item || "").trim()));
-}
-function commentNiftyFiles(...lists) {
-  return [...new Set(lists.flat().map((item) => String(item || "").trim()).filter(Boolean))];
-}
-function visualProofReferences(evidence = {}) {
-  const urls = Array.isArray(evidence.visual_proof) ? evidence.visual_proof : [];
-  const fileIDs = Array.isArray(evidence.visual_proof_file_ids) ? evidence.visual_proof_file_ids : [];
-  return [
-    ...urls.map((item) => String(item || "").trim()).filter(Boolean),
-    ...fileIDs.map((item) => `Nifty file: ${String(item || "").trim()}`).filter((item) => item !== "Nifty file: ")
-  ];
-}
-async function maybeAutoCompleteParentTask(taskID, context2 = {}) {
-  const automation = automationConfig(loadPolicy(context2), context2);
-  if (!automation.enabled || !automation.parent_tasks?.auto_complete_when_subtasks_complete)
-    return null;
-  const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`);
-  const parentTaskID = taskParentID(task);
-  if (!parentTaskID)
-    return null;
-  const parentContext = await fetchTaskFullContext(parentTaskID, { task_id: parentTaskID }, context2);
-  const subtasks = parentContext?.subtasks || [];
-  if (!subtasks.length || !subtasks.every((item) => item?.completed === true)) {
-    return { parent_task_id: parentTaskID, completed: false };
-  }
-  if (automation.completion?.require_explicit_close_trigger) {
-    return {
-      parent_task_id: parentTaskID,
-      completed: false,
-      blocked: true,
-      reason: `Explicit close confirmation required: ${closeConfirmationForTask(parentTaskID, automation)}`
-    };
-  }
-  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(parentTaskID)}/complete`, {
-    method: "POST",
-    body: { completed: true }
-  });
-  if (automation.parent_tasks?.comment_on_auto_complete) {
-    await postLifecycleComment(parentTaskID, structuredReport({
-      summary: "Parent task auto-completed because all subtasks are complete.",
-      completed: subtasks.map((item) => `Completed subtask: ${item?.name || item?.id || "unknown"}`)
-    }));
-  }
-  return {
-    parent_task_id: parentTaskID,
-    completed: true,
-    subtask_count: subtasks.length
-  };
-}
-async function maybeSyncCompletionForStatus(taskID, targetStatus, workflow, context2 = {}, args = {}) {
-  const automation = automationConfig(loadPolicy(context2), context2);
-  if (!automation.enabled || !automation.completion?.sync_done_status_with_complete)
-    return null;
-  if (!looksLikeDoneStatus(targetStatus, workflow))
-    return null;
-  assertExplicitCloseConfirmation(taskID, args, context2);
-  const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}/complete`, {
-    method: "POST",
-    body: { completed: true }
-  });
-  return { completed: true, response };
-}
-async function postLifecycleComment(taskID, text, options = {}) {
-  await niftyRequest("/api/v1.0/messages", {
-    method: "POST",
-    body: cleanObject({
-      type: "text",
-      task_id: taskID,
-      text: botCommentText(text, options.botMarker !== false),
-      external_files: options.externalFiles?.length ? options.externalFiles : undefined,
-      nifty_files: options.niftyFiles?.length ? options.niftyFiles : undefined
-    })
-  });
-}
-function meaningfulCaveUpdaterField(label, value) {
-  const text = String(value || "").trim();
-  if (!text || /^(?:n\/?a|none|no tests?|not run|todo|tbd)$/i.test(text)) {
-    throw Object.assign(new Error(`Cave Updater comments require meaningful '${label}' content.`), { code: "NIFTY_CAVE_UPDATER_FIELD_REQUIRED", field: label });
-  }
-  return text;
-}
-function caveUpdaterReport({ what_was_done, evidence_tests, how_to_verify } = {}) {
-  return structuredReport({
-    summary: meaningfulCaveUpdaterField("What was done", what_was_done),
-    evidence: meaningfulCaveUpdaterField("Evidence / Tests", evidence_tests),
-    verification: meaningfulCaveUpdaterField("How to verify", how_to_verify)
-  });
-}
-function workflowLockDir(context2 = {}) {
-  const configured = env("NIFTY_WORKFLOW_LOCK_DIR", context2);
-  const root = configured || join113(homedir25(), ".config", "opencode", "nifty-workflow-locks");
-  mkdirSync22(root, { recursive: true });
-  return root;
-}
-function workflowLockKey(parts = []) {
-  return createHash4("sha256").update(JSON.stringify(parts)).digest("hex");
-}
-function workflowLockTimeoutMs(context2 = {}) {
-  return envInteger("NIFTY_WORKFLOW_LOCK_TIMEOUT_MS", NIFTY_WORKFLOW_LOCK_DEFAULT_TIMEOUT_MS, context2);
-}
-function workflowLockStaleMs(context2 = {}) {
-  return envInteger("NIFTY_WORKFLOW_LOCK_STALE_MS", NIFTY_WORKFLOW_LOCK_DEFAULT_STALE_MS, context2);
-}
-function sleep3(ms) {
-  return new Promise((resolve29) => setTimeout(resolve29, ms));
-}
-async function withNiftyWorkflowLock(parts, context2, callback) {
-  const key = workflowLockKey(parts);
-  const lockPath = join113(workflowLockDir(context2), `${key}.lock`);
-  const timeoutAt = Date.now() + workflowLockTimeoutMs(context2);
-  const staleMs = workflowLockStaleMs(context2);
-  while (true) {
-    try {
-      mkdirSync22(lockPath);
-      writeFileSync24(join113(lockPath, "owner.json"), `${JSON.stringify({
-        pid: process.pid,
-        started_at: new Date().toISOString(),
-        parts
-      })}
-`, "utf8");
-      break;
-    } catch (error) {
-      if (error?.code !== "EEXIST")
-        throw error;
-      try {
-        if (Date.now() - statSync14(lockPath).mtimeMs > staleMs) {
-          rmSync5(lockPath, { recursive: true, force: true });
-          continue;
-        }
-      } catch {
-        rmSync5(lockPath, { recursive: true, force: true });
-        continue;
-      }
-      if (Date.now() >= timeoutAt) {
-        throw Object.assign(new Error(`Timed out acquiring Nifty workflow lock for ${parts.join(":")}.`), { code: "NIFTY_WORKFLOW_LOCK_TIMEOUT", lock: parts });
-      }
-      await sleepWorkflowLock(NIFTY_WORKFLOW_LOCK_WAIT_MS);
-    }
-  }
-  try {
-    return await callback();
-  } finally {
-    rmSync5(lockPath, { recursive: true, force: true });
-  }
-}
-function stripKnownBotPrefix(text = "") {
-  const trimmed = String(text || "").trim();
-  for (const prefix of [BOT_COMMENT_PREFIX, LEGACY_MCBOTFACE_COMMENT_PREFIX, LEGACY_MCP_COMMENT_PREFIX, LEGACY_BOT_COMMENT_PREFIX]) {
-    if (trimmed.startsWith(prefix))
-      return trimmed.slice(prefix.length).trim();
-  }
-  return trimmed;
-}
-function normalizeCommentForIdempotency(text = "") {
-  return stripKnownBotPrefix(text).replace(/\r\n/g, `
-`).replace(/[ \t]+$/gm, "").trim();
-}
-function commentBodyText(comment = {}) {
-  return comment.text || comment.message || comment.body || comment.content || comment.html || "";
-}
-async function findExistingCaveUpdaterComment(taskID, report, context2 = {}) {
-  const target = normalizeCommentForIdempotency(botCommentText(report));
-  const response = await niftyRequest("/api/v1.0/messages", {
+async function resolveTaskIDForKey(taskKey) {
+  const response = await niftyRequest("/api/v1.0/tasks", {
     query: {
-      task_id: taskID,
-      limit: envInteger("NIFTY_WORKFLOW_COMMENT_LOOKBACK_LIMIT", 100, context2),
+      task_id: taskKey,
+      limit: 1,
       offset: 0
     }
-  }).catch(() => ({ items: [] }));
-  const comments = response?.items || response?.messages || [];
-  return comments.find((comment) => normalizeCommentForIdempotency(commentBodyText(comment)) === target) || null;
+  });
+  const task = (response.tasks || response.items || [])[0];
+  return task?.id || task?.task_id || null;
 }
-async function postCaveUpdaterTaskComment(taskID, report, context2 = {}) {
-  validateNiftyTaskCommentTemplate({ task_id: taskID, text: report, context: context2 });
-  const existing = await findExistingCaveUpdaterComment(taskID, report, context2);
-  if (existing)
-    return { existing: true, comment: existing };
-  const comment = await niftyRequest("/api/v1.0/messages", {
+async function postAutonomousTaskComment(taskID, taskKey) {
+  return niftyRequest("/api/v1.0/messages", {
     method: "POST",
     body: {
       type: "text",
-      task_id: taskID,
-      text: botCommentText(report)
+      text: botCommentText(`Autonomous OpenCode work completed for ${taskKey}.`),
+      task_id: taskID
     }
   });
-  return { existing: false, comment };
-}
-async function authorizedAssigneeIDs(args = {}, context2 = {}) {
-  const explicit = Array.isArray(args.assignee_ids) ? args.assignee_ids.map((id) => String(id || "").trim()).filter(Boolean) : [];
-  if (explicit.length)
-    return explicit;
-  const configured = lifecycleDefaultAssigneeIDs(context2);
-  if (configured.length)
-    return configured;
-  const me = await niftyRequest("/api/v1.0/users/me");
-  return me?.id ? [me.id] : [];
-}
-async function assignTaskToAuthorizedUser(taskID, task = {}, args = {}, context2 = {}) {
-  if (args.assign === false)
-    return { attempted: false, assigned: false, reason: "assignment disabled" };
-  const assigneeIDs = await authorizedAssigneeIDs(args, context2);
-  if (!assigneeIDs.length)
-    return { attempted: true, assigned: false, reason: "no authorized assignee resolved" };
-  const existing = new Set(taskAssigneeIDs(task));
-  const missing = assigneeIDs.filter((id) => !existing.has(id));
-  if (!missing.length) {
-    return {
-      attempted: true,
-      assigned: false,
-      reason: "authorized assignee already present",
-      assignee_ids: assigneeIDs
-    };
-  }
-  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}/assignees`, {
-    method: "PUT",
-    body: { assignees: missing }
-  });
-  return {
-    attempted: true,
-    assigned: true,
-    assignee_ids: assigneeIDs,
-    added_assignee_ids: missing
-  };
-}
-function childWorkSummary(subtasks = []) {
-  return (subtasks || []).map((subtask) => ({
-    id: subtask?.id,
-    nice_id: subtask?.nice_id,
-    name: subtask?.name,
-    completed: subtask?.completed === true,
-    parent_task_id: taskParentID(subtask),
-    description: subtask?.description
-  }));
-}
-async function hydrateTaskWorkSession(taskID, args = {}, context2 = {}) {
-  const requestedContext = await fetchTaskFullContext(taskID, args, context2);
-  const requestedTask = requestedContext.task;
-  if (!requestedTask?.id)
-    throw new Error(`Unable to hydrate Nifty task ${taskID}.`);
-  if (!isSubtask(requestedTask)) {
-    return {
-      requested_task_id: taskID,
-      requested_was_subtask: false,
-      parent_task_id: requestedTask.id,
-      parent_context: requestedContext,
-      requested_context: requestedContext
-    };
-  }
-  const parentTaskID = taskParentID(requestedTask);
-  const parentContext = await fetchTaskFullContext(parentTaskID, args, context2);
-  return {
-    requested_task_id: taskID,
-    requested_was_subtask: true,
-    requested_subtask: requestedTask,
-    parent_task_id: parentTaskID,
-    parent_context: parentContext,
-    requested_context: requestedContext
-  };
-}
-async function maybeAutoAssignTask(taskID, task, policyState, context2 = {}) {
-  if (!lifecycleAssignSelfEnabled(context2))
-    return false;
-  if (taskAssigneeIDs(task).length)
-    return false;
-  let assigneeIDs = lifecycleDefaultAssigneeIDs(context2);
-  if (!assigneeIDs.length) {
-    if (!policyState.currentUserID) {
-      const me = await niftyRequest("/api/v1.0/users/me");
-      policyState.currentUserID = me?.id;
-    }
-    if (policyState.currentUserID)
-      assigneeIDs = [policyState.currentUserID];
-  }
-  if (!assigneeIDs.length)
-    return false;
-  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`, {
-    method: "PUT",
-    body: { assignees: assigneeIDs }
-  });
-  return true;
-}
-function safeContextMetadata(context2, payload) {
-  if (!context2 || typeof context2.metadata !== "function")
-    return;
-  try {
-    context2.metadata("nifty:auto_context", payload);
-  } catch {}
-  try {
-    context2.metadata({
-      title: payload.title || "Nifty auto context",
-      metadata: payload
-    });
-  } catch {}
-}
-function taskProjectSubtasks(task = {}, tasks = []) {
-  const taskID = task?.id;
-  if (!taskID)
-    return [];
-  return (tasks || []).filter((item) => {
-    const parent = item?.task_id || item?.parent_task_id || item?.parent?.id;
-    return parent && String(parent) === String(taskID);
-  });
-}
-function taskParentID(task = {}) {
-  return task?.task_id || task?.parent_task_id || task?.parent?.id || task?.task || null;
-}
-function isSubtask(task = {}) {
-  return Boolean(taskParentID(task));
-}
-function subtaskTaskID(task = {}) {
-  return task?.nice_id || task?.id || "unknown";
-}
-function subtaskHardGateMessage(toolName, task = {}) {
-  const taskID = subtaskTaskID(task);
-  const parentID = taskParentID(task) || "unknown";
-  return [
-    `[SubtaskGate] Hard gate: '${toolName}' targets Nifty parent task cards only.`,
-    `${taskID} is a Nifty subtask under parent task ${parentID}.`,
-    "Subtasks are checklist-style execution items, not workflow/status/list task cards.",
-    "Use nifty_complete_task to check or uncheck the subtask.",
-    `For task-card comments, delivery, status, archive, delete, link, document, label, or bulk operations, hydrate and target the parent task card ${parentID}.`
-  ].join(" ");
-}
-function numericTaskCounter(value) {
-  const number4 = Number.parseInt(value ?? "", 10);
-  return Number.isFinite(number4) && number4 >= 0 ? number4 : null;
-}
-function taskSubtaskSummary(task = {}, childRows = []) {
-  const loadedChildren = Array.isArray(childRows) ? childRows : [];
-  const totalFromCounter = numericTaskCounter(task.total_subtasks ?? task.subtasks_count ?? task.subtask_count);
-  const completedFromCounter = numericTaskCounter(task.completed_subtasks ?? task.completed_subtask_count);
-  const completedFromRows = loadedChildren.filter((item) => item?.completed === true).length;
-  const total = totalFromCounter ?? loadedChildren.length;
-  const completed = completedFromCounter ?? completedFromRows;
-  const open2 = Math.max(total - completed, 0);
-  return {
-    total_subtasks: total,
-    completed_subtasks: completed,
-    open_subtasks: open2,
-    loaded_subtasks: loadedChildren.length,
-    subtasks_fully_loaded: total === loadedChildren.length,
-    subtask_ids: loadedChildren.map((item) => item?.id).filter(Boolean)
-  };
-}
-function groupSubtasksByParent(tasks = []) {
-  const grouped = {};
-  for (const task of tasks || []) {
-    const parentID = taskParentID(task);
-    if (!parentID)
-      continue;
-    const key = String(parentID);
-    if (!grouped[key])
-      grouped[key] = [];
-    grouped[key].push(task);
-  }
-  return grouped;
-}
-function parentTaskRows(tasks = []) {
-  return (tasks || []).filter((task) => !isSubtask(task));
-}
-function enrichParentTaskSubtaskState(task = {}, subtasksByParent = {}) {
-  const childRows = subtasksByParent[String(task?.id)] || [];
-  const summary = taskSubtaskSummary(task, childRows);
-  return {
-    ...task,
-    total_subtasks: summary.total_subtasks,
-    completed_subtasks: summary.completed_subtasks,
-    open_subtasks: summary.open_subtasks,
-    loaded_subtasks: summary.loaded_subtasks,
-    subtasks_fully_loaded: summary.subtasks_fully_loaded,
-    subtask_ids: summary.subtask_ids,
-    subtask_summary: summary
-  };
-}
-function assertTaskCardForStatusChange(task = {}) {
-  if (!isSubtask(task))
-    return;
-  const taskID = subtaskTaskID(task);
-  const parentID = taskParentID(task) || "unknown";
-  throw new Error(`Nifty subtask ${taskID} belongs to parent task ${parentID}. Subtasks are checked off with nifty_complete_task; they are not task cards and must not be moved between statuses such as Dev Review.`);
-}
-function assertParentTaskCardForTool(toolName, task = {}) {
-  if (!isSubtask(task))
-    return;
-  throw Object.assign(new Error(subtaskHardGateMessage(toolName, task)), {
-    code: "NIFTY_SUBTASK_TASK_CARD_REQUIRED",
-    toolName,
-    taskID: task?.id || null,
-    niceID: task?.nice_id || null,
-    parentTaskID: taskParentID(task)
-  });
-}
-async function fetchTaskForEntityGate(taskID) {
-  if (!taskID)
-    return null;
-  return niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`);
-}
-async function assertTaskIDsAreParentTaskCards(toolName, taskIDs = []) {
-  const uniqueTaskIDs = [...new Set((taskIDs || []).filter(Boolean).map((id) => String(id)))];
-  for (const taskID of uniqueTaskIDs) {
-    const task = await fetchTaskForEntityGate(taskID);
-    assertParentTaskCardForTool(toolName, task);
-  }
-}
-async function enforceSubtaskEntityGate(toolName, args = {}) {
-  if (SUBTASK_ALLOWED_MUTATING_TASK_TOOLS.has(toolName))
-    return;
-  if (TASK_CARD_ONLY_SINGLE_TASK_TOOLS.has(toolName) && args.task_id) {
-    const task = await fetchTaskForEntityGate(args.task_id);
-    assertParentTaskCardForTool(toolName, task);
-  }
-  if (TASK_CARD_ONLY_BULK_TASK_TOOLS.has(toolName)) {
-    await assertTaskIDsAreParentTaskCards(toolName, args.task_ids || []);
-  }
-  if (toolName === "nifty_link_tasks") {
-    await assertTaskIDsAreParentTaskCards(toolName, args.task_ids || []);
-  }
-  if (TASK_CARD_ONLY_PARENT_TASK_TOOLS.has(toolName) && args.parent_task_id) {
-    const parent = await fetchTaskForEntityGate(args.parent_task_id);
-    assertParentTaskCardForTool(toolName, parent);
-  }
-}
-function projectStatusSummary(tasks = [], statuses = []) {
-  const namesByID = new Map((statuses || []).map((status) => [status.id, status.name]));
-  const counts = {};
-  for (const task of tasks || []) {
-    if (isSubtask(task))
-      continue;
-    const statusID = task?.task_group || task?.task_group_id || task?.task_group?.id;
-    const statusName = namesByID.get(statusID) || task?.task_group?.name || "unknown";
-    counts[statusName] = (counts[statusName] || 0) + 1;
-  }
-  return counts;
-}
-async function fetchTaskFullContext(taskID, input = {}, context2 = {}) {
-  const commentLimit = input.comment_limit || autoContextCommentLimit(context2);
-  const taskLimit = input.project_task_limit || autoContextTaskLimit(context2);
-  const workflow = await workflowForArgs(input, context2);
-  const task = enrichTaskCustomFields(await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`), workflow);
-  const projectID = getTaskProjectID(task);
-  const [commentsResponse, projects, statuses, milestones, subtasksResponse, projectTasksResponse] = await Promise.all([
-    niftyRequest("/api/v1.0/messages", {
-      query: { task_id: taskID, limit: commentLimit, offset: 0 }
-    }),
-    projectID ? fetchAllProjects({ includeArchived: true }) : Promise.resolve([]),
-    projectID ? fetchAllStatuses(projectID) : Promise.resolve([]),
-    projectID ? fetchAllMilestones(projectID) : Promise.resolve([]),
-    niftyRequest("/api/v1.0/tasks", {
-      query: {
-        task_id: task?.id || taskID,
-        include_subtasks: "true",
-        limit: 100,
-        offset: 0
-      }
-    }).catch(() => ({ tasks: [] })),
-    projectID ? niftyRequest("/api/v1.0/tasks", {
-      query: {
-        project_id: projectID,
-        include_subtasks: "true",
-        limit: taskLimit,
-        offset: 0
-      }
-    }) : Promise.resolve({ tasks: [] })
-  ]);
-  const comments = commentsResponse?.items || commentsResponse?.messages || [];
-  const projectTasks = projectTasksResponse?.tasks || [];
-  const directSubtasks = (subtasksResponse?.tasks || []).filter((item) => String(taskParentID(item)) === String(task?.id || taskID));
-  const subtasks = directSubtasks.length ? directSubtasks : taskProjectSubtasks(task, projectTasks);
-  const subtaskSummary = taskSubtaskSummary(task, subtasks);
-  const project = projects.find((item) => item.id === projectID) || null;
-  return {
-    task: {
-      ...task,
-      total_subtasks: subtaskSummary.total_subtasks,
-      completed_subtasks: subtaskSummary.completed_subtasks,
-      open_subtasks: subtaskSummary.open_subtasks,
-      loaded_subtasks: subtaskSummary.loaded_subtasks,
-      subtasks_fully_loaded: subtaskSummary.subtasks_fully_loaded,
-      subtask_ids: subtaskSummary.subtask_ids,
-      subtask_summary: subtaskSummary
-    },
-    project,
-    workflow,
-    project_id: projectID || null,
-    comments,
-    subtasks,
-    subtask_summary: subtaskSummary,
-    statuses,
-    milestones,
-    project_status_counts: projectStatusSummary(projectTasks, statuses),
-    project_task_sample_size: projectTasks.length,
-    fetched_at: new Date().toISOString()
-  };
-}
-async function fetchProjectFullContext(input = {}, context2 = {}) {
-  const taskLimit = input.task_limit || autoContextTaskLimit(context2);
-  const contextWithConfig = workflowContext(context2, input.config_path);
-  const resolved = await resolveProjectSelector(input, contextWithConfig);
-  const projectID = resolved.project?.id;
-  if (!projectID)
-    throw new Error("Unable to resolve project for full context");
-  const [statuses, milestones, tasksResponse, docsResponse, validation] = await Promise.all([
-    fetchAllStatuses(projectID),
-    fetchAllMilestones(projectID),
-    niftyRequest("/api/v1.0/tasks", {
-      query: {
-        project_id: projectID,
-        include_subtasks: "true",
-        limit: taskLimit,
-        offset: 0
-      }
-    }),
-    niftyRequest("/api/v1.0/docs", {
-      query: {
-        project_id: projectID,
-        limit: 100,
-        offset: 0
-      }
-    }).catch(() => ({ items: [] })),
-    validateWorkflows(contextWithConfig).catch(() => ({ workflows: [] }))
-  ]);
-  const allTasks = tasksResponse?.tasks || [];
-  const subtasksByParent = groupSubtasksByParent(allTasks);
-  const subtasks = Object.values(subtasksByParent).flat();
-  const tasks = parentTaskRows(allTasks).map((task) => enrichParentTaskSubtaskState(task, subtasksByParent));
-  const docs = docsResponse?.items || docsResponse?.docs || [];
-  const workflowValidation = (validation?.workflows || []).find((item) => {
-    if (resolved.workflowAlias && item.alias === resolved.workflowAlias)
-      return true;
-    const selector = item?.project?.id || item?.project?.nice_id || item?.project?.name;
-    return selector && normalize4(selector) === normalize4(projectID);
-  }) || null;
-  return {
-    project: resolved.project,
-    workflow_alias: resolved.workflowAlias || null,
-    workflow: resolved.workflow || {},
-    workflow_validation: workflowValidation,
-    statuses,
-    milestones,
-    tasks,
-    subtasks,
-    subtasks_by_parent: subtasksByParent,
-    documents: docs,
-    status_counts: projectStatusSummary(tasks, statuses),
-    task_sample_size: tasks.length,
-    subtask_sample_size: subtasks.length,
-    raw_task_sample_size: allTasks.length,
-    fetched_at: new Date().toISOString()
-  };
-}
-async function maybeAutoHydrateContext(toolName, args = {}, context2 = {}, policyState = {}) {
-  if (!autoContextEnabled(context2))
-    return;
-  if (args.task_id) {
-    const cacheKey2 = `task:${args.task_id}`;
-    if (policyState.contextCache?.has(cacheKey2)) {
-      safeContextMetadata(context2, {
-        title: "Nifty full task context",
-        task_context: policyState.contextCache.get(cacheKey2),
-        source: "cache",
-        tool: toolName
-      });
-      return;
-    }
-    const taskContext = await fetchTaskFullContext(args.task_id, args, context2);
-    policyState.contextCache?.set(cacheKey2, taskContext);
-    policyState.bootstrappedTasks?.add(args.task_id);
-    safeContextMetadata(context2, {
-      title: "Nifty full task context",
-      task_context: taskContext,
-      source: "live",
-      tool: toolName
-    });
-    return;
-  }
-  if (args.project_id || args.project_name || args.project_nice_id || args.workflow_alias) {
-    const selector = args.project_id || args.project_name || args.project_nice_id || args.workflow_alias;
-    const cacheKey2 = `project:${selector}`;
-    if (policyState.contextCache?.has(cacheKey2)) {
-      safeContextMetadata(context2, {
-        title: "Nifty full project context",
-        project_context: policyState.contextCache.get(cacheKey2),
-        source: "cache",
-        tool: toolName
-      });
-      return;
-    }
-    const projectContext = await fetchProjectFullContext(args, context2);
-    policyState.contextCache?.set(cacheKey2, projectContext);
-    policyState.bootstrappedProjects?.add(selector);
-    if (args.project_id)
-      policyState.bootstrappedProjects?.add(args.project_id);
-    safeContextMetadata(context2, {
-      title: "Nifty full project context",
-      project_context: projectContext,
-      source: "live",
-      tool: toolName
-    });
-  }
-}
-async function maybeAutoStartLifecycle(toolName, args = {}, context2 = {}, policyState = {}) {
-  if (!lifecyclePolicyEnabled(context2))
-    return;
-  if (LIFECYCLE_AUTO_START_EXCLUDED_TOOLS.has(toolName))
-    return;
-  if (!LIFECYCLE_AUTO_START_TOOLS.has(toolName))
-    return;
-  if (!args.task_id)
-    return;
-  if (policyState.startedTasks?.has(args.task_id))
-    return;
-  const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
-  if (isSubtask(task))
-    return;
-  if (task?.completed || task?.archived)
-    return;
-  const projectID = getTaskProjectID(task);
-  if (!projectID)
-    return;
-  const workflow = await workflowForArgs(args, context2);
-  const currentStatus = { id: getTaskStatusID(task), name: task?.task_group?.name };
-  if (looksLikeDevReviewStatus(currentStatus, workflow, context2) || looksLikeDoneStatus(currentStatus, workflow)) {
-    policyState.startedTasks?.add(args.task_id);
-    return;
-  }
-  const inProgress = await resolveLifecycleStatus(projectID, workflow, lifecycleInProgressStateKey(context2), ["In Progress", "In progress", "Doing"]);
-  if (!inProgress)
-    return;
-  const alreadyInProgress = statusMatches({ id: getTaskStatusID(task), name: task?.task_group?.name }, inProgress.id) || statusMatches({ id: getTaskStatusID(task), name: task?.task_group?.name }, inProgress.name);
-  if (!alreadyInProgress) {
-    await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
-      method: "PUT",
-      body: { task_group_id: inProgress.id }
-    });
-  }
-  const assigned = await maybeAutoAssignTask(args.task_id, task, policyState, context2);
-  if (lifecycleStatusCommentsEnabled(context2)) {
-    await postLifecycleComment(args.task_id, [
-      "Lifecycle policy auto-update:",
-      `- Status set to ${inProgress.name}.`,
-      assigned ? "- Assignee set automatically." : "- Assignee unchanged."
-    ].join(`
-`));
-  }
-  policyState.startedTasks?.add(args.task_id);
-}
-async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, deliveryEvidence, context2 = {}) {
-  if (!lifecyclePolicyEnabled(context2) || !lifecycleDeliveryGateEnabled(context2))
-    return;
-  if (!looksLikeDevReviewStatus(targetStatus, workflow, context2))
-    return;
-  const policy = loadPolicy(context2);
-  const changedFiles = Array.isArray(deliveryEvidence?.changed_files) && deliveryEvidence.changed_files.length ? deliveryEvidence.changed_files : changedFilesFromGit(context2);
-  const quality = engineeringQualityConfig(policy);
-  const visualRequired = requiresVisualProof(changedFiles) || requiresVisualRegressionProof(changedFiles, quality);
-  const evidenceForValidation = { ...deliveryEvidence || {} };
-  let generatedVisualProof = null;
-  const hasProvidedVisualProof = Array.isArray(evidenceForValidation.visual_proof) && evidenceForValidation.visual_proof.length > 0;
-  const hasProvidedVisualFileIDs = Array.isArray(evidenceForValidation.visual_proof_file_ids) && evidenceForValidation.visual_proof_file_ids.length > 0 || Array.isArray(evidenceForValidation.nifty_file_ids) && evidenceForValidation.nifty_file_ids.length > 0;
-  if (visualRequired && !hasProvidedVisualProof && !hasProvidedVisualFileIDs) {
-    generatedVisualProof = await autoGenerateVisualProof(taskID, changedFiles, context2, automationConfig(policy, context2));
-    if (generatedVisualProof?.visual_proof?.length) {
-      evidenceForValidation.visual_proof = generatedVisualProof.visual_proof;
-    }
-    if (generatedVisualProof?.nifty_file_ids?.length) {
-      evidenceForValidation.visual_proof_file_ids = generatedVisualProof.nifty_file_ids;
-    }
-  }
-  const validated = validateDeliveryEvidence(evidenceForValidation, { visualRequired, changedFiles, policy, engineeringQuality: quality });
-  const visualReferences = visualProofReferences(validated);
-  const completedItems = [
-    `Architecture integration: ${validated.architecture_proof}`,
-    `RED proof: ${validated.red_proof}`,
-    `GREEN proof: ${validated.green_proof}`,
-    `Regression proof: ${validated.regression_proof}`,
-    `Iterative validation: ${validated.iterative_proof}`,
-    `Sad path proof: ${validated.sad_path_proof}`,
-    changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected"
-  ];
-  if (validated.notes)
-    completedItems.push(`Notes: ${validated.notes}`);
-  const verificationLines = [
-    validated.tdd_required ? `Confirm RED proof: ${validated.red_proof}` : null,
-    validated.tdd_required ? `Re-run GREEN proof: ${validated.green_proof}` : null,
-    `Re-run sad-path proof: ${validated.sad_path_proof}`,
-    validated.visual_required ? `Visual regression proof: ${visualReferences.join(", ")}` : "Visual regression proof: not required because no code or visual-impacting files changed."
-  ].filter(Boolean);
-  const report = structuredReport({
-    summary: "Delivery gate passed \u2014 change is ready for Dev Review.",
-    completed: completedItems,
-    evidence: [
-      `TDD required: ${validated.tdd_required ? "yes" : "no"}`,
-      `Visual regression proof required: ${validated.visual_required ? "yes" : "no"}`,
-      changedFiles.length ? `Changed files: ${changedFiles.join(", ")}` : "Changed files: none detected"
-    ].join(`
-`),
-    verification: verificationLines.join(`
-`),
-    visual_proof: validated.visual_required ? visualReferences : [],
-    visual_required: validated.visual_required
-  });
-  await postLifecycleComment(taskID, report, {
-    externalFiles: validated.visual_required ? commentExternalFiles(validated.visual_proof) : undefined,
-    niftyFiles: validated.visual_required ? commentNiftyFiles(validated.visual_proof_file_ids, generatedVisualProof?.nifty_file_ids) : undefined
-  });
-}
-async function maybeInjectRagContext(toolName, args, context2, policyState, _ragFn) {
-  if (!envBoolean2("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context2))
-    return;
-  try {
-    const ragFn = _ragFn ?? (await Promise.resolve().then(() => (init_rag(), exports_rag))).ragContextForTool;
-    const rag = await ragFn(toolName, args);
-    if (rag.historical_context.length || rag.policy_citations.length) {
-      safeContextMetadata(context2, {
-        title: "Nifty RAG context",
-        rag_context: rag,
-        tool: toolName
-      });
-    }
-  } catch {}
-}
-function parseJsonToolResult(result) {
-  if (typeof result !== "string")
-    return result;
-  try {
-    return JSON.parse(result);
-  } catch {
-    return null;
-  }
-}
-function registerBootstrappedTaskID(taskID, policyState, context2) {
-  if (!taskID)
-    return;
-  const value = String(taskID);
-  policyState.bootstrappedTasks.add(value);
-  const effectiveBootstrap = context2?.bootstrapState;
-  if (effectiveBootstrap) {
-    effectiveBootstrap.resolvedTasks?.add(value);
-    effectiveBootstrap.bootstrappedTasks?.add(value);
-  }
-}
-function registerBootstrappedProjectID(projectID, policyState, context2) {
-  if (!projectID)
-    return;
-  const value = String(projectID);
-  policyState.bootstrappedProjects.add(value);
-  const effectiveBootstrap = context2?.bootstrapState;
-  if (effectiveBootstrap) {
-    effectiveBootstrap.resolvedProjects?.add(value);
-    effectiveBootstrap.bootstrappedProjects?.add(value);
-  }
-}
-function withLifecyclePolicy(tools = {}, initContext = {}) {
-  const policyState = {
-    startedTasks: new Set,
-    currentUserID: null,
-    contextCache: new Map,
-    bootstrappedTasks: new Set,
-    bootstrappedProjects: new Set,
-    loadedPolicy: (() => {
-      try {
-        return loadPolicy(initContext);
-      } catch {
-        return null;
-      }
-    })(),
-    policyLoadError: (() => {
-      try {
-        loadPolicy(initContext);
-        return null;
-      } catch (error) {
-        return error;
-      }
-    })(),
-    auditLog: []
-  };
-  return Object.fromEntries(Object.entries(tools).map(([name, definition]) => {
-    if (!definition || typeof definition.execute !== "function")
-      return [name, definition];
-    return [
-      name,
-      {
-        ...definition,
-        async execute(args, context2) {
-          enforcePolicyGate(name, args, policyState, context2);
-          const effectiveBootstrapState = context2?.bootstrapState ?? policyState;
-          assertContextBootstrapped(name, args, effectiveBootstrapState, context2);
-          if (name === "nifty_create_comment" && args.task_id) {
-            validateNiftyTaskCommentTemplate({
-              task_id: args.task_id,
-              text: args.text,
-              context: context2,
-              skip_code_change_evidence: true
-            });
-          }
-          await enforceSubtaskEntityGate(name, args);
-          if (name === "nifty_create_comment" && args.task_id) {
-            validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.text, context: context2 });
-          }
-          try {
-            await maybeAutoHydrateContext(name, args, context2, policyState);
-          } catch {}
-          try {
-            await maybeAutoStartLifecycle(name, args, context2, policyState);
-          } catch {}
-          try {
-            await maybeInjectRagContext(name, args, context2, policyState);
-          } catch {}
-          const result = await definition.execute(args, context2);
-          if (name === "nifty_get_task_full_context" && args.task_id) {
-            const parsed = parseJsonToolResult(result);
-            registerBootstrappedTaskID(args.task_id, policyState, context2);
-            registerBootstrappedTaskID(parsed?.task?.id, policyState, context2);
-            registerBootstrappedTaskID(parsed?.task?.nice_id, policyState, context2);
-          }
-          if (name === "nifty_get_project_full_context") {
-            const parsed = parseJsonToolResult(result);
-            const pid = args.project_id || args.project_name || args.project_nice_id || args.workflow_alias;
-            if (pid) {
-              registerBootstrappedProjectID(pid, policyState, context2);
-              registerBootstrappedProjectID(args.project_id, policyState, context2);
-            }
-            registerBootstrappedProjectID(parsed?.project?.id, policyState, context2);
-            registerBootstrappedProjectID(parsed?.project?.nice_id, policyState, context2);
-            registerBootstrappedProjectID(parsed?.project?.name, policyState, context2);
-          }
-          return result;
-        }
-      }
-    ];
-  }));
 }
 async function listTasksWithStatusNames(query, projectID) {
   const [statuses, response] = await Promise.all([
@@ -152471,9 +150088,9 @@ async function listTasksWithStatusNames(query, projectID) {
     hasMore: response.hasMore
   };
 }
-function ensureWorkflow(workflow, alias, context2 = {}) {
+function ensureWorkflow(workflow, alias, context = {}) {
   if (!workflow) {
-    throw new Error(`Workflow alias '${alias}' is not configured. Create ${configPath(context2)} or provide project_id, project_name, or project_nice_id.`);
+    throw new Error(`Workflow alias '${alias}' is not configured. Create ${configPath(context)} or provide project_id, project_name, or project_nice_id.`);
   }
 }
 async function validateWorkflows(options = {}) {
@@ -152586,6 +150203,117 @@ async function niftyRequest(path31, options = {}) {
     path: `${url2.pathname}${url2.search}`
   });
 }
+function attachmentBaseDirectory(context = {}) {
+  return context.directory || context.worktree || process.cwd();
+}
+function resolveAttachmentPath(path31, context = {}) {
+  const normalizedPath = String(path31 || "").trim();
+  if (!normalizedPath) {
+    throw new Error("Attachment path cannot be empty.");
+  }
+  return isAbsolute19(normalizedPath) ? normalizedPath : resolve29(attachmentBaseDirectory(context), normalizedPath);
+}
+function niftyAttachmentContentType(path31) {
+  const extension = extname5(path31).toLowerCase();
+  const contentType = NIFTY_ATTACHMENT_CONTENT_TYPES[extension];
+  if (!contentType) {
+    throw new Error(`Nifty task attachments support image files and .md files only: ${path31}`);
+  }
+  return contentType;
+}
+async function loadTaskAttachments(attachmentPaths = [], context = {}) {
+  if (!Array.isArray(attachmentPaths) || attachmentPaths.length === 0)
+    return [];
+  const attachments = [];
+  for (const attachmentPath of attachmentPaths) {
+    const path31 = resolveAttachmentPath(attachmentPath, context);
+    const contentType = niftyAttachmentContentType(path31);
+    attachments.push({
+      name: basename19(path31),
+      contentType,
+      bytes: await readFile14(path31)
+    });
+  }
+  return attachments;
+}
+function hasImageAttachment(attachments = []) {
+  return attachments.some((attachment) => String(attachment.contentType || "").startsWith("image/"));
+}
+function requireParentTaskUpdateProof(args = {}, attachments = []) {
+  const userLevelProof = String(args.user_level_test_proof || "").trim();
+  if (!userLevelProof) {
+    throw new Error("Parent Nifty task-card updates require real-world user-level test proof.");
+  }
+  const visualProofRequired = args.visual_proof_required !== false;
+  const visualProofNotRequiredReason = String(args.visual_proof_not_required_reason || "").trim();
+  if (visualProofRequired && !hasImageAttachment(attachments)) {
+    throw new Error("Parent Nifty task-card updates with visual impact require a screenshot image attachment in attachment_paths. Set visual_proof_required false with visual_proof_not_required_reason only when no visual proof is relevant.");
+  }
+  if (!visualProofRequired && !visualProofNotRequiredReason) {
+    throw new Error("Parent Nifty task-card updates without visual proof require visual_proof_not_required_reason.");
+  }
+  return [
+    "Parent task-card update proof",
+    "",
+    `Real-world user-level test: ${userLevelProof}`,
+    visualProofRequired ? "Visual proof: screenshot image attached." : `Visual proof not required: ${visualProofNotRequiredReason}`,
+    args.comment ? `
+Update note:
+${String(args.comment).trim()}` : null
+  ].filter(Boolean).join(`
+`);
+}
+function uploadedFileIDs(payload) {
+  const files = Array.isArray(payload?.files) ? payload.files : [];
+  const ids = files.map((file) => file?.id).filter(Boolean);
+  if (files.length !== ids.length) {
+    throw new Error("Nifty file upload response did not include an ID for every uploaded file.");
+  }
+  return ids;
+}
+async function uploadTaskAttachments(projectID, taskID, attachments = []) {
+  if (!attachments.length)
+    return [];
+  if (!projectID)
+    throw new Error("Project context missing for Nifty task attachment upload.");
+  if (!taskID)
+    throw new Error("Task ID missing for Nifty task attachment upload.");
+  const token = await getAccessToken();
+  const url2 = new URL("/api/v1.0/files", API_BASE_URL);
+  appendQueryParams(url2, { project_id: projectID, task_id: taskID });
+  const form = new FormData;
+  for (const attachment of attachments) {
+    form.append("files[]", new Blob([attachment.bytes], { type: attachment.contentType }), attachment.name);
+  }
+  const response = await fetch(url2, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: form
+  });
+  const payload = await parseResponse(response, {
+    method: "POST",
+    path: `${url2.pathname}${url2.search}`
+  });
+  return uploadedFileIDs(payload);
+}
+async function attachFilesToTaskComment(taskID, uploadedIDs, text = DEFAULT_ATTACHMENT_COMMENT) {
+  if (!uploadedIDs.length)
+    return null;
+  return postTaskComment2(taskID, text, uploadedIDs);
+}
+async function postTaskComment2(taskID, text, uploadedIDs = []) {
+  return niftyRequest("/api/v1.0/messages", {
+    method: "POST",
+    body: cleanObject({
+      type: "text",
+      text: botCommentText(text),
+      task_id: taskID,
+      nifty_files: uploadedIDs.length ? uploadedIDs : undefined
+    })
+  });
+}
 function json(value) {
   if (value === undefined)
     return "OK";
@@ -152608,6 +150336,10 @@ var __test = {
   getAuthPort,
   isTokenUsable,
   milestoneMatches,
+  commandLooksMutating,
+  extractTaskKeyFromChatMessage,
+  isSubstantialWorkTool,
+  taskOutputReportsCodeChanges,
   niftyShellCommandHint,
   normalize: normalize4,
   parseEnvFile,
@@ -152623,57 +150355,55 @@ var __test = {
   recommendedWorkflowConfig,
   recommendedWorkflowSummary,
   samePluginSource,
-  codeChangedFiles,
-  isCodeChangeFile,
-  requiresTddProof,
-  requiresVisualProof,
-  requiresVisualRegressionProof,
-  validateDeliveryEvidence,
   statusMatches,
   summarizeTask,
   writeWorkflowAliasConfig,
-  workflowAlias,
-  evaluatePolicy,
-  assertContextBootstrapped,
-  BOOTSTRAP_MUTATING_TASK_TOOLS,
-  BOOTSTRAP_MUTATING_PROJECT_TOOLS,
-  maybeInjectRagContext,
-  lifecycleStatusCommentsEnabled,
-  reportingConfig,
-  structuredReport,
-  validateNiftyTaskCommentTemplate,
-  automationConfig,
-  detectAutomationMilestones,
-  taskParentID,
-  checklistSubtasks,
-  autoGenerateVisualProof,
-  policyRequired,
-  isPolicyManagedMutation,
-  resolveAuthNodeBinary,
-  writeTokenCache: writeTokenCache2
+  workflowAlias
 };
 var NiftyPlugin = async () => {
+  const autonomousSessions = new Map;
+  const sessionState = (sessionID) => {
+    if (!autonomousSessions.has(sessionID)) {
+      autonomousSessions.set(sessionID, {
+        taskKey: null,
+        substantialWork: false,
+        postedKeys: new Set
+      });
+    }
+    return autonomousSessions.get(sessionID);
+  };
+  const flushAutonomousTaskUpdate = async (sessionID) => {
+    if (!sessionID)
+      return null;
+    const state3 = autonomousSessions.get(sessionID);
+    if (!state3?.taskKey || !state3.substantialWork || state3.postedKeys.has(state3.taskKey))
+      return null;
+    const taskID = await resolveTaskIDForKey(state3.taskKey);
+    if (!taskID)
+      return null;
+    const response = await postAutonomousTaskComment(taskID, state3.taskKey);
+    state3.postedKeys.add(state3.taskKey);
+    return response;
+  };
   const customFieldArg = tool.schema.object({
     key: tool.schema.string().optional().describe("Configured workflow custom field key"),
     id: tool.schema.string().optional().describe("Raw Nifty custom field ID"),
     value: tool.schema.string().optional().describe("Raw custom field value or configured value key"),
     value_key: tool.schema.string().optional().describe("Configured value key for select fields")
   });
-  const deliveryEvidenceArg = tool.schema.object({
-    red_proof: tool.schema.string().optional().describe("RED proof command/output reference"),
-    green_proof: tool.schema.string().optional().describe("GREEN proof command/output reference"),
-    sad_path_proof: tool.schema.string().optional().describe("Sad-path verification evidence"),
-    architecture_proof: tool.schema.string().optional().describe("How this change integrates with the existing architecture instead of hand-waving or adding a parallel path"),
-    regression_proof: tool.schema.string().optional().describe("Regression tests or checks added/updated to lock the behavior"),
-    iterative_proof: tool.schema.string().optional().describe("Iterative RED/GREEN/refactor or reproduce/fix/retest loop evidence"),
-    visual_proof: tool.schema.array(tool.schema.string()).optional().describe("Screenshot/video URLs required when visual changes are detected"),
-    visual_proof_file_ids: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs for screenshot/video proof attachments"),
-    nifty_file_ids: tool.schema.array(tool.schema.string()).optional().describe("Alias for visual_proof_file_ids"),
-    changed_files: tool.schema.array(tool.schema.string()).optional().describe("Optional changed files list override for lifecycle gate detection"),
-    notes: tool.schema.string().optional().describe("Optional delivery notes appended to lifecycle gate comment")
-  });
-  const automationSessions = new Map;
   return {
+    "chat.message": async (input, output) => {
+      if (!input.sessionID)
+        return;
+      const taskKey = extractTaskKeyFromChatMessage(output);
+      if (!taskKey)
+        return;
+      const state3 = sessionState(input.sessionID);
+      if (state3.taskKey !== taskKey) {
+        state3.taskKey = taskKey;
+        state3.substantialWork = false;
+      }
+    },
     "tool.execute.before": async (input, output) => {
       if (input.tool !== "bash")
         return;
@@ -152681,111 +150411,73 @@ var NiftyPlugin = async () => {
       if (hint)
         throw new Error(hint);
     },
-    "tool.execute.after": async (input = {}, result = {}) => {
-      const toolName = input.tool || input.toolName || result.tool || "";
-      const context2 = input.context || result.context || {};
-      const automation = automationConfig(loadPolicy(context2), context2);
-      if (!automation.enabled || !automation.progress_comments?.enabled)
+    "tool.execute.after": async (input, output) => {
+      if (!input.sessionID || !isSubstantialWorkTool(input, output))
         return;
-      const state3 = automationSessionState(automationSessions, input.sessionID || input.sessionId || "default");
-      rememberAutomationTask(state3, input.args || {}, result.output || result.text || "", automation);
-      await enforceAutomationTaskContextGate({
-        toolName,
-        args: input.args || {},
-        sessionState: state3,
-        automation,
-        context: context2
-      });
-      const milestones = detectAutomationMilestones({
-        toolName,
-        args: input.args || {},
-        sessionState: state3,
-        automation
-      });
-      for (const milestone of milestones) {
-        const taskID = state3.activeTaskID || automation.active_task_id;
-        if (!taskID)
-          continue;
-        const text = buildAutomationMilestoneReport(milestone, { ...input, toolName }, result.output || result.text || "", automation);
-        if (!text)
-          continue;
-        await postLifecycleComment(taskID, text);
-        state3.postedMilestones.add(`${taskID}:${milestone}`);
+      sessionState(input.sessionID).substantialWork = true;
+    },
+    event: async (input) => {
+      const sessionID = getNiftyEventSessionID(input);
+      if (input.event?.type === "session.idle") {
+        await flushAutonomousTaskUpdate(sessionID);
+        return;
+      }
+      if (input.event?.type === "session.deleted") {
+        try {
+          await flushAutonomousTaskUpdate(sessionID);
+        } finally {
+          if (sessionID)
+            autonomousSessions.delete(sessionID);
+        }
       }
     },
-    tool: withLifecyclePolicy({
+    tool: {
       nifty_update_plugin: tool({
-        description: "Updates the installed Cave Meister Orchestrator from GitHub. In OpenCode mode, updates the installed plugin file. In MCP mode (NIFTY_MCP_ROOT set), also updates mcp/mcp-server.mjs in the cloned repo.",
+        description: "Updates the installed Nifty OpenCode plugin from GitHub when a newer version is available",
         args: {
-          ref: tool.schema.string().default("dev-tony").describe("GitHub ref to install, usually dev-tony or a commit SHA"),
+          ref: tool.schema.string().default("main").describe("GitHub ref to install, usually main or a commit SHA"),
           force: tool.schema.boolean().default(false).describe("Run the installer even when the installed plugin already matches the ref")
         },
-        async execute(args, context2) {
-          const ref = args.ref || "dev-tony";
+        async execute(args, context) {
+          const ref = args.ref || "main";
           const latestPluginURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/plugin/nifty.js`;
           const latestInstallURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/scripts/install.sh`;
-          const latestMcpServerURL = `${NIFTY_REPO_RAW_BASE}/${encodeURIComponent(ref)}/mcp/mcp-server.mjs`;
           const [latestPlugin, latestCommit] = await Promise.all([
             fetchText(latestPluginURL),
             fetchLatestCommit(ref)
           ]);
           const currentPlugin = currentPluginSource();
-          const mcpRoot = process.env.NIFTY_MCP_ROOT;
-          let mcpUpdated = false;
-          let mcpUpdateError = null;
-          if (mcpRoot) {
-            try {
-              const latestMcpServer = await fetchText(latestMcpServerURL);
-              const mcpServerPath = join113(mcpRoot, "mcp", "mcp-server.mjs");
-              const currentMcpServer = existsSync105(mcpServerPath) ? readFileSync75(mcpServerPath, "utf8") : "";
-              if (args.force || currentMcpServer.trim() !== latestMcpServer.trim()) {
-                await writeFile2(mcpServerPath, latestMcpServer, { encoding: "utf8" });
-                mcpUpdated = true;
-              }
-            } catch (err) {
-              mcpUpdateError = err instanceof Error ? err.message : String(err);
-            }
-          }
-          if (!args.force && samePluginSource(currentPlugin, latestPlugin) && !mcpUpdated) {
+          if (!args.force && samePluginSource(currentPlugin, latestPlugin)) {
             return json({
               ok: true,
               updated: false,
-              mcp_updated: false,
               ref,
               latest_commit: latestCommit,
-              message: "No new Cave Meister Orchestrator or MCP server version is available.",
+              message: "No new Nifty plugin version is available.",
               restart_required: false
             });
           }
           const installScript = await fetchText(latestInstallURL);
-          const installer_output = await runInstallScript(installScript, ref, context2);
-          const messages = ["Cave Meister Orchestrator updated. Restart OpenCode so it loads the new plugin version."];
-          if (mcpUpdated)
-            messages.push("MCP server updated. Restart the MCP server process to apply changes.");
-          if (mcpUpdateError)
-            messages.push(`MCP server update warning: ${mcpUpdateError}`);
+          const installer_output = await runInstallScript(installScript, ref, context);
           return json({
             ok: true,
             updated: true,
-            mcp_updated: mcpUpdated,
-            mcp_root: mcpRoot || null,
-            mcp_update_error: mcpUpdateError || null,
             ref,
             latest_commit: latestCommit,
             restart_required: true,
-            message: messages.join(" "),
+            message: "Nifty plugin updated. Restart OpenCode so it loads the new plugin version.",
             installer_output
           });
         }
       }),
       nifty_auth_help: tool({
-        description: "Shows how to authorize Cave Meister Orchestrator",
+        description: "Shows how to authorize the Nifty plugin",
         args: {},
-        async execute(_args, context2) {
-          const config = getClientConfig(context2);
+        async execute(_args, context) {
+          const config = getClientConfig(context);
           const cached2 = await readTokenCache();
           return [
-            "Cave Meister Orchestrator setup:",
+            "Nifty plugin setup:",
             "1. In Nifty, create an API app and collect Client ID, Client Secret, Redirect URL, and Authorize URL.",
             "2. Export these vars before starting OpenCode:",
             "   NIFTY_CLIENT_ID",
@@ -152808,8 +150500,8 @@ var NiftyPlugin = async () => {
         args: {
           code: tool.schema.string().describe("Authorization code returned by Nifty")
         },
-        async execute(args, context2) {
-          const config = getClientConfig(context2);
+        async execute(args, context) {
+          const config = getClientConfig(context);
           if (!config.redirectURI) {
             throw new Error("Missing NIFTY_REDIRECT_URI.");
           }
@@ -152817,7 +150509,7 @@ var NiftyPlugin = async () => {
             grant_type: "authorization_code",
             code: args.code,
             redirect_uri: config.redirectURI
-          }, context2);
+          }, context);
           return json({
             ok: true,
             token_type: token.token_type,
@@ -152833,25 +150525,25 @@ var NiftyPlugin = async () => {
           host: tool.schema.string().default("127.0.0.1").describe("Local host to listen on"),
           port: tool.schema.number().int().min(1).max(65535).optional().describe("Local port to listen on; defaults to NIFTY_AUTH_PORT or 8787")
         },
-        async execute(args, context2) {
-          const port = getAuthPort(context2, args.port);
+        async execute(args, context) {
+          const port = getAuthPort(context, args.port);
           await assertPortAvailable(args.host, port);
           const state3 = createOAuthState();
-          const authorizeURL = getAuthorizeURL(args.host, port, state3, context2);
+          const authorizeURL = getAuthorizeURL(args.host, port, state3, context);
           const redirectURI = getLocalRedirectURI(args.host, port);
-          context2.metadata({
+          context.metadata({
             title: "Authorize Nifty in browser",
             metadata: {
               authorizeURL,
               redirectURI
             }
           });
-          const code = await waitForAuthorizationCode(args.host, port, context2.abort, state3);
+          const code = await waitForAuthorizationCode(args.host, port, context.abort, state3);
           const token = await requestToken({
             grant_type: "authorization_code",
             code,
             redirect_uri: redirectURI
-          }, context2);
+          }, context);
           return [
             "Open this URL in your browser to finish connecting Nifty:",
             authorizeURL,
@@ -152873,12 +150565,12 @@ var NiftyPlugin = async () => {
           host: tool.schema.string().default("127.0.0.1").describe("Local host to listen on"),
           port: tool.schema.number().int().min(1).max(65535).optional().describe("Local port to listen on; defaults to NIFTY_AUTH_PORT or 8787")
         },
-        async execute(args, context2) {
-          const port = getAuthPort(context2, args.port);
+        async execute(args, context) {
+          const port = getAuthPort(context, args.port);
           await assertPortAvailable(args.host, port);
           const state3 = createOAuthState();
-          const authorizeURL = getAuthorizeURL(args.host, port, state3, context2);
-          const redirectURI = await startBackgroundAuthorizationServer(args.host, port, state3, context2);
+          const authorizeURL = getAuthorizeURL(args.host, port, state3, context);
+          const redirectURI = await startBackgroundAuthorizationServer(args.host, port, state3, context);
           return [
             "Open this URL in your browser to finish connecting Nifty:",
             authorizeURL,
@@ -152908,7 +150600,7 @@ var NiftyPlugin = async () => {
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
           sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order")
         },
-        async execute(args, context2) {
+        async execute(args) {
           const response = await niftyRequest("/api/v1.0/projects", {
             query: cleanObject({
               subteam_id: args.subteam_id,
@@ -152942,21 +150634,6 @@ var NiftyPlugin = async () => {
               subteam: project.subteam
             }))
           });
-        }
-      }),
-      nifty_get_project_full_context: tool({
-        description: "Gets comprehensive project context including statuses, milestones, workflow mapping, tasks, and documents",
-        args: {
-          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve project and mapping"),
-          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
-          project_id: tool.schema.string().optional().describe("Project ID"),
-          project_name: tool.schema.string().optional().describe("Project name"),
-          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
-          task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum tasks to include in project snapshot")
-        },
-        async execute(args, context2) {
-          const fullContext = await fetchProjectFullContext(args, context2);
-          return json(fullContext);
         }
       }),
       nifty_list_members: tool({
@@ -153166,14 +150843,14 @@ var NiftyPlugin = async () => {
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
           sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const resolved = await resolveProjectSelector({
             workflow_alias: args.workflow_alias,
             config_path: args.config_path,
             project_id: args.project_id,
             project_name: args.project_name,
             project_nice_id: args.project_nice_id
-          }, context2);
+          }, context);
           const response = await niftyRequest("/api/v1.0/docs", {
             query: cleanObject({
               project_id: resolved.project.id,
@@ -153225,19 +150902,19 @@ var NiftyPlugin = async () => {
           private: tool.schema.boolean().optional().describe("Whether the document is private"),
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
           content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
-          content_text: tool.schema.string().optional().describe("Convenience plain-text content, converted to rich document content when content_json is omitted"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
           external_id: tool.schema.string().optional().describe("External ID"),
           order: tool.schema.number().optional().describe("Document order")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const resolved = await resolveProjectSelector({
             workflow_alias: args.workflow_alias,
             config_path: args.config_path,
             project_id: args.project_id,
             project_name: args.project_name,
             project_nice_id: args.project_nice_id
-          }, context2);
-          const content = parseJSONArg(args.content_json, "content_json") || documentContentFromText(args.content_text);
+          }, context);
+          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined);
           const response = await niftyRequest("/api/v1.0/docs", {
             method: "POST",
             body: cleanObject({
@@ -153274,14 +150951,14 @@ var NiftyPlugin = async () => {
           access_type: tool.schema.number().int().optional().describe("Access type: 0, 1, or 2"),
           force: tool.schema.boolean().optional().describe("Force update flag"),
           content_json: tool.schema.string().optional().describe("Raw Nifty document content as a JSON string"),
-          content_text: tool.schema.string().optional().describe("Convenience plain-text content, converted to rich document content when content_json is omitted"),
+          content_text: tool.schema.string().optional().describe("Convenience plain-text content, stored as { text } when content is omitted"),
           folder_id: tool.schema.string().optional().describe("Folder ID"),
           folder_stack: tool.schema.array(tool.schema.string()).optional().describe("Folder path stack"),
           multipage: tool.schema.boolean().optional().describe("Whether this is a multipage document"),
           order: tool.schema.number().optional().describe("Document order")
         },
         async execute(args) {
-          const content = parseJSONArg(args.content_json, "content_json") || documentContentFromText(args.content_text);
+          const content = parseJSONArg(args.content_json, "content_json") || (args.content_text ? { text: args.content_text } : undefined);
           const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}`, {
             method: "PUT",
             body: cleanObject({
@@ -153323,14 +151000,14 @@ var NiftyPlugin = async () => {
           folder_id: tool.schema.string().describe("Target folder ID"),
           folder_stack: tool.schema.string().describe("Target folder stack")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const resolved = await resolveProjectSelector({
             workflow_alias: args.workflow_alias,
             config_path: args.config_path,
             project_id: args.project_id,
             project_name: args.project_name,
             project_nice_id: args.project_nice_id
-          }, context2);
+          }, context);
           const response = await niftyRequest(`/api/v1.0/docs/${encodeURIComponent(args.document_id)}/move_to_project`, {
             method: "PUT",
             body: {
@@ -153362,8 +151039,8 @@ var NiftyPlugin = async () => {
         args: {
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory")
         },
-        async execute(args, context2) {
-          const contextWithConfig = workflowContext(context2, args.config_path);
+        async execute(args, context) {
+          const contextWithConfig = workflowContext(context, args.config_path);
           const config = await readWorkflowConfig(contextWithConfig);
           const workflows = getWorkflowAliasMap(config);
           const projects = await fetchAllProjects();
@@ -153392,12 +151069,12 @@ var NiftyPlugin = async () => {
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           include_archived: tool.schema.boolean().optional().describe("Include archived projects when resolving aliases")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const result = await validateWorkflows({
             config_path: args.config_path,
             includeArchived: args.include_archived,
-            directory: context2.directory,
-            worktree: context2.worktree
+            directory: context.directory,
+            worktree: context.worktree
           });
           return json(result);
         }
@@ -153405,16 +151082,9 @@ var NiftyPlugin = async () => {
       nifty_health_check: tool({
         description: "Checks Nifty credentials, token access, workflow config, and default workflow readiness",
         args: {},
-        async execute(_args, context2) {
-          const config = getClientConfig(context2);
+        async execute(_args, context) {
+          const config = getClientConfig(context);
           const cached2 = await readTokenCache();
-          let loadedPolicy = null;
-          let policyError = null;
-          try {
-            loadedPolicy = loadPolicy(context2);
-          } catch (error) {
-            policyError = error.message;
-          }
           const checks = {
             credentials: {
               client_id: Boolean(config.clientID),
@@ -153425,19 +151095,6 @@ var NiftyPlugin = async () => {
               cached_access_token_usable: isTokenUsable(cached2)
             },
             api: { ok: false, error: null },
-            policy: {
-              required: policyRequired(context2),
-              loaded: Boolean(loadedPolicy),
-              policy_id: loadedPolicy?.policy_id || null,
-              path: process.env.NIFTY_POLICY_PATH || null,
-              inline: Boolean(process.env.NIFTY_POLICY_INLINE),
-              error: policyError
-            },
-            runtime: {
-              node: process.version,
-              node_20_or_newer: Number.parseInt(process.versions.node.split(".")[0] || "0", 10) >= 20
-            },
-            rag: null,
             workflows: null
           };
           try {
@@ -153448,32 +151105,17 @@ var NiftyPlugin = async () => {
           }
           try {
             checks.workflows = await validateWorkflows({
-              directory: context2.directory,
-              worktree: context2.worktree
+              directory: context.directory,
+              worktree: context.worktree
             });
           } catch (error) {
             checks.workflows = { ok: false, error: error.message };
           }
-          try {
-            const { ragDiagnostics: ragDiagnostics2 } = await Promise.resolve().then(() => (init_rag(), exports_rag));
-            checks.rag = await ragDiagnostics2({
-              enabled: envBoolean2("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context2)
-            });
-            checks.rag.ready = Boolean(checks.rag.tables?.["nifty-tasks"]?.available && checks.rag.tables?.["nifty-policy"]?.available);
-            checks.rag.required = envBoolean2("NIFTY_RAG_REQUIRED", false, context2);
-          } catch (error) {
-            checks.rag = {
-              enabled: envBoolean2("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context2),
-              required: envBoolean2("NIFTY_RAG_REQUIRED", false, context2),
-              ready: false,
-              error: error.message
-            };
-          }
           return json({
-            ok: checks.api.ok && checks.workflows?.ok !== false && (!checks.policy.required || checks.policy.loaded && !checks.policy.error) && checks.runtime.node_20_or_newer && (!checks.rag?.required || checks.rag?.ready),
+            ok: checks.api.ok && checks.workflows?.ok !== false,
             token_cache: TOKEN_PATH,
-            workflow_config: configPath(context2),
-            default_workflow: defaultWorkflowAlias(context2) || null,
+            workflow_config: configPath(context),
+            default_workflow: defaultWorkflowAlias(context) || null,
             checks
           });
         }
@@ -153486,13 +151128,13 @@ var NiftyPlugin = async () => {
           project_name: tool.schema.string().optional().describe("Project name for the config snippet"),
           project_nice_id: tool.schema.string().optional().describe("Project nice ID for the config snippet")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const project = cleanObject({
             id: args.project_id,
             name: args.project_name,
             nice_id: args.project_nice_id
           });
-          const alias = workflowAlias(args.workflow_alias, project, context2);
+          const alias = workflowAlias(args.workflow_alias, project, context);
           return json({
             ...recommendedWorkflowSummary(),
             workflow_alias: alias,
@@ -153514,8 +151156,8 @@ var NiftyPlugin = async () => {
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
           overwrite_config: tool.schema.boolean().optional().describe("Overwrite an existing alias in the config file; defaults to false")
         },
-        async execute(args, context2) {
-          const contextWithConfig = workflowContext(context2, args.config_path);
+        async execute(args, context) {
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = await resolveProjectSelector({
             workflow_alias: args.workflow_alias,
             config_path: args.config_path,
@@ -153575,13 +151217,13 @@ var NiftyPlugin = async () => {
             name: tool.schema.string(),
             description: tool.schema.string().optional()
           })).optional().describe("Optional subtasks to create after user approval"),
+          attachment_paths: tool.schema.array(tool.schema.string()).optional().describe("Local image or markdown file paths to upload and attach to the parent task"),
           create_subtasks: tool.schema.boolean().default(false).describe("Create proposed subtasks while finalizing"),
           subtask_confirmation: tool.schema.string().optional().describe('Required when create_subtasks is true, for example "create 3 subtasks"'),
           finalize: tool.schema.boolean().default(false).describe("Update/create the Nifty task once all shaping fields are answered")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const existingTask = args.task_id ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`) : null;
-          const proposedSubtasks = dedupeNamedSubtasks(args.proposed_subtasks || [], existingTask?.subtasks || []);
           const title = args.title || existingTask?.name || existingTask?.title;
           const idea = args.idea || existingTask?.description || existingTask?.text || null;
           const shapeInput = { ...args, title, idea };
@@ -153593,7 +151235,7 @@ var NiftyPlugin = async () => {
             title: title || null,
             source_idea: idea || null,
             sections: summarizeShapingInput(shapeInput),
-            proposed_subtasks: proposedSubtasks
+            proposed_subtasks: args.proposed_subtasks || []
           };
           if (missing.length) {
             return json({
@@ -153613,10 +151255,10 @@ var NiftyPlugin = async () => {
               next_question: null,
               message: "Shaping is complete. Review the blueprint, ask whether to create proposed subtasks, then re-run with finalize true when approved.",
               blueprint,
-              subtask_confirmation_required: proposedSubtasks.length ? `create ${proposedSubtasks.length} ${proposedSubtasks.length === 1 ? "subtask" : "subtasks"}` : null
+              subtask_confirmation_required: args.proposed_subtasks?.length ? `create ${args.proposed_subtasks.length} ${args.proposed_subtasks.length === 1 ? "subtask" : "subtasks"}` : null
             });
           }
-          const contextWithConfig = workflowContext(context2, args.config_path);
+          const contextWithConfig = workflowContext(context, args.config_path);
           let resolved = null;
           let projectID = args.project_id || (existingTask ? getTaskProjectID(existingTask) : undefined);
           if (args.workflow_alias || args.project_name || args.project_nice_id || !projectID && !args.task_id) {
@@ -153641,6 +151283,10 @@ var NiftyPlugin = async () => {
           if (!targetStatusID && !args.task_id) {
             throw new Error("Target status missing. Provide target_task_group_id, workflow_alias with target_state_key, or project status_name.");
           }
+          const attachments = await loadTaskAttachments(args.attachment_paths, context);
+          if (attachments.length && !projectID) {
+            throw new Error("Project context missing for Nifty task attachment upload.");
+          }
           const taskResponse = args.task_id ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
             body: cleanWriteObject({ name: title, description, task_group_id: targetStatusID })
@@ -153650,37 +151296,41 @@ var NiftyPlugin = async () => {
           });
           const parentTaskID = args.task_id || taskResponse.id || taskResponse.task_id;
           const createdSubtasks = [];
-          if (args.create_subtasks && proposedSubtasks.length) {
-            requireSubtaskConfirmation(proposedSubtasks, args.subtask_confirmation);
+          if (args.create_subtasks && args.proposed_subtasks?.length) {
+            requireSubtaskConfirmation(args.proposed_subtasks, args.subtask_confirmation);
             if (!parentTaskID)
               throw new Error("Unable to determine parent task ID for subtask creation.");
             const subtaskStatusID = targetStatusID || getTaskStatusID(existingTask);
             if (!subtaskStatusID)
               throw new Error("Unable to determine subtask status ID.");
-            for (const subtask of proposedSubtasks) {
-              try {
-                createdSubtasks.push(await niftyRequest("/api/v1.0/tasks", {
-                  method: "POST",
-                  body: cleanWriteObject({
-                    name: subtask.name,
-                    description: subtask.description,
-                    task_group_id: subtaskStatusID,
-                    task_id: parentTaskID
-                  })
-                }));
-              } catch (error) {
-                if (!looksLikeDuplicateWriteError(error))
-                  throw error;
-              }
+            for (const subtask of args.proposed_subtasks) {
+              createdSubtasks.push(await niftyRequest("/api/v1.0/tasks", {
+                method: "POST",
+                body: cleanWriteObject({
+                  name: subtask.name,
+                  description: subtask.description,
+                  task_group_id: subtaskStatusID,
+                  task_id: parentTaskID
+                })
+              }));
             }
           }
+          if (attachments.length && !parentTaskID) {
+            throw new Error("Unable to determine parent task ID for attachment upload.");
+          }
+          const uploadedAttachmentIDs = await uploadTaskAttachments(projectID, parentTaskID, attachments);
+          const attachmentMessage = await attachFilesToTaskComment(parentTaskID, uploadedAttachmentIDs);
           return json({
             ok: true,
             ready: true,
             finalized: true,
             task: taskResponse,
             created_subtasks: createdSubtasks,
-            proposed_subtasks_not_created: args.create_subtasks ? [] : proposedSubtasks
+            proposed_subtasks_not_created: args.create_subtasks ? [] : args.proposed_subtasks || [],
+            attachments: {
+              uploaded_file_ids: uploadedAttachmentIDs,
+              message: attachmentMessage
+            }
           });
         }
       }),
@@ -153702,8 +151352,8 @@ var NiftyPlugin = async () => {
           limit: tool.schema.number().int().min(1).max(100).optional().describe("Page size"),
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset")
         },
-        async execute(args, context2) {
-          const contextWithConfig = workflowContext(context2, args.config_path);
+        async execute(args, context) {
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig);
           ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig), contextWithConfig);
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -153766,9 +151416,9 @@ var NiftyPlugin = async () => {
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
           custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           assertNoOpenQuestions(args, "task");
-          const contextWithConfig = workflowContext(context2, args.config_path);
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig);
           ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig), contextWithConfig);
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -153838,11 +151488,11 @@ var NiftyPlugin = async () => {
             custom_fields: tool.schema.array(customFieldArg).optional()
           })).describe("Items to create")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           for (const item of args.items) {
             assertNoOpenQuestions(item, `task '${item.name}'`);
           }
-          const contextWithConfig = workflowContext(context2, args.config_path);
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig);
           ensureWorkflow(resolved.workflow, resolved.workflowAlias || args.workflow_alias || defaultWorkflowAlias(contextWithConfig), contextWithConfig);
           const status = await resolveStatusSelector(resolved.project.id, {
@@ -153878,25 +151528,9 @@ var NiftyPlugin = async () => {
               planned
             });
           }
-          const existingTasksResponse = await niftyRequest("/api/v1.0/tasks", {
-            query: cleanObject({
-              project_id: resolved.project.id,
-              task_group_id: status.id,
-              milestone_id: milestone?.id,
-              include_subtasks: "false",
-              limit: 500,
-              offset: 0
-            })
-          });
-          const { toCreate, skippedExisting, skippedDuplicateInput } = dedupeTaskBodiesByName(planned, existingTasksResponse.tasks || []);
           const created = [];
-          for (const body of toCreate) {
-            try {
-              created.push(await niftyRequest("/api/v1.0/tasks", { method: "POST", body }));
-            } catch (error) {
-              if (!looksLikeDuplicateWriteError(error))
-                throw error;
-            }
+          for (const body of planned) {
+            created.push(await niftyRequest("/api/v1.0/tasks", { method: "POST", body }));
           }
           return json({
             dry_run: false,
@@ -153904,8 +151538,6 @@ var NiftyPlugin = async () => {
             project: { id: resolved.project.id, name: resolved.project.name },
             status: { id: status.id, name: status.name },
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
-            skipped_existing: skippedExisting,
-            skipped_duplicate_input: skippedDuplicateInput,
             created
           });
         }
@@ -153943,8 +151575,8 @@ var NiftyPlugin = async () => {
           from: tool.schema.string().optional().describe("Due date from, ISO format"),
           to: tool.schema.string().optional().describe("Due date to, ISO format")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context);
           const response = await niftyRequest("/api/v1.0/tasks", {
             query: cleanObject({
               project_id: args.project_id,
@@ -153977,135 +151609,10 @@ var NiftyPlugin = async () => {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context);
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
           return json(enrichTaskCustomFields(response, workflow));
-        }
-      }),
-      nifty_get_task_full_context: tool({
-        description: "Gets full task context including task details, comments, subtasks, status map, milestones, and project summary",
-        args: {
-          task_id: tool.schema.string().describe("Task ID"),
-          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
-          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
-          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
-          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context")
-        },
-        async execute(args, context2) {
-          const fullContext = await fetchTaskFullContext(args.task_id, args, context2);
-          return json(fullContext);
-        }
-      }),
-      nifty_run_task: tool({
-        description: "Runs the canonical Nifty task workflow entrypoint: hydrate the parent card, comments, and child tasks, then assign the parent card to the authorized user.",
-        args: {
-          task_id: tool.schema.string().describe("Parent task card ID or child task ID from the user prompt, for example MBC-495"),
-          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
-          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the Codex/OpenCode project directory"),
-          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
-          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context"),
-          assign: tool.schema.boolean().optional().describe("Assign the parent card to the authorized user; defaults to true"),
-          assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Authorized Nifty member IDs to assign; defaults to policy default or current user")
-        },
-        async execute(args, context2) {
-          return withNiftyWorkflowLock(["run-task", args.task_id], context2, async () => {
-            const session = await hydrateTaskWorkSession(args.task_id, args, context2);
-            const parentTask = session.parent_context.task;
-            const assignment = await assignTaskToAuthorizedUser(parentTask.id, parentTask, args, context2);
-            safeContextMetadata(context2, {
-              title: "Nifty task work session",
-              active_task_id: parentTask.id,
-              active_task_nice_id: parentTask.nice_id,
-              requested_task_id: args.task_id,
-              requested_was_subtask: session.requested_was_subtask,
-              parent_task_id: parentTask.id,
-              subtask_summary: session.parent_context.subtask_summary
-            });
-            return json({
-              workflow: "nifty_task_work_session",
-              active_task_id: parentTask.id,
-              active_task_nice_id: parentTask.nice_id,
-              requested_task_id: args.task_id,
-              requested_was_subtask: session.requested_was_subtask,
-              requested_subtask: session.requested_subtask || null,
-              assignment,
-              task: parentTask,
-              description: parentTask.description,
-              comments: session.parent_context.comments,
-              subtasks: childWorkSummary(session.parent_context.subtasks),
-              subtask_summary: session.parent_context.subtask_summary,
-              statuses: session.parent_context.statuses,
-              milestones: session.parent_context.milestones,
-              project: session.parent_context.project,
-              instructions: [
-                "Use this hydrated Nifty context as the source of truth before reading repository files.",
-                "Work child tasks from the subtasks list.",
-                "When a child task is actually complete and evidence exists, call nifty_complete_child_task with the child task id and Cave Updater evidence fields.",
-                "Do not move, archive, comment on, or deliver a child task as if it were the parent task card."
-              ]
-            });
-          });
-        }
-      }),
-      nifty_complete_child_task: tool({
-        description: "Completes a Nifty child/subtask and automatically posts a meaningful Cave Updater comment using the required three-section template.",
-        args: {
-          child_task_id: tool.schema.string().describe("Child/subtask ID to check off"),
-          parent_task_id: tool.schema.string().optional().describe("Expected parent task card ID; used as a safety check when provided"),
-          what_was_done: tool.schema.string().describe("Meaningful completion summary for ## What was done"),
-          evidence_tests: tool.schema.string().describe("Concrete evidence, commands, tests, or review proof for ## Evidence / Tests"),
-          how_to_verify: tool.schema.string().describe("Concrete verification steps for ## How to verify"),
-          completed: tool.schema.boolean().optional().describe("Completion state; defaults to true"),
-          idempotency_key: tool.schema.string().optional().describe("Optional stable key for retrying the same child completion workflow")
-        },
-        async execute(args, context2) {
-          const report = caveUpdaterReport({
-            what_was_done: args.what_was_done,
-            evidence_tests: args.evidence_tests,
-            how_to_verify: args.how_to_verify
-          });
-          const idempotencyKey = args.idempotency_key || workflowLockKey([
-            "complete-child",
-            args.child_task_id,
-            args.completed !== false,
-            normalizeCommentForIdempotency(report)
-          ]);
-          return withNiftyWorkflowLock(["complete-child", args.child_task_id, idempotencyKey], context2, async () => {
-            const childTask = await fetchTaskForEntityGate(args.child_task_id);
-            if (!isSubtask(childTask)) {
-              throw Object.assign(new Error("nifty_complete_child_task requires a child/subtask id. Use parent task-card tools for parent cards."), { code: "NIFTY_CHILD_TASK_REQUIRED", taskID: args.child_task_id });
-            }
-            const parentTaskID = taskParentID(childTask);
-            if (args.parent_task_id && String(args.parent_task_id) !== String(parentTaskID)) {
-              throw Object.assign(new Error(`Child task ${args.child_task_id} belongs to parent ${parentTaskID}, not ${args.parent_task_id}.`), { code: "NIFTY_CHILD_PARENT_MISMATCH", taskID: args.child_task_id, parentTaskID });
-            }
-            const completed = args.completed !== false;
-            let completion = null;
-            if (childTask.completed === completed) {
-              completion = { existing: true, completed };
-            } else {
-              completion = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.child_task_id)}/complete`, {
-                method: "POST",
-                body: { completed }
-              });
-            }
-            const comment = await postCaveUpdaterTaskComment(args.child_task_id, report, context2);
-            const parentAutomation = completed ? await maybeAutoCompleteParentTask(args.child_task_id, context2) : null;
-            return json({
-              workflow: "nifty_child_completion",
-              idempotency_key: idempotencyKey,
-              child_task_id: args.child_task_id,
-              child_task_nice_id: childTask.nice_id || null,
-              parent_task_id: parentTaskID,
-              completed,
-              completion,
-              comment,
-              comment_template: "cave_updater",
-              comment_text: botCommentText(report),
-              parent_automation: parentAutomation
-            });
-          });
         }
       }),
       nifty_create_task: tool({
@@ -154125,8 +151632,8 @@ var NiftyPlugin = async () => {
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
           custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context);
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
             body: cleanWriteObject({
@@ -154163,8 +151670,8 @@ var NiftyPlugin = async () => {
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
           custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context);
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "POST",
             body: cleanWriteObject({
@@ -154185,7 +151692,7 @@ var NiftyPlugin = async () => {
         }
       }),
       nifty_update_task: tool({
-        description: "Updates a Nifty task",
+        description: "Updates parent Nifty task-card fields only. It does not update, create, or check off subtasks. Use nifty_complete_task for parent completion and nifty_complete_subtask to check or uncheck a subtask.",
         args: {
           workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve configured custom fields"),
           config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
@@ -154196,20 +151703,29 @@ var NiftyPlugin = async () => {
           due_date: tool.schema.string().optional().describe("Due date, ISO format"),
           start_date: tool.schema.string().optional().describe("Start date, ISO format"),
           reminder: tool.schema.string().optional().describe("Reminder value"),
-          archived: tool.schema.boolean().optional().describe("Archive or unarchive the task"),
-          completed: tool.schema.boolean().optional().describe("Complete or reopen the task"),
+          archived: tool.schema.boolean().optional().describe("Archive or unarchive the parent task card"),
           milestone_id: tool.schema.string().optional().describe("Milestone ID"),
           dependency: tool.schema.string().optional().describe("Dependency task ID"),
           assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task assignees"),
           label_ids: tool.schema.array(tool.schema.string()).optional().describe("Replace task labels"),
           story_points: tool.schema.number().int().min(1).optional().describe("Story points"),
-          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs")
+          custom_fields: tool.schema.array(customFieldArg).optional().describe("Custom fields to set, using workflow keys or raw Nifty field IDs"),
+          attachment_paths: tool.schema.array(tool.schema.string()).optional().describe("Local image or markdown file paths to upload and attach to the task"),
+          user_level_test_proof: tool.schema.string().optional().describe("Required. Real-world user-level test performed against the user-visible app, API, or workflow before updating the parent task card."),
+          visual_proof_required: tool.schema.boolean().optional().describe("Whether this parent task-card update needs screenshot image proof. Defaults to true; set false only when no visual proof is relevant."),
+          visual_proof_not_required_reason: tool.schema.string().optional().describe("Required when visual_proof_required is false. Explain why screenshot/image proof is not relevant.")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
-          if (args.task_group_id) {
-            const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
-            assertTaskCardForStatusChange(task);
+        async execute(args, context) {
+          if (args.completed !== undefined) {
+            throw new Error("nifty_update_task only updates parent task-card fields. Use nifty_complete_task for task cards or nifty_complete_subtask for subtasks.");
+          }
+          const attachments = await loadTaskAttachments(args.attachment_paths, context);
+          const proofComment = requireParentTaskUpdateProof(args, attachments);
+          const workflow = await workflowForArgs(args, context);
+          const taskForAttachments = attachments.length ? await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`) : null;
+          const attachmentProjectID = attachments.length ? getTaskProjectID(taskForAttachments) : undefined;
+          if (attachments.length && !attachmentProjectID) {
+            throw new Error("Project context missing for Nifty task attachment upload.");
           }
           const taskBody = cleanWriteObject({
             name: args.name,
@@ -154219,7 +151735,6 @@ var NiftyPlugin = async () => {
             start_date: args.start_date,
             reminder: args.reminder,
             archived: args.archived,
-            completed: args.completed,
             milestone_id: args.milestone_id,
             dependency: args.dependency,
             assignees: args.assignee_ids,
@@ -154231,9 +151746,20 @@ var NiftyPlugin = async () => {
             body: taskBody
           }) : null;
           const fieldResponses = await updateTaskCustomFields(args.task_id, workflow, args.custom_fields);
+          const uploadedAttachmentIDs = await uploadTaskAttachments(attachmentProjectID, args.task_id, attachments);
+          const attachmentMessage = await postTaskComment2(args.task_id, proofComment, uploadedAttachmentIDs);
           return json({
             task: taskResponse,
-            custom_fields: fieldResponses
+            custom_fields: fieldResponses,
+            proof: {
+              user_level_test_proof: args.user_level_test_proof,
+              visual_proof_required: args.visual_proof_required !== false,
+              visual_proof_not_required_reason: args.visual_proof_required === false ? args.visual_proof_not_required_reason : null
+            },
+            attachments: {
+              uploaded_file_ids: uploadedAttachmentIDs,
+              message: attachmentMessage
+            }
           });
         }
       }),
@@ -154245,8 +151771,8 @@ var NiftyPlugin = async () => {
           task_id: tool.schema.string().describe("Task ID"),
           custom_fields: tool.schema.array(customFieldArg).describe("Custom fields to set, using workflow keys or raw Nifty field IDs")
         },
-        async execute(args, context2) {
-          const workflow = await workflowForArgs(args, context2);
+        async execute(args, context) {
+          const workflow = await workflowForArgs(args, context);
           const responses = await updateTaskCustomFields(args.task_id, workflow, args.custom_fields);
           return json({
             task_id: args.task_id,
@@ -154298,7 +151824,6 @@ var NiftyPlugin = async () => {
         },
         async execute(args) {
           requireBulkTaskConfirmation("delete", args.task_ids, args.confirmation);
-          await assertTaskIDsAreParentTaskCards("nifty_delete_tasks", args.task_ids);
           const response = await niftyRequest("/api/v1.0/tasks", {
             method: "DELETE",
             body: {
@@ -154310,24 +151835,37 @@ var NiftyPlugin = async () => {
         }
       }),
       nifty_complete_task: tool({
-        description: "Completes or reopens a Nifty task. For subtasks, this checks or unchecks the child row. Parent task-card completion still requires close_confirmation when the lifecycle policy requires it.",
+        description: "Completes or reopens a parent Nifty task card. For subtasks, use nifty_complete_subtask so the agent treats it as checking or unchecking the subtask item.",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
-          completed: tool.schema.boolean().default(true).describe("Completion state"),
-          close_confirmation: tool.schema.string().optional().describe('Required only when completing a parent task card and automation requires explicit close trigger. Use exactly "close {task_id}". Subtask checkoff does not require this.')
+          completed: tool.schema.boolean().default(true).describe("Completion state")
         },
-        async execute(args, context2) {
-          if (args.completed !== false) {
-            const task = await fetchTaskForEntityGate(args.task_id);
-            if (!isSubtask(task))
-              assertExplicitCloseConfirmation(args.task_id, args, context2);
-          }
+        async execute(args) {
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/complete`, {
             method: "POST",
             body: { completed: args.completed }
           });
-          const parentAutomation = args.completed === false ? null : await maybeAutoCompleteParentTask(args.task_id, context2);
-          return json({ ...response, parent_automation: parentAutomation });
+          return json(response);
+        }
+      }),
+      nifty_complete_subtask: tool({
+        description: "Checks or unchecks a Nifty subtask under a parent task card. This calls the subtask's dedicated completion endpoint and never updates the parent task-card fields.",
+        args: {
+          parent_task_id: tool.schema.string().describe("Parent task-card ID that owns the subtask"),
+          subtask_id: tool.schema.string().describe("Subtask ID to check or uncheck"),
+          completed: tool.schema.boolean().default(true).describe("Checked state for the subtask")
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.subtask_id)}/complete`, {
+            method: "POST",
+            body: { completed: args.completed }
+          });
+          return json({
+            parent_task_id: args.parent_task_id,
+            subtask_id: args.subtask_id,
+            completed: args.completed,
+            response
+          });
         }
       }),
       nifty_archive_task: tool({
@@ -154403,7 +151941,7 @@ var NiftyPlugin = async () => {
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}/documents`, {
             method: "PUT",
-            body: { document_id: args.document_id }
+            body: args.document_id
           });
           return json(response);
         }
@@ -154430,7 +151968,7 @@ var NiftyPlugin = async () => {
         }
       }),
       nifty_move_task_to_status: tool({
-        description: "Moves a task card to a named status or configured workflow state. For subtasks, use nifty_complete_task to check or uncheck the subtask instead.",
+        description: "Moves a task to a named status or configured workflow state",
         args: {
           task_id: tool.schema.string().describe("Task ID"),
           workflow_alias: tool.schema.string().optional().describe("Workflow alias from the workflow config file"),
@@ -154438,14 +151976,11 @@ var NiftyPlugin = async () => {
           project_id: tool.schema.string().optional().describe("Project ID when not using a workflow alias"),
           state_key: tool.schema.string().optional().describe("Configured state key such as ideas or todo"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
-          comment: tool.schema.string().optional().describe("Optional note to add after the move"),
-          delivery_evidence: deliveryEvidenceArg.optional().describe("Delivery gate evidence. Required when moving into Dev Review by lifecycle policy"),
-          close_confirmation: tool.schema.string().optional().describe('Required when moving to a Done-like status with completion sync. Use exactly "close {task_id}".')
+          comment: tool.schema.string().optional().describe("Optional note to add after the move")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
-          assertTaskCardForStatusChange(task);
-          const contextWithConfig = workflowContext(context2, args.config_path);
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = args.workflow_alias ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig) : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined };
           if (!resolved.project?.id) {
             throw new Error("Project context missing. Provide workflow_alias or project_id.");
@@ -154460,13 +151995,6 @@ var NiftyPlugin = async () => {
           });
           if (!status) {
             throw new Error("Target status missing. Provide state_key or status_name.");
-          }
-          if (args.comment) {
-            validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.comment, context: contextWithConfig });
-          }
-          await enforceDeliveryLifecyclePolicy(args.task_id, status, resolved.workflow, args.delivery_evidence, contextWithConfig);
-          if (looksLikeDoneStatus(status, resolved.workflow)) {
-            assertExplicitCloseConfirmation(args.task_id, args, contextWithConfig);
           }
           const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, {
             method: "PUT",
@@ -154484,12 +152012,10 @@ var NiftyPlugin = async () => {
               }
             });
           }
-          const completionSync = await maybeSyncCompletionForStatus(args.task_id, status, resolved.workflow, contextWithConfig, args);
           return json({
             moved: true,
             task_id: args.task_id,
             target_status: { id: status.id, name: status.name },
-            completion_sync: completionSync,
             response
           });
         }
@@ -154517,18 +152043,21 @@ var NiftyPlugin = async () => {
           reminder: tool.schema.string().optional().describe("Reminder value"),
           state_key: tool.schema.string().optional().describe("Configured state key to move into after update"),
           status_name: tool.schema.string().optional().describe("Raw status name override"),
-          delivery_evidence: deliveryEvidenceArg.optional().describe("Delivery gate evidence. Required when moving into Dev Review by lifecycle policy"),
           list_key: tool.schema.string().optional().describe("Configured workflow list key"),
           list_name: tool.schema.string().optional().describe("Raw Nifty list/milestone name override"),
           milestone_id: tool.schema.string().optional().describe("Raw Nifty milestone/list ID override"),
-          comment: tool.schema.string().optional().describe("Optional note to append as a task comment")
+          comment: tool.schema.string().optional().describe("Optional note to append as a task comment"),
+          attachment_paths: tool.schema.array(tool.schema.string()).optional().describe("Local image or markdown file paths to upload and attach to the task"),
+          user_level_test_proof: tool.schema.string().optional().describe("Required. Real-world user-level test performed against the user-visible app, API, or workflow before updating the parent task card."),
+          visual_proof_required: tool.schema.boolean().optional().describe("Whether this parent task-card update needs screenshot image proof. Defaults to true; set false only when no visual proof is relevant."),
+          visual_proof_not_required_reason: tool.schema.string().optional().describe("Required when visual_proof_required is false. Explain why screenshot/image proof is not relevant.")
         },
-        async execute(args, context2) {
+        async execute(args, context) {
           assertNoOpenQuestions(args, "task");
+          const attachments = await loadTaskAttachments(args.attachment_paths, context);
+          const proofComment = requireParentTaskUpdateProof(args, attachments);
           const task = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
-          if (args.state_key || args.status_name)
-            assertTaskCardForStatusChange(task);
-          const contextWithConfig = workflowContext(context2, args.config_path);
+          const contextWithConfig = workflowContext(context, args.config_path);
           const resolved = args.workflow_alias ? await resolveProjectSelector({ workflow_alias: args.workflow_alias, config_path: args.config_path }, contextWithConfig) : { project: { id: args.project_id || getTaskProjectID(task) }, workflow: undefined };
           if (!resolved.project?.id) {
             throw new Error("Project context missing. Provide workflow_alias or project_id.");
@@ -154542,10 +152071,6 @@ var NiftyPlugin = async () => {
             state_key: args.state_key,
             status_name: args.status_name
           });
-          if (args.comment) {
-            validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.comment, context: contextWithConfig });
-          }
-          await enforceDeliveryLifecyclePolicy(args.task_id, targetStatus, resolved.workflow, args.delivery_evidence, contextWithConfig);
           const milestone = await resolveMilestoneSelector(resolved.project.id, {
             workflow: resolved.workflow,
             list_key: args.list_key,
@@ -154567,44 +152092,23 @@ var NiftyPlugin = async () => {
               story_points: args.story_points
             })
           });
-          const automation = automationConfig(loadPolicy(contextWithConfig), contextWithConfig);
-          const createdSubtasks = [];
-          if (automation.enabled && automation.subtasks?.auto_create_from_checklist && args.checklist?.length) {
-            const subtaskPlans = checklistSubtasks(args.checklist, task.subtasks || []);
-            for (const subtask of subtaskPlans) {
-              try {
-                const created = await niftyRequest("/api/v1.0/tasks", {
-                  method: "POST",
-                  body: cleanWriteObject({
-                    name: subtask.name,
-                    task_id: args.task_id,
-                    task_group_id: task.task_group_id || task.task_group || targetStatus?.id
-                  })
-                });
-                createdSubtasks.push({ ...created, name: subtask.name });
-              } catch (error) {
-                if (!looksLikeDuplicateWriteError(error))
-                  throw error;
-              }
-            }
-          }
-          if (args.comment) {
-            await niftyRequest("/api/v1.0/messages", {
-              method: "POST",
-              body: {
-                type: "text",
-                text: botCommentText(args.comment),
-                task_id: args.task_id
-              }
-            });
-          }
+          const uploadedAttachmentIDs = await uploadTaskAttachments(resolved.project.id, args.task_id, attachments);
+          const commentResponse = await postTaskComment2(args.task_id, proofComment, uploadedAttachmentIDs);
           return json({
             prepared: true,
             task_id: args.task_id,
+            proof: {
+              user_level_test_proof: args.user_level_test_proof,
+              visual_proof_required: args.visual_proof_required !== false,
+              visual_proof_not_required_reason: args.visual_proof_required === false ? args.visual_proof_not_required_reason : null
+            },
             target_status: targetStatus ? { id: targetStatus.id, name: targetStatus.name } : null,
             milestone: milestone ? { id: milestone.id, name: milestone.name } : null,
-            created_subtasks: createdSubtasks,
-            response
+            response,
+            attachments: {
+              uploaded_file_ids: uploadedAttachmentIDs,
+              message: commentResponse
+            }
           });
         }
       }),
@@ -154666,7 +152170,7 @@ var NiftyPlugin = async () => {
           entity_key: tool.schema.string().optional().describe("Document entity key when doc_id is used"),
           external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with \uD83E\uDD16 Cave Updater marker; defaults to true for AI/tool comments")
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments")
         },
         async execute(args) {
           const targets = [
@@ -154679,7 +152183,6 @@ var NiftyPlugin = async () => {
           if (targets.length !== 1) {
             throw new Error("Provide exactly one target: chat_id, message_id, task_id, file_id, or doc_id.");
           }
-          validateNiftyTaskCommentTemplate({ task_id: args.task_id, text: args.text, context });
           const response = await niftyRequest("/api/v1.0/messages", {
             method: "POST",
             body: cleanObject({
@@ -154704,9 +152207,8 @@ var NiftyPlugin = async () => {
           message_id: tool.schema.string().describe("Message ID"),
           text: tool.schema.string().describe("Updated message text"),
           hide_link_preview: tool.schema.boolean().optional().describe("Hide link previews"),
-          external_files: tool.schema.array(tool.schema.string()).optional().describe("External file URLs or identifiers"),
           nifty_files: tool.schema.array(tool.schema.string()).optional().describe("Nifty file IDs"),
-          bot_marker: tool.schema.boolean().optional().describe("Prefix with \uD83E\uDD16 Cave Updater marker; defaults to true for AI/tool comments")
+          bot_marker: tool.schema.boolean().optional().describe("Prefix with robot marker; defaults to true for AI/tool comments")
         },
         async execute(args) {
           const response = await niftyRequest(`/api/v1.0/messages/${encodeURIComponent(args.message_id)}`, {
@@ -154714,14 +152216,13 @@ var NiftyPlugin = async () => {
             body: cleanObject({
               text: botCommentText(args.text, args.bot_marker !== false),
               hide_link_preview: args.hide_link_preview,
-              external_files: args.external_files,
               nifty_files: args.nifty_files
             })
           });
           return json(response);
         }
       })
-    })
+    }
   };
 };
 NiftyPlugin.__test = __test;
