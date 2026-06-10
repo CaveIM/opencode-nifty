@@ -78863,17 +78863,22 @@ function getLocalDevPath(directory) {
       const config = JSON.parse(stripJsonComments(content));
       const plugins = config.plugin ?? [];
       for (const entry of plugins) {
-        if (!entry.startsWith("file://"))
-          continue;
-        if (!ACCEPTED_PACKAGE_NAMES2.some((name) => entry.includes(name)))
-          continue;
-        try {
-          return fileURLToPath2(entry);
-        } catch (error) {
-          if (!(error instanceof Error)) {
-            throw error;
+        if (entry.startsWith("file://")) {
+          if (!ACCEPTED_PACKAGE_NAMES2.some((name) => entry.includes(name)) && !LOCAL_WRAPPER_NAMES.some((n) => entry.toLowerCase().includes(n)))
+            continue;
+          try {
+            return fileURLToPath2(entry);
+          } catch (error) {
+            if (!(error instanceof Error)) {
+              throw error;
+            }
+            return entry.replace("file://", "");
           }
-          return entry.replace("file://", "");
+        }
+        if (entry.startsWith("./") || entry.startsWith("../")) {
+          if (LOCAL_WRAPPER_NAMES.some((n) => entry.toLowerCase().includes(n))) {
+            return path8.resolve(path8.dirname(configPath), entry);
+          }
         }
       }
     } catch (error) {
@@ -78945,6 +78950,7 @@ import * as fs13 from "fs";
 init_plugin_identity();
 var EXACT_SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 var MATCH_PLUGIN_NAMES = [PACKAGE_NAME, PLUGIN_NAME, LEGACY_PLUGIN_NAME];
+var LOCAL_WRAPPER_NAMES = ["cave-meister-wrapper", "cave-meister/dist"];
 function findPluginEntry(directory) {
   for (const configPath of getConfigPaths2(directory)) {
     try {
@@ -78962,6 +78968,12 @@ function findPluginEntry(directory) {
             const pinnedVersion = entry.slice(pluginName.length + 1);
             const isPinned = EXACT_SEMVER_REGEX.test(pinnedVersion.trim());
             return { entry, isPinned, pinnedVersion, configPath };
+          }
+        }
+        if (entry.startsWith("file://") || entry.startsWith("./") || entry.startsWith("../")) {
+          const entryLower = entry.toLowerCase();
+          if (LOCAL_WRAPPER_NAMES.some((n) => entryLower.includes(n))) {
+            return { entry, isPinned: false, pinnedVersion: null, configPath, isLocalWrapper: true };
           }
         }
       }
@@ -79760,6 +79772,25 @@ function createBackgroundUpdateCheckRunner(overrides2 = {}) {
       deps.log("[auto-update-checker] Plugin not found in config");
       return;
     }
+    if (pluginInfo.isLocalWrapper) {
+      const cachedVersion2 = deps.getCachedVersion();
+      const currentVersion = cachedVersion2 ?? "unknown";
+      const { getGitHubRawVersion: getGitHubRawVersion2 } = await Promise.resolve().then(() => exports_github_version);
+      const latestVersion = await getGitHubRawVersion2();
+      if (!latestVersion) {
+        deps.log("[auto-update-checker] Failed to fetch GitHub VERSION for local wrapper");
+        return;
+      }
+      if (currentVersion === latestVersion) {
+        deps.log(`[auto-update-checker] Local wrapper up to date: ${currentVersion}`);
+        return;
+      }
+      deps.log(`[auto-update-checker] Local wrapper update available: ${currentVersion} \u2192 ${latestVersion}`);
+      const wrapperToastMessage = (_isUpdate, _latestVersion) => `Cave Meister update available: ${latestVersion}
+Run: nifty_update_plugin`;
+      await deps.showUpdateAvailableToast(ctx, latestVersion, wrapperToastMessage);
+      return;
+    }
     const cachedVersion2 = deps.getCachedVersion();
     const currentVersion = cachedVersion2 ?? pluginInfo.pinnedVersion;
     if (!currentVersion) {
@@ -80036,6 +80067,8 @@ v${latestVersion} available. Restart OpenCode to apply.` : "OpenCode is now on S
   };
   let hasChecked = false;
   let hasScheduled = false;
+  const PERIODIC_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+  let periodicTimer = null;
   return {
     event: ({ event }) => {
       if (event.type !== "session.created")
@@ -80070,6 +80103,12 @@ v${latestVersion} available. Restart OpenCode to apply.` : "OpenCode is now on S
           deps.runBackgroundUpdateCheck(ctx, autoUpdate, getToastMessage).catch((err) => {
             deps.log("[auto-update-checker] Background update check failed:", err);
           });
+          periodicTimer = setInterval(() => {
+            deps.runBackgroundUpdateCheck(ctx, autoUpdate, getToastMessage).catch((err) => {
+              deps.log("[auto-update-checker] Periodic update check failed:", err);
+            });
+          }, PERIODIC_CHECK_INTERVAL_MS);
+          if (periodicTimer.unref) periodicTimer.unref();
         })();
       });
     }
