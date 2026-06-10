@@ -80095,10 +80095,10 @@ v${latestVersion} available. Restart OpenCode to apply.` : "OpenCode is now on S
               deps.showLocalDevToast(ctx, displayVersion, isSisyphusEnabled).catch(ignoreToastError);
             }
             deps.log("[auto-update-checker] Local development mode");
-            return;
-          }
-          if (showStartupToast) {
-            deps.showVersionToast(ctx, displayVersion, getToastMessage(false)).catch(ignoreToastError);
+          } else {
+            if (showStartupToast) {
+              deps.showVersionToast(ctx, displayVersion, getToastMessage(false)).catch(ignoreToastError);
+            }
           }
           deps.runBackgroundUpdateCheck(ctx, autoUpdate, getToastMessage).catch((err) => {
             deps.log("[auto-update-checker] Background update check failed:", err);
