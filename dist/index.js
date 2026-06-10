@@ -119662,7 +119662,8 @@ function createTransformHooks(args) {
     teamModeStatusInjector,
     teamMailboxInjector,
     thinkingBlockValidator,
-    toolPairValidator
+    toolPairValidator,
+    contextCollectorRef: contextCollector
   };
 }
 
@@ -134496,12 +134497,65 @@ function buildHardBlocksSection() {
     "- Speculate about unread code - **Never**",
     "- Leave code in broken state after failures - **Never**",
     "- `background_cancel(all=true)` - **Never.** Always cancel individually by taskId.",
-    "- Delivering final answer before collecting Oracle result - **Never.**"
+    "- Delivering final answer before collecting Oracle result - **Never.**",
+    "- Marking ANY task/todo as completed WITHOUT running the MANDATORY FINAL VALIDATION GATE below - **Never. This is non-negotiable and cannot be skipped, bypassed, or deferred.**"
   ];
   return `## Hard Blocks (NEVER violate)
 
 ${blocks.join(`
-`)}`;
+`)}
+
+<MANDATORY_FINAL_VALIDATION_GATE>
+## MANDATORY FINAL VALIDATION GATE (NON-BYPASSABLE)
+
+Before marking ANY task/todo as \`completed\`, you MUST pass ALL of these checks.
+There are NO exceptions. If any check fails, the task is NOT complete.
+
+Run these IN ORDER. ALL must pass:
+
+### Gate 1: Anti-Entropy (Code Integrity)
+- All changed files have been re-read AFTER the last edit to confirm changes are actually present
+- No orphaned imports, missing exports, or broken references
+- No stub/placeholder code left behind (TODO, FIXME, HACK, XXX)
+- No unintended side effects from changes (check callers, imports, consumers)
+- Run \`lsp_diagnostics\` on EVERY changed file - must show ZERO errors
+
+### Gate 2: Remove AI Slop
+- No AI-generated code smells: generic variable names, unnecessary wrapper functions, redundant type assertions
+- No over-engineering: no speculative error handling, no defensive code for impossible scenarios
+- No AI-typical patterns: purple-on-white defaults, generic fonts, predictable layouts, boilerplate comments
+- No unnecessary complexity: no object annotations where plain types suffice, no if/elif chains where maps work
+- No excessive comments or docstrings that merely restate the code
+
+### Gate 3: Architecture Verification
+- Changes follow existing codebase patterns and conventions (check neighboring files)
+- No circular dependencies introduced
+- No violation of existing module boundaries or layering rules
+- New files are in the correct directory following project convention
+- If AGENTS.md or project docs specify architectural rules, changes comply with them
+
+### Gate 4: Code Harmony
+- Changes are consistent with the surrounding code style (indentation, naming, imports)
+- No mixed coding styles within the same file
+- New dependencies are justified (prefer existing libs over new ones)
+- No duplicate logic that already exists elsewhere in the codebase
+
+### Gate 5: Deep End-to-End User-Level Testing
+- If the code has a runnable surface (CLI, API, UI, service), it has been exercised through that surface
+- If tests exist, they have been run and pass
+- If a build step exists, it succeeds with exit code 0
+- Happy path verified: the feature works as a real user would discover it
+- Edge case verified: at least one non-happy-path input tested
+- No "I think it works" - only tool output as evidence
+
+### Gate 6: Final Self-Audit
+- Re-read every changed file one more time
+- Ask: "Would I ship this to production?" If NO, fix it now.
+- Ask: "Did I change anything I wasn't asked to change?" If YES, revert the unrelated changes.
+
+**ONLY after ALL 6 gates pass**: mark the task/todo as \`completed\`.
+**If ANY gate fails**: fix the issue, then re-run the gate. Do NOT defer.
+</MANDATORY_FINAL_VALIDATION_GATE>`;
 }
 function buildAntiPatternsSection() {
   const patterns = [
@@ -140207,6 +140261,19 @@ State your read in one line: "I read this as [scope]-[domain] - [first step]." T
 ## Three-attempt failure
 
 After 3 materially different approaches fail: stop editing, revert to last known-good, document every attempt, consult Oracle synchronously, then surface the blocker.
+
+## MANDATORY FINAL VALIDATION (NON-BYPASSABLE)
+
+Before reporting task complete, run these checks. ALL must pass:
+
+1. **Anti-entropy**: Re-read every changed file. Confirm edits are present. No orphaned imports, missing exports, stubs, or TODOs.
+2. **No AI slop**: No unnecessary wrappers, generic names, redundant types, boilerplate comments, or over-engineering.
+3. **Architecture**: Changes follow existing codebase patterns. No circular deps. New files in correct directories.
+4. **Code harmony**: Style matches surrounding code. No duplicate logic. No unnecessary new dependencies.
+5. **E2E testing**: lsp_diagnostics clean on all changed files. Tests pass if they exist. Build succeeds if applicable. Exercise the runnable surface through its matching tool.
+6. **Self-audit**: Would you ship this to production? Did you change anything you weren't asked to?
+
+If ANY gate fails: fix it NOW. Do NOT defer. Do NOT report complete with known issues.
 
 ## Working with the orchestrator
 
@@ -147972,6 +148039,22 @@ function createToolExecuteAfterHandler3(args) {
           hasPromptInMetadata: typeof prompt === "string",
           expectedAttemptId: loopState.verification_attempt_id,
           extractedAttemptId: verificationAttemptId
+        });
+      }
+    }
+    if (input.tool === "task" && output.output && typeof output.output === "string") {
+      const contextCollector2 = hooks2.contextCollectorRef;
+      if (contextCollector2 && input.sessionID) {
+        const hasError = output.output.includes("error") || output.output.includes("Error") || output.output.includes("failed");
+        const gateReminder = hasError
+          ? "[MANDATORY VALIDATION GATE] Task returned with errors. Before retrying or marking complete: (1) Re-read all changed files, (2) lsp_diagnostics on every changed file, (3) Verify architecture matches codebase patterns, (4) Remove AI slop, (5) Run E2E test through matching surface, (6) Self-audit: would you ship this? You CANNOT mark any todo/task completed until ALL 6 gates pass."
+          : "[MANDATORY VALIDATION GATE] Task returned. Before marking any todo/task as completed you MUST verify: (1) Anti-entropy: re-read changed files, confirm edits present, no orphaned imports/stubs, (2) No AI slop: no unnecessary wrappers/generic names/boilerplate, (3) Architecture: follows codebase patterns, no circular deps, (4) Code harmony: style matches, no duplicate logic, (5) E2E testing: lsp_diagnostics clean, tests pass, exercise runnable surface, (6) Self-audit: would you ship this? ALL 6 GATES MUST PASS. Non-bypassable.";
+        contextCollector2.register(input.sessionID, {
+          source: "validation-gate",
+          id: `post-task-${input.callID ?? Date.now()}`,
+          content: gateReminder,
+          priority: "high",
+          metadata: { gate: "mandatory-final-validation", postTask: true }
         });
       }
     }
