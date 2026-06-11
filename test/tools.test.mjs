@@ -49,6 +49,57 @@ function taskCommentTemplate() {
   ].join("\n")
 }
 
+test("nifty_auth_exchange_code reads OAuth config from tool context", async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), "nifty-auth-context-"))
+  await writeFile(
+    join(projectDir, ".nifty.env"),
+    [
+      "NIFTY_CLIENT_ID=context-client-id",
+      "NIFTY_CLIENT_SECRET=context-client-secret",
+      "NIFTY_REDIRECT_URI=http://127.0.0.1:8787/callback",
+    ].join("\n"),
+    "utf8",
+  )
+  delete process.env.NIFTY_CLIENT_ID
+  delete process.env.NIFTY_CLIENT_SECRET
+  delete process.env.NIFTY_REDIRECT_URI
+  process.env.NIFTY_TOKEN_PATH = join(projectDir, "nifty-auth.json")
+
+  globalThis.fetch = async (url, options = {}) => {
+    const requestURL = new URL(String(url))
+    assert.equal(requestURL.pathname, "/oauth/token")
+    assert.equal(options.method, "POST")
+    assert.equal(
+      options.headers.Authorization,
+      `Basic ${Buffer.from("context-client-id:context-client-secret").toString("base64")}`,
+    )
+    assert.deepEqual(JSON.parse(options.body), {
+      grant_type: "authorization_code",
+      code: "returned-code",
+      redirect_uri: "http://127.0.0.1:8787/callback",
+    })
+    return Response.json({
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+      expires_in: 3600,
+      scope: "default",
+    })
+  }
+
+  const { NiftyPlugin: AuthNiftyPlugin } = await import(`../plugin/nifty.js?auth-context=${Date.now()}`)
+  const plugin = await AuthNiftyPlugin()
+  const output = await plugin.tool.nifty_auth_exchange_code.execute(
+    { code: "returned-code" },
+    context({ directory: projectDir }),
+  )
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.ok, true)
+  assert.equal(parsed.token_type, "bearer")
+  assert.equal(parsed.scope, "default")
+})
+
 test("workflow config ignores env path and uses project-local config", async () => {
   const envDir = await mkdtemp(join(tmpdir(), "nifty-env-config-"))
   const projectDir = await mkdtemp(join(tmpdir(), "nifty-project-config-"))
@@ -78,6 +129,28 @@ test("workflow config ignores env path and uses project-local config", async () 
 
   assert.equal(parsed.config_path, projectConfig)
   assert.deepEqual(parsed.workflows.map((workflow) => workflow.alias), ["projectAlias"])
+})
+
+test("nifty_health_check reports Ira local Ollama Gemma readiness and install guidance", async () => {
+  process.env.NIFTY_IRA_OLLAMA_BINARY = join(tmpdir(), "missing-ollama-binary")
+
+  globalThis.fetch = async (url) => {
+    const requestURL = new URL(String(url))
+    if (requestURL.pathname === "/api/v1.0/users/me") return Response.json({ id: "u1" })
+    if (requestURL.pathname === "/api/v1.0/projects") return Response.json({ projects: [] })
+    throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
+  }
+
+  const plugin = await NiftyPlugin()
+  const output = await plugin.tool.nifty_health_check.execute({}, context())
+  const parsed = JSON.parse(output)
+
+  assert.equal(parsed.checks.ira.agent_name, "Ira")
+  assert.equal(parsed.checks.ira.model_required, "gemma4:e2b")
+  assert.equal(parsed.checks.ira.ollama.installed, false)
+  assert.equal(parsed.checks.ira.model.installed, false)
+  assert.match(parsed.checks.ira.install.ollama, /ollama/i)
+  assert.match(parsed.checks.ira.install.model, /ollama pull gemma4:e2b/)
 })
 
 test("workflow config can use an explicit tool config path", async () => {
@@ -745,7 +818,7 @@ test("nifty_create_subtask sends parent task id", async () => {
 })
 
 test("nifty_get_task_full_context returns task, comments, subtasks, and project summary", async () => {
-  globalThis.fetch = async (url, options = {}) => {
+  globalThis.fetch = async (url) => {
     const requestURL = new URL(String(url))
 
     if (requestURL.pathname === "/api/v1.0/tasks/t1") {
@@ -1022,19 +1095,20 @@ test("auto context hydration injects full task context metadata", async () => {
     throw new Error(`Unexpected fetch: ${requestURL.pathname}`)
   }
 
-  let metadataPayload
+  const metadataPayloads = []
   const plugin = await NiftyPlugin()
   await plugin.tool.nifty_get_task.execute(
     { task_id: "t1" },
     context({
-      metadata(payload) {
-        metadataPayload = payload
+      metadata(payload, value) {
+        metadataPayloads.push(arguments.length === 2 ? value : payload)
       },
     }),
   )
 
-  assert.equal(metadataPayload?.metadata?.task_context?.task?.id, "t1")
-  assert.equal(metadataPayload?.metadata?.task_context?.comments?.length, 1)
+  const taskMetadata = metadataPayloads.find((payload) => payload?.metadata?.task_context?.task?.id === "t1")
+  assert.equal(taskMetadata?.metadata?.task_context?.task?.id, "t1")
+  assert.equal(taskMetadata?.metadata?.task_context?.comments?.length, 1)
 })
 
 test("nifty_update_task writes configured custom fields", async () => {

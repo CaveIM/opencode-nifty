@@ -1,10 +1,12 @@
+/// <reference path="./bun-test-types.d.ts" />
+
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 const repoRoot = findRepoRoot(import.meta.dir)
 const sharedSkillPath = join(repoRoot, "packages", "shared-skills", "skills", "visual-qa", "SKILL.md")
-const codexSkillPath = join(repoRoot, "packages", "omo-codex", "plugin", "skills", "visual-qa", "SKILL.md")
+const codexSkillPath = join(repoRoot, "packages", "cave-meister-codex", "plugin", "skills", "visual-qa", "SKILL.md")
 
 type PromptFixture = {
 	readonly label: string
@@ -30,10 +32,15 @@ function findRepoRoot(start: string): string {
 }
 
 function fixtures(): readonly PromptFixture[] {
-	return [
-		{ label: "shared skill", text: readPrompt(sharedSkillPath) },
-		{ label: "codex plugin copy", text: readPrompt(codexSkillPath) },
-	]
+  const availableFixtures = [
+    { label: "shared skill", text: readPrompt(sharedSkillPath) },
+  ]
+
+  if (existsSync(codexSkillPath)) {
+    availableFixtures.push({ label: "codex plugin copy", text: readPrompt(codexSkillPath) })
+  }
+
+  return availableFixtures
 }
 
 function sectionBetween(text: string, startMarker: string, endMarker: string): string {

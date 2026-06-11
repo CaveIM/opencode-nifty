@@ -7012,6 +7012,14 @@ var init_supplemental_entries = __esm(() => {
         input: 272000,
         output: 128000
       }
+    },
+    "gemma4:e2b": {
+      id: "gemma4:e2b",
+      family: "gemma",
+      modalities: {
+        input: ["text"],
+        output: ["text"]
+      }
     }
   };
 });

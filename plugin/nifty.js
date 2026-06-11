@@ -43,6 +43,9 @@ const LIFECYCLE_DEFAULT_DEV_REVIEW_KEY = "dev_review"
 const AUTOCONTEXT_DEFAULT_COMMENT_LIMIT = 200
 const AUTOCONTEXT_DEFAULT_TASK_LIMIT = 200
 const RAG_ENABLED_DEFAULT = true
+const IRA_AGENT_NAME = "Ira"
+const IRA_REQUIRED_MODEL = "gemma4:e2b"
+const IRA_DEFAULT_OLLAMA_BINARY = "ollama"
 const AUTOMATION_DEFAULT_EDIT_TOOLS = ["apply_patch", "write", "edit", "patch"]
 const AUTOMATION_DEFAULT_TEST_COMMAND_PATTERNS = [
   "npm test",
@@ -293,7 +296,7 @@ function evaluatePolicy(toolName, args, policy, options = {}) {
 }
 
 /** Load a policy document from env or from a local path. Returns null if disabled. */
-function loadPolicy(context) {
+function loadPolicy() {
   // Inline JSON takes precedence (primarily for tests and CI)
   const inline = process.env.NIFTY_POLICY_INLINE
   if (inline) {
@@ -1815,6 +1818,65 @@ function autoContextTaskLimit(context = {}) {
   return envInteger("NIFTY_AUTOCONTEXT_TASK_LIMIT", AUTOCONTEXT_DEFAULT_TASK_LIMIT, context)
 }
 
+function iraOllamaBinary(context = {}) {
+  return env("NIFTY_IRA_OLLAMA_BINARY", context) || env("OLLAMA_BINARY", context) || IRA_DEFAULT_OLLAMA_BINARY
+}
+
+function iraInstallCommands(platform = process.platform) {
+  const model = `ollama pull ${IRA_REQUIRED_MODEL}`
+  if (platform === "win32") {
+    return {
+      ollama: "winget install Ollama.Ollama",
+      model,
+    }
+  }
+  if (platform === "darwin") {
+    return {
+      ollama: "brew install ollama",
+      model,
+    }
+  }
+  return {
+    ollama: "curl -fsSL https://ollama.com/install.sh | sh",
+    model,
+  }
+}
+
+function runIraCheck(command, args = []) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 5000,
+  })
+}
+
+function iraReadiness(context = {}) {
+  const binary = iraOllamaBinary(context)
+  const version = runIraCheck(binary, ["--version"])
+  const ollamaInstalled = !version.error && version.status === 0
+  const list = ollamaInstalled ? runIraCheck(binary, ["list"]) : null
+  const modelOutput = `${list?.stdout || ""}\n${list?.stderr || ""}`
+  const modelInstalled = Boolean(ollamaInstalled && modelOutput.toLowerCase().includes(IRA_REQUIRED_MODEL.toLowerCase()))
+
+  return {
+    agent_name: IRA_AGENT_NAME,
+    model_required: IRA_REQUIRED_MODEL,
+    model_ref: `ollama/${IRA_REQUIRED_MODEL}`,
+    ready: ollamaInstalled && modelInstalled,
+    ollama: {
+      binary,
+      installed: ollamaInstalled,
+      version: ollamaInstalled ? String(version.stdout || version.stderr || "").trim() || null : null,
+      error: ollamaInstalled ? null : version.error?.message || String(version.stderr || "").trim() || "Ollama is not installed or not on PATH",
+    },
+    model: {
+      installed: modelInstalled,
+      list_available: Boolean(list && !list.error && list.status === 0),
+    },
+    install: iraInstallCommands(),
+  }
+}
+
 function lifecycleAssignSelfEnabled(context = {}) {
   return envBoolean("NIFTY_AUTOPOLICY_ASSIGN_SELF", true, context)
 }
@@ -2163,7 +2225,7 @@ function hasVisualRegressionProof(text = "") {
     || /https?:\/\/\S+/i.test(text)
 }
 
-function assertTaskCommentCodeChangeEvidence({ task_id, text, sections, changed_files, context } = {}) {
+function assertTaskCommentCodeChangeEvidence({ task_id, sections, changed_files, context } = {}) {
   const changedCodeFiles = codeChangedFiles(changedFilesForTaskCommentPolicy({ changed_files, context }))
   if (!changedCodeFiles.length) return
 
@@ -3194,8 +3256,14 @@ async function maybeAutoAssignTask(taskID, task, policyState, context = {}) {
 
 function safeContextMetadata(context, payload) {
   if (!context || typeof context.metadata !== "function") return
+  const compactPayload = {
+    title: payload.title || "Nifty auto context",
+    task_id: payload.task_id || payload.task_context?.task?.id || null,
+    project_id: payload.project_id || payload.task_context?.project?.id || null,
+    context_type: payload.context_type || null,
+  }
   try {
-    context.metadata("nifty:auto_context", payload)
+    context.metadata("nifty:auto_context", compactPayload)
   } catch {}
 
   try {
@@ -3685,7 +3753,7 @@ async function enforceDeliveryLifecyclePolicy(taskID, targetStatus, workflow, de
  * @param {object} policyState
  * @param {Function} [_ragFn] - injectable for tests (bypasses dynamic import)
  */
-async function maybeInjectRagContext(toolName, args, context, policyState, _ragFn) {
+async function maybeInjectRagContext(toolName, args, context, _policyState, _ragFn) {
   if (!envBoolean("NIFTY_RAG_ENABLED", RAG_ENABLED_DEFAULT, context)) return
   try {
     const ragFn = _ragFn ?? (await import("./rag.mjs")).ragContextForTool
@@ -4059,6 +4127,7 @@ const __test = {
   taskParentID,
   checklistSubtasks,
   autoGenerateVisualProof,
+  iraReadiness,
   policyRequired,
   isPolicyManagedMutation,
   resolveAuthNodeBinary,
@@ -4341,7 +4410,7 @@ export const NiftyPlugin = async () => {
           offset: tool.schema.number().int().min(0).optional().describe("Pagination offset"),
           sort: tool.schema.enum(["ascending", "descending"]).optional().describe("Sort order"),
         },
-        async execute(args, context) {
+        async execute(args) {
           const response = await niftyRequest("/api/v1.0/projects", {
             query: cleanObject({
               subteam_id: args.subteam_id,
@@ -4917,6 +4986,7 @@ export const NiftyPlugin = async () => {
               node: process.version,
               node_20_or_newer: Number.parseInt(process.versions.node.split(".")[0] || "0", 10) >= 20,
             },
+            ira: iraReadiness(context),
             rag: null,
             workflows: null,
           }
@@ -4961,6 +5031,7 @@ export const NiftyPlugin = async () => {
               && checks.workflows?.ok !== false
               && (!checks.policy.required || (checks.policy.loaded && !checks.policy.error))
               && checks.runtime.node_20_or_newer
+              && checks.ira.ready
               && (!checks.rag?.required || checks.rag?.ready),
             token_cache: TOKEN_PATH,
             workflow_config: configPath(context),
