@@ -31,6 +31,7 @@ TARGET_AGENTS_FILE="$TARGET_CONFIG_DIR/AGENTS.md"
 TARGET_COMMAND_DIR="$TARGET_CONFIG_DIR/commands"
 TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.json"
 TARGET_SUPPORT_DIR="$TARGET_CONFIG_DIR/cave-meister"
+TARGET_NIFTY_AUTH_FILE="$TARGET_CONFIG_DIR/nifty-auth.json"
 TARGET_ENV_FILE="${NIFTY_ENV_FILE:-$PWD/.nifty.env}"
 if [ -f "$TARGET_CONFIG_DIR/opencode.jsonc" ] && [ ! -f "$TARGET_OPENCODE_CONFIG_FILE" ]; then
   TARGET_OPENCODE_CONFIG_FILE="$TARGET_CONFIG_DIR/opencode.jsonc"
@@ -115,6 +116,32 @@ copy_dir "$SOURCE_ROOT/config" "$TARGET_SUPPORT_DIR/config"
 copy_dir "$SOURCE_ROOT/env" "$TARGET_SUPPORT_DIR/env"
 copy_dir "$SOURCE_ROOT/scripts" "$TARGET_SUPPORT_DIR/scripts"
 rm -f "$LEGACY_NIFTY_PLUGIN_FILE"
+if [ -f "$TARGET_NIFTY_AUTH_FILE" ]; then
+  rm -f "$TARGET_NIFTY_AUTH_FILE"
+  printf 'Removed stale Nifty OAuth token cache at %s; run /nifty-auth after restart.\n' "$TARGET_NIFTY_AUTH_FILE"
+fi
+
+HARDWARE_REPORT_DIR="$TARGET_SUPPORT_DIR/reports"
+HARDWARE_REPORT_PATH="$HARDWARE_REPORT_DIR/ira-gemma-brain-self-improve-report.json"
+mkdir -p "$HARDWARE_REPORT_DIR"
+if node "$TARGET_SUPPORT_DIR/scripts/ira-gemma-brain-self-improve.mjs" --mode hardware-recommendation --output-dir "$HARDWARE_REPORT_DIR" >/dev/null 2>&1; then
+  node --input-type=module -e '
+import { readFileSync } from "node:fs"
+const reportPath = process.argv[1]
+const report = JSON.parse(readFileSync(reportPath, "utf8"))
+const suggestion = report.hardware_recommendation?.suggested_variant || {}
+const variant = suggestion.variant || "unavailable"
+const basis = suggestion.basis || "unavailable"
+const note = basis === "derived_from_weight_size"
+  ? "derived from official Gemma 4 documented weight sizes, no overhead multiplier"
+  : "unavailable: no GPU/VRAM fixture evidence; no system RAM/CPU threshold inferred"
+console.log(`Ira/Gemma Brain hardware recommendation: ${variant} (${note}).`)
+console.log(`Ira/Gemma Brain diagnostic report: ${reportPath}`)
+' "$HARDWARE_REPORT_PATH"
+else
+  printf 'Ira/Gemma Brain hardware recommendation: unavailable (diagnostic could not produce a report; install continues).\n'
+  printf 'Ira/Gemma Brain diagnostic report: %s\n' "$HARDWARE_REPORT_PATH"
+fi
 
 # Create package.json next to plugin for version detection
 node --input-type=module -e '
@@ -252,7 +279,7 @@ if [ ! -f "$TARGET_ENV_FILE" ]; then
 # Nifty OAuth app credentials for Cave Meister. Do not commit this file.
 NIFTY_CLIENT_ID=$NIFTY_DEFAULT_CLIENT_ID
 NIFTY_CLIENT_SECRET=
-NIFTY_AUTHORIZE_URL=$NIFTY_DEFAULT_AUTHORIZE_URL
+NIFTY_AUTHORIZE_URL='$NIFTY_DEFAULT_AUTHORIZE_URL'
 NIFTY_REDIRECT_URI=$NIFTY_DEFAULT_REDIRECT_URI
 
 # Optional
@@ -262,7 +289,9 @@ NIFTY_RAG_ENABLED=true
 EOF
 fi
 
-if command -v npm >/dev/null 2>&1; then
+if [ "${CAVE_MEISTER_SKIP_NPM_INSTALL:-}" = "1" ]; then
+  printf 'Skipped npm install because CAVE_MEISTER_SKIP_NPM_INSTALL=1.\n'
+elif command -v npm >/dev/null 2>&1; then
   (cd "$TARGET_CONFIG_DIR" && npm install >/dev/null)
 else
   printf 'npm not found; install @opencode-ai/plugin, @modelcontextprotocol/sdk, zod, and optional @lancedb/lancedb manually in %s\n' "$TARGET_CONFIG_DIR"

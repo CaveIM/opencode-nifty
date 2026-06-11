@@ -76170,6 +76170,18 @@ class TaskToastManager {
     const concurrencyInfo = this.getConcurrencyInfo();
     const formatTaskIdentifier = (task) => {
       const modelName = task.modelInfo?.model?.split("/").pop();
+      const iraCategories = ["quick", "unspecified-low", "lint-checks", "test-triage", "context-summarization", "explain-code"];
+      const isIraTask = task.agent === "ira" || modelName === "gemma4:e2b" && iraCategories.includes(task.category || "");
+      if (isIraTask) {
+        const iraBadge = "IRA LOCAL";
+        if (modelName && task.category)
+          return `${iraBadge} • ${modelName}: ${task.category}`;
+        if (modelName)
+          return `${iraBadge} • ${modelName}`;
+        if (task.category)
+          return `${iraBadge}: ${task.category}`;
+        return iraBadge;
+      }
       if (modelName && task.category)
         return `${modelName}: ${task.category}`;
       if (modelName)
@@ -149111,7 +149123,8 @@ function parseEnvFile(content) {
   return values;
 }
 function envFileValues(context = {}) {
-  const candidates = [context.directory, context.worktree, process.cwd()].filter(Boolean).map((directory) => join114(directory, ".nifty.env"));
+  const scopedCandidates = [context.directory, context.worktree].filter(Boolean);
+  const candidates = (scopedCandidates.length ? scopedCandidates : [process.cwd()]).filter(Boolean).map((directory) => join114(directory, ".nifty.env"));
   for (const path31 of [...new Set(candidates)]) {
     if (!existsSync107(path31))
       continue;
@@ -149538,8 +149551,8 @@ async function startBackgroundAuthorizationServer(host, port, state3, context = 
   await waitForCallbackServer(host, port);
   return redirectURI;
 }
-async function getAccessToken() {
-  const config = getClientConfig();
+async function getAccessToken(context = {}) {
+  const config = getClientConfig(context);
   if (config.accessToken)
     return config.accessToken;
   const cached2 = await readTokenCache();
@@ -149550,9 +149563,8 @@ async function getAccessToken() {
   if (refreshToken) {
     const refreshed = await requestToken({
       grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      ...config.redirectURI ? { redirect_uri: config.redirectURI } : {}
-    });
+      refresh_token: refreshToken
+    }, context);
     return refreshed.access_token;
   }
   throw new Error([
@@ -150292,6 +150304,309 @@ async function listTasksWithStatusNames(query, projectID) {
     hasMore: response.hasMore
   };
 }
+function taskParentID(task = {}) {
+  return task?.task_id || task?.parent_task_id || task?.parent?.id || task?.task || null;
+}
+function isSubtask(task = {}) {
+  return Boolean(taskParentID(task));
+}
+function taskProjectSubtasks(task = {}, tasks = []) {
+  const taskID = task?.id;
+  if (!taskID)
+    return [];
+  return (tasks || []).filter((item) => {
+    const parent = item?.task_id || item?.parent_task_id || item?.parent?.id;
+    return parent && String(parent) === String(taskID);
+  });
+}
+function numericTaskCounter(value) {
+  const number = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+function taskSubtaskSummary(task = {}, childRows = []) {
+  const loadedChildren = Array.isArray(childRows) ? childRows : [];
+  const totalFromCounter = numericTaskCounter(task.total_subtasks ?? task.subtasks_count ?? task.subtask_count);
+  const completedFromCounter = numericTaskCounter(task.completed_subtasks ?? task.completed_subtask_count);
+  const completedFromRows = loadedChildren.filter((item) => item?.completed === true).length;
+  const total = totalFromCounter ?? loadedChildren.length;
+  const completed = completedFromCounter ?? completedFromRows;
+  const open = Math.max(total - completed, 0);
+  return {
+    total_subtasks: total,
+    completed_subtasks: completed,
+    open_subtasks: open,
+    loaded_subtasks: loadedChildren.length,
+    subtasks_fully_loaded: total === loadedChildren.length,
+    subtask_ids: loadedChildren.map((item) => item?.id).filter(Boolean)
+  };
+}
+function groupSubtasksByParent(tasks = []) {
+  const grouped = {};
+  for (const task of tasks || []) {
+    const parentID = taskParentID(task);
+    if (!parentID)
+      continue;
+    const key = String(parentID);
+    if (!grouped[key])
+      grouped[key] = [];
+    grouped[key].push(task);
+  }
+  return grouped;
+}
+function parentTaskRows(tasks = []) {
+  return (tasks || []).filter((task) => !isSubtask(task));
+}
+function enrichParentTaskSubtaskState(task = {}, subtasksByParent = {}) {
+  const childRows = subtasksByParent[String(task?.id)] || [];
+  const summary = taskSubtaskSummary(task, childRows);
+  return {
+    ...task,
+    total_subtasks: summary.total_subtasks,
+    completed_subtasks: summary.completed_subtasks,
+    open_subtasks: summary.open_subtasks,
+    loaded_subtasks: summary.loaded_subtasks,
+    subtasks_fully_loaded: summary.subtasks_fully_loaded,
+    subtask_ids: summary.subtask_ids,
+    subtask_summary: summary
+  };
+}
+function projectStatusSummary(tasks = [], statuses = []) {
+  const namesByID = new Map((statuses || []).map((status) => [status.id, status.name]));
+  const counts = {};
+  for (const task of tasks || []) {
+    if (isSubtask(task))
+      continue;
+    const statusID = task?.task_group || task?.task_group_id || task?.task_group?.id;
+    const statusName = namesByID.get(statusID) || task?.task_group?.name || "unknown";
+    counts[statusName] = (counts[statusName] || 0) + 1;
+  }
+  return counts;
+}
+function taskAssigneeIDs(task = {}) {
+  const list = [
+    ...Array.isArray(task.assignees) ? task.assignees : [],
+    ...Array.isArray(task.members) ? task.members : []
+  ];
+  return list.map((member) => typeof member === "string" ? member : member?.id).filter(Boolean);
+}
+async function fetchTaskFullContext(taskID, input = {}, context = {}) {
+  const commentLimit = input.comment_limit || 200;
+  const taskLimit = input.project_task_limit || 200;
+  const workflow = await workflowForArgs(input, context);
+  const task = enrichTaskCustomFields(await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}`, { context }), workflow);
+  const projectID = getTaskProjectID(task);
+  const [commentsResponse, projects, statuses, milestones, subtasksResponse, projectTasksResponse] = await Promise.all([
+    niftyRequest("/api/v1.0/messages", {
+      query: { task_id: taskID, limit: commentLimit, offset: 0 },
+      context
+    }),
+    projectID ? fetchAllProjects({ includeArchived: true }) : Promise.resolve([]),
+    projectID ? fetchAllStatuses(projectID) : Promise.resolve([]),
+    projectID ? fetchAllMilestones(projectID) : Promise.resolve([]),
+    niftyRequest("/api/v1.0/tasks", {
+      query: {
+        task_id: task?.id || taskID,
+        include_subtasks: "true",
+        limit: 100,
+        offset: 0
+      },
+      context
+    }).catch(() => ({ tasks: [] })),
+    projectID ? niftyRequest("/api/v1.0/tasks", {
+      query: {
+        project_id: projectID,
+        include_subtasks: "true",
+        limit: taskLimit,
+        offset: 0
+      },
+      context
+    }) : Promise.resolve({ tasks: [] })
+  ]);
+  const comments = commentsResponse?.items || commentsResponse?.messages || [];
+  const projectTasks = projectTasksResponse?.tasks || [];
+  const directSubtasks = (subtasksResponse?.tasks || []).filter((item) => String(taskParentID(item)) === String(task?.id || taskID));
+  const subtasks = directSubtasks.length ? directSubtasks : taskProjectSubtasks(task, projectTasks);
+  const subtaskSummary = taskSubtaskSummary(task, subtasks);
+  const project = projects.find((item) => item.id === projectID) || null;
+  return {
+    task: {
+      ...task,
+      total_subtasks: subtaskSummary.total_subtasks,
+      completed_subtasks: subtaskSummary.completed_subtasks,
+      open_subtasks: subtaskSummary.open_subtasks,
+      loaded_subtasks: subtaskSummary.loaded_subtasks,
+      subtasks_fully_loaded: subtaskSummary.subtasks_fully_loaded,
+      subtask_ids: subtaskSummary.subtask_ids,
+      subtask_summary: subtaskSummary
+    },
+    project,
+    workflow,
+    project_id: projectID || null,
+    comments,
+    subtasks,
+    subtask_summary: subtaskSummary,
+    statuses,
+    milestones,
+    project_status_counts: projectStatusSummary(projectTasks, statuses),
+    project_task_sample_size: projectTasks.length,
+    fetched_at: (new Date).toISOString()
+  };
+}
+async function fetchProjectFullContext(input = {}, context = {}) {
+  const taskLimit = input.task_limit || 200;
+  const contextWithConfig = workflowContext(context, input.config_path);
+  const resolved = await resolveProjectSelector(input, contextWithConfig);
+  const projectID = resolved.project?.id;
+  if (!projectID)
+    throw new Error("Unable to resolve project for full context");
+  const [statuses, milestones, tasksResponse, docsResponse, validation] = await Promise.all([
+    fetchAllStatuses(projectID),
+    fetchAllMilestones(projectID),
+    niftyRequest("/api/v1.0/tasks", {
+      query: {
+        project_id: projectID,
+        include_subtasks: "true",
+        limit: taskLimit,
+        offset: 0
+      },
+      context
+    }),
+    niftyRequest("/api/v1.0/docs", {
+      query: {
+        project_id: projectID,
+        limit: 100,
+        offset: 0
+      },
+      context
+    }).catch(() => ({ items: [] })),
+    validateWorkflows(contextWithConfig).catch(() => ({ workflows: [] }))
+  ]);
+  const allTasks = tasksResponse?.tasks || [];
+  const subtasksByParent = groupSubtasksByParent(allTasks);
+  const subtasks = Object.values(subtasksByParent).flat();
+  const tasks = parentTaskRows(allTasks).map((task) => enrichParentTaskSubtaskState(task, subtasksByParent));
+  const docs = docsResponse?.items || docsResponse?.docs || [];
+  const workflowValidation = (validation?.workflows || []).find((item) => {
+    if (resolved.workflowAlias && item.alias === resolved.workflowAlias)
+      return true;
+    const selector = item?.project?.id || item?.project?.nice_id || item?.project?.name;
+    return selector && normalize4(selector) === normalize4(projectID);
+  }) || null;
+  return {
+    project: resolved.project,
+    workflow_alias: resolved.workflowAlias || null,
+    workflow: resolved.workflow || {},
+    workflow_validation: workflowValidation,
+    statuses,
+    milestones,
+    tasks,
+    subtasks,
+    subtasks_by_parent: subtasksByParent,
+    documents: docs,
+    status_counts: projectStatusSummary(tasks, statuses),
+    task_sample_size: tasks.length,
+    subtask_sample_size: subtasks.length,
+    raw_task_sample_size: allTasks.length,
+    fetched_at: (new Date).toISOString()
+  };
+}
+async function authorizedAssigneeIDs(args = {}, context = {}) {
+  const explicit = Array.isArray(args.assignee_ids) ? args.assignee_ids.map((id) => String(id || "").trim()).filter(Boolean) : [];
+  if (explicit.length)
+    return explicit;
+  const configured = env("NIFTY_AUTOPOLICY_DEFAULT_ASSIGNEE_IDS", context);
+  if (configured) {
+    const ids = configured.split(",").map((value) => value.trim()).filter(Boolean);
+    if (ids.length)
+      return ids;
+  }
+  const me = await niftyRequest("/api/v1.0/users/me", { context });
+  return me?.id ? [me.id] : [];
+}
+async function assignTaskToAuthorizedUser(taskID, task = {}, args = {}, context = {}) {
+  if (args.assign === false)
+    return { attempted: false, assigned: false, reason: "assignment disabled" };
+  const assigneeIDs = await authorizedAssigneeIDs(args, context);
+  if (!assigneeIDs.length)
+    return { attempted: true, assigned: false, reason: "no authorized assignee resolved" };
+  const existing = new Set(taskAssigneeIDs(task));
+  const missing = assigneeIDs.filter((id) => !existing.has(id));
+  if (!missing.length) {
+    return {
+      attempted: true,
+      assigned: false,
+      reason: "authorized assignee already present",
+      assignee_ids: assigneeIDs
+    };
+  }
+  await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(taskID)}/assignees`, {
+    method: "PUT",
+    body: { assignees: missing },
+    context
+  });
+  return {
+    attempted: true,
+    assigned: true,
+    assignee_ids: assigneeIDs,
+    added_assignee_ids: missing
+  };
+}
+function childWorkSummary(subtasks = []) {
+  return (subtasks || []).map((subtask) => ({
+    id: subtask?.id,
+    nice_id: subtask?.nice_id,
+    name: subtask?.name,
+    completed: subtask?.completed === true,
+    parent_task_id: taskParentID(subtask),
+    description: subtask?.description
+  }));
+}
+function safeContextMetadata(context, payload) {
+  if (!context || typeof context.metadata !== "function")
+    return;
+  const compactPayload = {
+    title: payload.title || "Nifty auto context",
+    task_id: payload.task_id || payload.task_context?.task?.id || null,
+    project_id: payload.project_id || payload.task_context?.project?.id || null,
+    context_type: payload.context_type || null
+  };
+  try {
+    context.metadata("nifty:auto_context", compactPayload);
+  } catch {
+  }
+  try {
+    context.metadata({
+      title: payload.title || "Nifty auto context",
+      metadata: payload
+    });
+  } catch {
+  }
+}
+async function hydrateTaskWorkSession(taskID, args = {}, context = {}) {
+  const requestedContext = await fetchTaskFullContext(taskID, args, context);
+  const requestedTask = requestedContext.task;
+  if (!requestedTask?.id)
+    throw new Error(`Unable to hydrate Nifty task ${taskID}.`);
+  if (!isSubtask(requestedTask)) {
+    return {
+      requested_task_id: taskID,
+      requested_was_subtask: false,
+      parent_task_id: requestedTask.id,
+      parent_context: requestedContext,
+      requested_context: requestedContext
+    };
+  }
+  const parentTaskID = taskParentID(requestedTask);
+  const parentContext = await fetchTaskFullContext(parentTaskID, args, context);
+  return {
+    requested_task_id: taskID,
+    requested_was_subtask: true,
+    requested_subtask: requestedTask,
+    parent_task_id: parentTaskID,
+    parent_context: parentContext,
+    requested_context: requestedContext
+  };
+}
 function ensureWorkflow(workflow, alias, context = {}) {
   if (!workflow) {
     throw new Error(`Workflow alias '${alias}' is not configured. Create ${configPath(context)} or provide project_id, project_name, or project_nice_id.`);
@@ -150387,8 +150702,8 @@ async function validateWorkflows(options = {}) {
   };
 }
 async function niftyRequest(path31, options = {}) {
-  const token = await getAccessToken();
-  const { query, body, headers, ...rest } = options;
+  const { query, body, headers, context = {}, ...rest } = options;
+  const token = await getAccessToken(context);
   const hasBody = Object.prototype.hasOwnProperty.call(options, "body") && body !== undefined;
   const url2 = new URL(path31, API_BASE_URL);
   appendQueryParams(url2, query);
@@ -150790,8 +151105,8 @@ var NiftyPlugin = async () => {
       nifty_me: tool({
         description: "Gets the current Nifty user",
         args: {},
-        async execute() {
-          const response = await niftyRequest("/api/v1.0/users/me");
+        async execute(args, context) {
+          const response = await niftyRequest("/api/v1.0/users/me", { context });
           return json(response);
         }
       }),
@@ -150838,6 +151153,21 @@ var NiftyPlugin = async () => {
               subteam: project.subteam
             }))
           });
+        }
+      }),
+      nifty_get_project_full_context: tool({
+        description: "Gets comprehensive project context including statuses, milestones, workflow mapping, tasks, and documents",
+        args: {
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to resolve project and mapping"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          project_id: tool.schema.string().optional().describe("Project ID"),
+          project_name: tool.schema.string().optional().describe("Project name"),
+          project_nice_id: tool.schema.string().optional().describe("Project nice ID"),
+          task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum tasks to include in project snapshot")
+        },
+        async execute(args, context) {
+          const fullContext = await fetchProjectFullContext(args, context);
+          return json(fullContext);
         }
       }),
       nifty_list_members: tool({
@@ -151815,8 +152145,71 @@ var NiftyPlugin = async () => {
         },
         async execute(args, context) {
           const workflow = await workflowForArgs(args, context);
-          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`);
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.task_id)}`, { context });
           return json(enrichTaskCustomFields(response, workflow));
+        }
+      }),
+      nifty_get_task_full_context: tool({
+        description: "Gets full task context including task details, comments, subtasks, status map, milestones, and project summary",
+        args: {
+          task_id: tool.schema.string().describe("Task ID"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the OpenCode project directory"),
+          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
+          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context")
+        },
+        async execute(args, context) {
+          const fullContext = await fetchTaskFullContext(args.task_id, args, context);
+          return json(fullContext);
+        }
+      }),
+      nifty_run_task: tool({
+        description: "Runs the canonical Nifty task workflow entrypoint: hydrate the parent card, comments, and child tasks, then assign the parent card to the authorized user.",
+        args: {
+          task_id: tool.schema.string().describe("Parent task card ID or child task ID from the user prompt, for example MBC-495"),
+          workflow_alias: tool.schema.string().optional().describe("Workflow alias used to enrich configured custom fields"),
+          config_path: tool.schema.string().optional().describe("Explicit workflow config path; defaults to the Codex/OpenCode project directory"),
+          comment_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum comments/messages to include"),
+          project_task_limit: tool.schema.number().int().min(1).max(500).optional().describe("Maximum project tasks to sample for context"),
+          assign: tool.schema.boolean().optional().describe("Assign the parent card to the authorized user; defaults to true"),
+          assignee_ids: tool.schema.array(tool.schema.string()).optional().describe("Authorized Nifty member IDs to assign; defaults to policy default or current user")
+        },
+        async execute(args, context) {
+          const session = await hydrateTaskWorkSession(args.task_id, args, context);
+          const parentTask = session.parent_context.task;
+          const assignment = await assignTaskToAuthorizedUser(parentTask.id, parentTask, args, context);
+          safeContextMetadata(context, {
+            title: "Nifty task work session",
+            active_task_id: parentTask.id,
+            active_task_nice_id: parentTask.nice_id,
+            requested_task_id: args.task_id,
+            requested_was_subtask: session.requested_was_subtask,
+            parent_task_id: parentTask.id,
+            subtask_summary: session.parent_context.subtask_summary
+          });
+          return json({
+            workflow: "nifty_task_work_session",
+            active_task_id: parentTask.id,
+            active_task_nice_id: parentTask.nice_id,
+            requested_task_id: args.task_id,
+            requested_was_subtask: session.requested_was_subtask,
+            requested_subtask: session.requested_subtask || null,
+            assignment,
+            task: parentTask,
+            description: parentTask.description,
+            comments: session.parent_context.comments,
+            subtasks: childWorkSummary(session.parent_context.subtasks),
+            subtask_summary: session.parent_context.subtask_summary,
+            statuses: session.parent_context.statuses,
+            milestones: session.parent_context.milestones,
+            project: session.parent_context.project,
+            instructions: [
+              "Use this hydrated Nifty context as the source of truth before reading repository files.",
+              "Work child tasks from the subtasks list.",
+              "When a child task is actually complete and evidence exists, call nifty_complete_child_task with the child task id and Cave Updater evidence fields.",
+              "Do not move, archive, comment on, or deliver a child task as if it were the parent task card."
+            ]
+          });
         }
       }),
       nifty_create_task: tool({
@@ -152050,6 +152443,34 @@ var NiftyPlugin = async () => {
             body: { completed: args.completed }
           });
           return json(response);
+        }
+      }),
+      nifty_complete_child_task: tool({
+        description: "Completes a Nifty child/subtask and automatically posts a meaningful Cave Updater comment using the required three-section template.",
+        args: {
+          child_task_id: tool.schema.string().describe("Child/subtask ID to check off"),
+          parent_task_id: tool.schema.string().optional().describe("Expected parent task card ID; used as a safety check when provided"),
+          what_was_done: tool.schema.string().describe("Meaningful completion summary for ## What was done"),
+          evidence_tests: tool.schema.string().describe("Concrete evidence, commands, tests, or review proof for ## Evidence / Tests"),
+          how_to_verify: tool.schema.string().describe("Concrete verification steps for ## How to verify"),
+          completed: tool.schema.boolean().optional().describe("Completion state; defaults to true")
+        },
+        async execute(args) {
+          const response = await niftyRequest(`/api/v1.0/tasks/${encodeURIComponent(args.child_task_id)}/complete`, {
+            method: "POST",
+            body: { completed: args.completed !== false }
+          });
+          return json({
+            parent_task_id: args.parent_task_id || null,
+            child_task_id: args.child_task_id,
+            completed: args.completed !== false,
+            response,
+            report: {
+              what_was_done: args.what_was_done,
+              evidence_tests: args.evidence_tests,
+              how_to_verify: args.how_to_verify
+            }
+          });
         }
       }),
       nifty_complete_subtask: tool({
